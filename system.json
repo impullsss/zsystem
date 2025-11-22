@@ -1,0 +1,136 @@
+{
+  "id": "zsystem",
+  "title": "ZSystem (Dead State RPG)",
+  "description": "Survival RPG system.",
+  "version": "0.2.2",
+  "compatibility": { "minimum": 13, "verified": 13 },
+  "authors": [{ "name": "ZSystem Dev", "url": "" }],
+
+  "esmodules": ["dist/zsystem.js"],
+
+  "styles": ["styles/system-styles.css"],
+
+  "documentTypes": {
+    "Actor": {
+      "survivor": {},
+      "npc": {}
+    },
+    "Item": {
+      "weapon": {},
+      "armor": {},
+      "consumable": {},
+      "resource": {},
+      "medicine": {},
+      "food": {},
+      "materials": {},
+      "luxury": {},
+      "misc": {}
+    }
+  },
+
+  "template": {
+    "Actor": {
+      "types": ["survivor", "npc"],
+      "attributes": {
+        "str": { "value": 1, "min": 1, "max": 10 },
+        "agi": { "value": 1, "min": 1, "max": 10 },
+        "vig": { "value": 1, "min": 1, "max": 10 },
+        "per": { "value": 1, "min": 1, "max": 10 },
+        "cha": { "value": 1, "min": 1, "max": 10 },
+        "int": { "value": 1, "min": 1, "max": 10 }
+      },
+      "resources": {
+        "hp": { "value": 10, "max": 10, "min": 0 },
+        "ap": { "value": 7, "max": 7, "min": 0 },
+        "morale": { "value": 10, "max": 100 },
+        "reputation": { "value": 0 },
+        "learningPoints": { "value": 0 }
+      },
+      "secondary": {
+        "bravery": { "value": 0 },
+        "tenacity": { "value": 0 },
+        "evasion": { "value": 0 },
+        "carryWeight": { "value": 0, "max": 50 },
+        "infection": { "value": 0, "max": 100 }
+      },
+      "skills": {
+        "melee": { "value": 0, "base": 0, "points": 0 },
+        "ranged": { "value": 0, "base": 0, "points": 0 },
+        "science": { "value": 0, "base": 0, "points": 0 },
+        "mechanical": { "value": 0, "base": 0, "points": 0 },
+        "medical": { "value": 0, "base": 0, "points": 0 },
+        "diplomacy": { "value": 0, "base": 0, "points": 0 },
+        "leadership": { "value": 0, "base": 0, "points": 0 },
+        "survival": { "value": 0, "base": 0, "points": 0 },
+        "athletics": { "value": 0, "base": 0, "points": 0 },
+        "stealth": { "value": 0, "base": 0, "points": 0 }
+      },
+      "limbs": {
+        "head": { "value": 10, "max": 10, "label": "Голова" },
+        "torso": { "value": 30, "max": 30, "label": "Торс" },
+        "lArm": { "value": 10, "max": 10, "label": "Л. Рука" },
+        "rArm": { "value": 10, "max": 10, "label": "П. Рука" },
+        "lLeg": { "value": 10, "max": 10, "label": "Л. Нога" },
+        "rLeg": { "value": 10, "max": 10, "label": "П. Нога" }
+      }
+    },
+    "Item": {
+      "types": [
+        "weapon", "armor", "consumable", "resource", 
+        "medicine", "food", "materials", "luxury", "misc"
+      ],
+      "templates": {
+        "base": {
+          "weight": 0,
+          "quantity": 1,
+          "description": "",
+          "category": "misc" 
+        }
+      },
+      "weapon": {
+        "templates": ["base"],
+        "hands": "1h",
+        "weaponType": "melee",
+        "noise": 0,
+        "ammoType": "",
+        "mag": 0,
+        "range": 1,
+        "attacks": {} 
+      },
+      "armor": {
+        "templates": ["base"],
+        "ac": 0,
+        "dr": {
+          "blunt": 0,
+          "slashing": 0,
+          "piercing": 0,
+          "ballistic": 0,
+          "fire": 0
+        },
+        "coverage": {
+          "head": false,
+          "torso": true,
+          "lArm": false,
+          "rArm": false,
+          "lLeg": false,
+          "rLeg": false
+        },
+        "penalties": {
+          "dex": 0,
+          "move": 0,
+          "noise": 0
+        }
+      },
+      "medicine": { "templates": ["base"] },
+      "food": { "templates": ["base"] },
+      "materials": { "templates": ["base"] },
+      "luxury": { "templates": ["base"] },
+      "resource": { "templates": ["base"] },
+      "consumable": { "templates": ["base"] },
+      "misc": { "templates": ["base"] }
+    }
+  },
+  "grid": { "distance": 1, "units": "m" },
+  "primaryTokenAttribute": "resources.hp",
+  "secondaryTokenAttribute": "resources.ap"
+}

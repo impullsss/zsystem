@@ -1,0 +1,19 @@
+{
+  "name": "zsystem",
+  "version": "0.0.1",
+  "description": "ZSystem — Dead State style Foundry VTT system",
+  "main": "dist/zsystem.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "author": "Nikita",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "@rollup/plugin-commonjs": "^24.0.0",
+    "rollup": "^3.29.0",
+    "rimraf": "^5.0.0"
+  }
+}

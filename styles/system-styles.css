@@ -1,0 +1,249 @@
+.zsystem.sheet.actor {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+.zsystem-actor-sheet .sheet-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
+.zsystem-actor-sheet .resources {
+  display:flex;
+  gap:12px;
+}
+.resource-line {
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+button.ap-decrease, button.ap-increase, button.ap-reset {
+  cursor:pointer;
+  padding:2px 6px;
+  margin-left:6px;
+}
+.sheet-tabs {
+  display:flex;
+  gap:8px;
+  margin:8px 0;
+}
+.sheet-tabs .item.active { font-weight:bold; }
+.sheet-body .tab { padding:8px; border-top:1px solid #333; }
+.skills .skill { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+.inventory-placeholder { color: #999; font-style: italic; }
+
+/* Основной стиль листа (уже был у тебя, добавь это ниже) */
+
+/* --- CHAT CARD / SLOT MACHINE STYLES --- */
+
+.zsystem-actor-sheet .sheet-header { display: flex; align-items: center; margin-bottom: 10px; }
+.zsystem-actor-sheet .profile-img { flex: 0 0 100px; height: 100px; margin-right: 10px; border: 1px solid #333; }
+.zsystem-actor-sheet .header-fields { flex: 1; }
+.zsystem-actor-sheet .charname input { width: 100%; height: 40px; font-size: 24px; margin-bottom: 5px; border: none; border-bottom: 1px solid #333; background: transparent; }
+.zsystem-actor-sheet .resources { display: grid; gap: 5px; grid-template-columns: repeat(4, 1fr); }
+.resource-content { display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.05); border-radius: 4px; padding: 2px; }
+.resource-content input { width: 40px; text-align: center; border: none; background: transparent; }
+.sheet-tabs { flex: 0 0 30px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 10px 0; display: flex; align-items: center; justify-content: center; }
+.sheet-tabs .item { padding: 5px 10px; font-weight: bold; cursor: pointer; }
+.sheet-tabs .item.active { text-shadow: 0 0 5px red; color: red; border-bottom: 2px solid red; }
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.flexrow { display: flex; }
+
+/* --- ЧАТ & СЛОТ-МАШИНА --- */
+.z-chat-card {
+  background: #222;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 10px;
+  color: #eee;
+  font-family: "Roboto", sans-serif;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.z-card-header {
+  font-weight: bold;
+  font-size: 1.2em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #555;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+  color: #ffb74d; /* Orange */
+}
+
+.z-card-sub { font-size: 0.85em; color: #aaa; margin-bottom: 10px; }
+
+/* Окно слотов */
+.z-slot-machine {
+  background: #000;
+  padding: 8px;
+  border-radius: 6px;
+  border: 2px solid #444;
+  box-shadow: inset 0 0 10px #000;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.z-reel-window {
+  width: 80px;
+  height: 60px;
+  background: linear-gradient(to bottom, #000 0%, #333 50%, #000 100%);
+  border: 2px solid #666;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Анимация цифры */
+.z-reel-spin {
+  font-family: "Courier New", monospace;
+  font-size: 2.5em;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 5px rgba(255,255,255,0.5);
+  
+  /* Время вращения: 1s */
+  animation: slot-spin 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transform: translateY(-100px);
+  filter: blur(5px);
+}
+
+.z-result-label, .z-damage-box {
+  opacity: 0; /* Скрыто */
+  /* Анимация появления: Fade In */
+  animation: fade-in-result 0.2s ease forwards;
+  /* Задержка: 1s (кручение) + 0.5s (пауза) = 1.5s */
+  animation-delay: 0.5s;
+}
+@keyframes fade-in-result {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.z-reel-spin.success { color: #66bb6a; text-shadow: 0 0 10px #66bb6a; }
+.z-reel-spin.failure { color: #ef5350; text-shadow: 0 0 10px #ef5350; }
+.z-result-label.success { color: #66bb6a; }
+.z-result-label.failure { color: #ef5350; }
+
+@keyframes slot-spin {
+  0% { transform: translateY(-150px); filter: blur(10px); }
+  60% { transform: translateY(20px); filter: blur(2px); }
+  100% { transform: translateY(0); filter: blur(0); }
+}
+
+.z-result-label { font-weight: bold; font-size: 1.2em; letter-spacing: 1px; text-transform: uppercase; margin-top: 5px; }
+
+/* Урон */
+.z-damage-box { margin-top: 10px; border-top: 1px dashed #555; padding-top: 5px; }
+.dmg-label { font-size: 0.8em; color: #888; }
+.dmg-val { font-size: 1.6em; color: #ff5252; font-weight: bold; margin-top: 2px; }
+
+.z-ap-spent { font-size: 0.75em; color: #888; margin-top: 8px; text-align: right; }
+
+.effect-controls .effect-control {
+  color: #444;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.effect-controls .effect-control:hover {
+  color: #d32f2f; /* Red highlight on hover */
+}
+.effect-item img {
+  border: 1px solid #999;
+  border-radius: 4px;
+}
+
+.body-chart-container {
+  position: relative;
+  width: 200px;
+  height: 300px;
+  margin: 0 auto 20px auto;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.limb-shape {
+  fill: #333;
+  stroke: #666;
+  stroke-width: 2;
+  transition: fill 0.3s;
+}
+
+.limb-zone:hover .limb-shape {
+  fill: #555;
+  stroke: #ffb74d;
+  cursor: pointer;
+}
+
+.limb-label {
+  font-size: 10px;
+  fill: #fff;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.limb-input {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
+  pointer-events: auto;
+  text-shadow: 0 0 3px black;
+}
+
+.limb-input input {
+  width: 30px;
+  height: 18px;
+  font-size: 12px;
+  text-align: center;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid #555;
+  color: #fff;
+}
+
+.limb-input span {
+  font-size: 10px;
+  color: #ccc;
+}
+
+/* Стили для таблицы атак в предмете */
+.attacks-table .attack-header {
+    font-weight: bold;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    color: #555;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 2px;
+}
+
+.attacks-table input {
+    height: 24px;
+    font-size: 0.9em;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(255,255,255,0.5);
+}
+
+.attacks-table input:focus {
+    background: #fff;
+    border-color: #ffb74d;
+}
+
+.attack-delete {
+    color: #aaa;
+    cursor: pointer;
+}
+.attack-delete:hover { color: red; }
+
+.checkbox-sub {
+    font-size: 0.8em;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
