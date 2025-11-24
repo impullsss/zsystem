@@ -588,3 +588,58 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
 }
 /* Скорректируем положение инпутов, так как высота контейнера изменилась */
 /* (Координаты top/left в HTML могут требовать микро-подгонки) */
+
+.z-injury-alert {
+    margin-top: 8px;
+    background: #d32f2f;
+    color: #fff;
+    padding: 5px;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+    border-radius: 4px;
+    animation: pulse-injury 1s infinite alternate;
+}
+
+@keyframes pulse-injury {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
+}
+
+/* Стиль для метки бонуса */
+.ap-bonus-label {
+  text-align: center;
+  font-size: 10px;
+  color: #ccc;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Стиль для инпута бонуса */
+.ap-bonus-input {
+  width: 26px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.3); /* Темный полупрозрачный фон */
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #fff;
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.ap-bonus-input:focus {
+  border-color: #ffb74d;
+  box-shadow: 0 0 3px #ffb74d;
+  outline: none;
+}
+
+/* Скрываем стрелочки в хроме */
+.ap-bonus-input::-webkit-outer-spin-button,
+.ap-bonus-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

@@ -5,6 +5,7 @@
       <h1 class="charname"><input name="name" type="text" value="{{actor.name}}" placeholder="Имя"/></h1>
       
       <div class="resources grid grid-2col">
+        <!-- HP -->
         <div class="resource">
           <label class="resource-label">Здоровье (HP)</label>
           <div class="resource-content">
@@ -13,6 +14,8 @@
             <input type="number" name="system.resources.hp.max" value="{{system.resources.hp.max}}" disabled/>
           </div>
         </div>
+        
+        <!-- AP (С полем бонуса) -->
         <div class="resource">
           <label class="resource-label">ОД (AP)</label>
           <div class="resource-content">
@@ -20,6 +23,11 @@
             <span> / </span>
             <input type="number" name="system.resources.ap.max" value="{{system.resources.ap.max}}" disabled/>
              <a class="ap-reset" title="Восстановить AP"><i class="fas fa-sync"></i></a>
+          </div>
+          
+          <!-- Поле бонуса с новыми стилями -->
+          <div class="ap-bonus-label">
+              Бонус: <input type="number" class="ap-bonus-input" name="system.resources.ap.bonus" value="{{system.resources.ap.bonus}}"/>
           </div>
         </div>
       </div>
@@ -57,15 +65,63 @@
     <div class="tab attributes" data-group="primary" data-tab="attributes">
       <div class="main-grid">
         
-        <!-- ХАРАКТЕРИСТИКИ (РУССКИЙ ХАРДКОД) -->
+        <!-- ХАРАКТЕРИСТИКИ (РУЧНАЯ ВЕРСТКА НА РУССКОМ) -->
         <div class="stats-panel">
           <h3>Характеристики</h3>
-          <div class="stat-row flexrow"><label>Сила</label><input type="number" name="system.attributes.str.value" value="{{system.attributes.str.value}}" min="1" max="10"/></div>
-          <div class="stat-row flexrow"><label>Ловкость</label><input type="number" name="system.attributes.agi.value" value="{{system.attributes.agi.value}}" min="1" max="10"/></div>
-          <div class="stat-row flexrow"><label>Живучесть</label><input type="number" name="system.attributes.vig.value" value="{{system.attributes.vig.value}}" min="1" max="10"/></div>
-          <div class="stat-row flexrow"><label>Восприятие</label><input type="number" name="system.attributes.per.value" value="{{system.attributes.per.value}}" min="1" max="10"/></div>
-          <div class="stat-row flexrow"><label>Интеллект</label><input type="number" name="system.attributes.int.value" value="{{system.attributes.int.value}}" min="1" max="10"/></div>
-          <div class="stat-row flexrow"><label>Харизма</label><input type="number" name="system.attributes.cha.value" value="{{system.attributes.cha.value}}" min="1" max="10"/></div>
+          <div class="flexrow stat-header" style="font-size:0.8em; color:#666; margin-bottom:2px;">
+              <span style="flex:2"></span>
+              <span style="flex:1; text-align:center;">База</span>
+              <span style="flex:1; text-align:center;">Мод</span>
+              <span style="flex:1; text-align:center;">Итог</span>
+          </div>
+
+          <!-- СИЛА -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">СИЛА</label>
+            <input type="number" name="system.attributes.str.base" value="{{system.attributes.str.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.str.mod 0)}}green{{else}}{{#if (lt system.attributes.str.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.str.mod 0)}}+{{/if}}{{system.attributes.str.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.str.value}}</span>
+          </div>
+
+          <!-- ЛОВКОСТЬ -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">ЛОВКОСТЬ</label>
+            <input type="number" name="system.attributes.agi.base" value="{{system.attributes.agi.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.agi.mod 0)}}green{{else}}{{#if (lt system.attributes.agi.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.agi.mod 0)}}+{{/if}}{{system.attributes.agi.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.agi.value}}</span>
+          </div>
+
+          <!-- ЖИВУЧЕСТЬ -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">ЖИВУЧЕСТЬ</label>
+            <input type="number" name="system.attributes.vig.base" value="{{system.attributes.vig.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.vig.mod 0)}}green{{else}}{{#if (lt system.attributes.vig.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.vig.mod 0)}}+{{/if}}{{system.attributes.vig.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.vig.value}}</span>
+          </div>
+
+          <!-- ВОСПРИЯТИЕ -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">ВОСПРИЯТИЕ</label>
+            <input type="number" name="system.attributes.per.base" value="{{system.attributes.per.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.per.mod 0)}}green{{else}}{{#if (lt system.attributes.per.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.per.mod 0)}}+{{/if}}{{system.attributes.per.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.per.value}}</span>
+          </div>
+
+          <!-- ИНТЕЛЛЕКТ -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">ИНТЕЛЛЕКТ</label>
+            <input type="number" name="system.attributes.int.base" value="{{system.attributes.int.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.int.mod 0)}}green{{else}}{{#if (lt system.attributes.int.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.int.mod 0)}}+{{/if}}{{system.attributes.int.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.int.value}}</span>
+          </div>
+
+          <!-- ХАРИЗМА -->
+          <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
+            <label style="flex:2; font-weight:bold;">ХАРИЗМА</label>
+            <input type="number" name="system.attributes.cha.base" value="{{system.attributes.cha.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
+            <span class="stat-mod" style="flex:1; text-align:center; color: {{#if (gt system.attributes.cha.mod 0)}}green{{else}}{{#if (lt system.attributes.cha.mod 0)}}red{{else}}gray{{/if}}{{/if}};">{{#if (gt system.attributes.cha.mod 0)}}+{{/if}}{{system.attributes.cha.mod}}</span>
+            <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{system.attributes.cha.value}}</span>
+          </div>
 
           <div style="text-align:right; font-size:0.8em; color:gray; margin-bottom:5px;">
               Потрачено (Статы): <b>{{system.secondary.spentStats.value}}</b>
@@ -80,7 +136,7 @@
 
         <div class="body-panel"></div>
 
-        <!-- НАВЫКИ (РУССКИЙ ХАРДКОД) -->
+        <!-- НАВЫКИ -->
         <div class="skills-panel">
           <div class="flexrow" style="justify-content:space-between; align-items:center;">
               <h3>Навыки</h3>
@@ -112,8 +168,6 @@
         <a class="item-create" data-type="food"><i class="fas fa-plus"></i> Еда</a>
         <a class="item-create" data-type="misc"><i class="fas fa-plus"></i> Разное</a>
       </div>
-      
-      <!-- (Остальной код списка предметов оставляем как был) -->
       <ol class="items-list">
         {{#each inventory as |section key|}}
           <li class="item-header flexrow" style="background:#ddd; padding:5px; font-weight:bold;">
@@ -128,7 +182,6 @@
               <div class="item-image" style="margin-right:5px;"><img src="{{item.img}}" width="24" height="24"/></div>
               <h4 class="item-name item-edit clickable" style="margin:0;">
                   {{item.name}}
-                  <!-- Патроны в оружии -->
                   {{#if (and (eq item.type "weapon") (gt item.system.mag.max 0))}}
                     <span style="font-size:0.8em; color:grey;">({{item.system.mag.value}}/{{item.system.mag.max}})</span>
                   {{/if}}
@@ -161,7 +214,6 @@
     </div>
 
     <div class="tab effects" data-group="primary" data-tab="effects">
-        <!-- (Код эффектов прежний) -->
         <div class="effects-header flexrow" style="margin-bottom:10px;">
             <h3>Активные Эффекты</h3>
             <a class="effect-control" data-action="create"><i class="fas fa-plus"></i></a>

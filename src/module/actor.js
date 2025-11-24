@@ -1,71 +1,97 @@
 import * as Dice from "./dice.js";
+import { INJURY_EFFECTS } from "./constants.js"; 
 
 export class ZActor extends Actor {
   
+  /** 
+   * Шаг 1: Подготовка базовых данных (ДО Эффектов)
+   * Сбрасываем временные поля, чтобы эффекты могли наложиться чисто.
+   */
+  prepareBaseData() {
+    const system = this.system;
+    if (!system.attributes) return;
+
+    // 1. Атрибуты: Сбрасываем Итог к Базе
+    const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
+    attrKeys.forEach(key => {
+        const attr = system.attributes[key];
+        if (!attr) return;
+        if (attr.base === undefined) attr.base = attr.value || 1;
+        attr.value = Number(attr.base) || 1;
+        attr.mod = 0; 
+    });
+
+    // 2. AP: Сбрасываем накопитель эффектов в 0
+    // Если у актера еще нет этого поля (старая версия), создаем его
+    if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
+    if (system.resources.ap.effect === undefined) system.resources.ap.effect = 0;
+    
+    // Мы принудительно ставим 0. 
+    // Потом Foundry наложит Active Effects (например -2), и в этом поле станет -2.
+    system.resources.ap.effect = 0;
+  }
+
   prepareData() {
     super.prepareData();
   }
 
+  /** 
+   * Шаг 3: Расчет производных данных (ПОСЛЕ Эффектов)
+   */
   prepareDerivedData() {
     const actorData = this;
     const system = actorData.system;
 
-    // УБРАЛ: if (!system.attributes...) return; 
-    // Мы должны идти дальше, чтобы СОЗДАТЬ эти атрибуты, если их нет!
+    // --- АВТО-ПОЧИНКА ---
+    if (!system.resources) system.resources = {};
+    if (!system.secondary) system.secondary = {};
+    if (!system.skills) system.skills = {};
+    if (!system.limbs) system.limbs = {};
 
     const getNum = (val) => {
         const n = Number(val);
         return isNaN(n) ? 0 : n;
     };
 
-    // --- 1. АВТО-ПОЧИНКА И ИНИЦИАЛИЗАЦИЯ ---
-    if (!system.attributes) system.attributes = {};
-    if (!system.resources) system.resources = {};
-    if (!system.secondary) system.secondary = {};
-    if (!system.skills) system.skills = {};
-    if (!system.limbs) system.limbs = {}; // Важно для схемы тела
-
-    // Инициализация Атрибутов
-    const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
+    // 1. Атрибуты (Модификаторы)
     let spentStats = 0;
+    const s = {}; 
 
+    const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
     attrKeys.forEach(key => {
-        if (!system.attributes[key]) system.attributes[key] = { value: 1 };
-        // Ограничиваем 1-10
-        const val = Math.min(10, Math.max(1, getNum(system.attributes[key].value) || 1));
-        system.attributes[key].value = val;
-        spentStats += (val - 1);
+        const attr = system.attributes[key];
+        if (!attr) return;
+        attr.value = Math.max(1, Math.min(10, attr.value));
+        attr.mod = attr.value - attr.base;
+        spentStats += (attr.base - 1);
+        s[key] = attr.value; 
     });
 
-    // Сохраняем потраченные очки
     if (!system.secondary.spentStats) system.secondary.spentStats = { value: 0 };
     system.secondary.spentStats.value = spentStats;
 
-    // Удобные ссылки
-    const s = {
-      str: system.attributes.str.value,
-      agi: system.attributes.agi.value,
-      vig: system.attributes.vig.value,
-      per: system.attributes.per.value,
-      int: system.attributes.int.value,
-      cha: system.attributes.cha.value
-    };
 
     // --- 2. ВТОРИЧНЫЕ ХАРАКТЕРИСТИКИ ---
     
-    // HP: 70 + (Vig-1)*10
+    // HP
     if (!system.resources.hp) system.resources.hp = { value: 70, max: 70 };
     system.resources.hp.max = 70 + (s.vig - 1) * 10;
 
-    // AP: 7 + ceil((Agi-1)/2)
-    if (!system.resources.ap) system.resources.ap = { value: 7, max: 7 };
-    system.resources.ap.max = 7 + Math.ceil((s.agi - 1) / 2);
+    // AP (ОЧКИ ДЕЙСТВИЯ)
+    // База от Ловкости
+    const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
+    // Бонус от игрока
+    const userBonus = getNum(system.resources.ap.bonus);
+    // Бонус/Штраф от эффектов (он уже изменен Foundry между prepareBaseData и этой функцией)
+    const effectBonus = getNum(system.resources.ap.effect);
 
-    // Вес: 40 + (Str-1)*10
+    // ИТОГОВАЯ ФОРМУЛА
+    system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus);
+
+
+    // Вес
     if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0 };
     system.secondary.carryWeight.max = 40 + (s.str - 1) * 10;
-    
-    // Текущий вес
     let totalWeight = 0;
     if (this.items) {
         this.items.forEach(item => {
@@ -74,7 +100,7 @@ export class ZActor extends Actor {
     }
     system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
 
-    // Natural AC
+    // Остальные статы
     let naturalAC = 0;
     if (s.vig >= 10) naturalAC = 5;
     else if (s.vig >= 9) naturalAC = 4;
@@ -85,21 +111,20 @@ export class ZActor extends Actor {
     if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };
     system.secondary.naturalAC.value = naturalAC;
 
-    // Прочие вторичные
     if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
     system.secondary.evasion.value = s.agi;
     if (!system.secondary.tenacity) system.secondary.tenacity = { value: 0 };
     system.secondary.tenacity.value = Math.floor(s.vig / 2);
     if (!system.secondary.bravery) system.secondary.bravery = { value: 0 };
     system.secondary.bravery.value = Math.floor((s.cha + s.per) / 2);
+    
     if (!system.resources.learningPoints) system.resources.learningPoints = { value: 0 };
 
-    // --- 3. КОНЕЧНОСТИ (Limbs) ---
+    // --- 3. КОНЕЧНОСТИ ---
     const totalHP = system.resources.hp.max;
     const setLimb = (part, percent) => {
         if (!system.limbs[part]) system.limbs[part] = { value: 0, max: 0 };
         system.limbs[part].max = Math.floor(totalHP * percent);
-        // Если текущее значение пустое (новый актор) - лечим его
         if (system.limbs[part].value === undefined || system.limbs[part].value === null) {
             system.limbs[part].value = system.limbs[part].max;
         }
@@ -143,7 +168,7 @@ export class ZActor extends Actor {
     system.secondary.spentSkills.value = spentSkills;
   }
 
-  /** Применение урона */
+  // --- Apply Damage ---
   async applyDamage(amount, type = "blunt", limb = "torso") {
     let totalResistPercent = 0;
     let totalAC = 0; 
@@ -164,6 +189,30 @@ export class ZActor extends Actor {
     let damageAfterResist = amount * (1 - (totalResistPercent / 100));
     const finalDamage = Math.max(0, Math.floor(damageAfterResist - totalAC));
 
+    // Логика Травм
+    let injuryMsg = "";
+    if (finalDamage > 0) {
+        const currentHP = this.system.resources.hp.value;
+        const newHP = Math.max(0, currentHP - finalDamage);
+        const updateData = { "system.resources.hp.value": newHP };
+        
+        if (this.system.limbs && this.system.limbs[limb]) {
+            const currentLimbHP = this.system.limbs[limb].value;
+            const newLimbHP = currentLimbHP - finalDamage;
+            updateData[`system.limbs.${limb}.value`] = newLimbHP;
+
+            if (currentLimbHP > 0 && newLimbHP <= 0) {
+                await this._applyInjury(limb);
+                injuryMsg = `<div class="z-injury-alert">⚠️ КРИТИЧЕСКАЯ ТРАВМА: ${_getLimbName(limb)}!</div>`;
+            }
+        }
+        if (currentHP > 0 && newHP <= 0) {
+             await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious]);
+             injuryMsg += `<div class="z-injury-alert" style="background:black; color:red;">💀 ПЕРСОНАЖ БЕЗ СОЗНАНИЯ</div>`;
+        }
+        await this.update(updateData);
+    }
+
     const speaker = ChatMessage.getSpeaker({ actor: this });
     let content = `
       <div class="z-damage-result">
@@ -176,63 +225,23 @@ export class ZActor extends Actor {
           Потеряно HP: ${finalDamage}
         </div>
         <div style="text-align:center; font-size:0.8em; color:#555;">(${_getLimbName(limb)})</div>
+        ${injuryMsg}
       </div>
     `;
     ChatMessage.create({ user: game.user.id, speaker, content });
-
-    if (finalDamage > 0) {
-        const currentHP = this.system.resources.hp.value;
-        const newHP = Math.max(0, currentHP - finalDamage);
-        const updateData = { "system.resources.hp.value": newHP };
-        if (this.system.limbs && this.system.limbs[limb]) {
-            const currentLimbHP = this.system.limbs[limb].value;
-            updateData[`system.limbs.${limb}.value`] = currentLimbHP - finalDamage;
-        }
-        await this.update(updateData);
-    }
   }
-  async reloadWeapon(weapon) {
-    const magMax = weapon.system.mag.max;
-    const magCur = weapon.system.mag.value;
-    const cal = weapon.system.ammoType;
-    const apCost = weapon.system.reloadAP || 4; // Дефолт 4 AP
 
-    // 1. Проверки
-    if (magCur >= magMax) return ui.notifications.warn("Магазин полон.");
-    if (!cal) return ui.notifications.warn("У оружия не указан калибр.");
-    
-    // Проверка AP
-    const curAP = this.system.resources.ap.value;
-    if (curAP < apCost) return ui.notifications.warn("Недостаточно AP для перезарядки.");
+  async _applyInjury(limb) {
+      let effectData = null;
+      if (limb === 'head') effectData = INJURY_EFFECTS.head;
+      else if (limb === 'torso') effectData = INJURY_EFFECTS.torso;
+      else if (limb.includes('Arm')) effectData = INJURY_EFFECTS.arm;
+      else if (limb.includes('Leg')) effectData = INJURY_EFFECTS.leg;
 
-    // 2. Поиск патронов (тип ammo, поле calibre совпадает)
-    // ИЛИ (для простоты) ищем по имени предмета, как мы договаривались раньше, 
-    // НО лучше искать по system.calibre, раз мы ввели новый тип.
-    // Давай поддержим оба варианта для гибкости.
-    const ammoItem = this.items.find(i => 
-        (i.type === "ammo" && i.system.calibre === cal) || 
-        (i.name === cal)
-    );
-
-    if (!ammoItem || ammoItem.system.quantity <= 0) {
-        return ui.notifications.warn(`Нет патронов калибра: ${cal}`);
-    }
-
-    // 3. Расчет
-    const needed = magMax - magCur;
-    const available = ammoItem.system.quantity;
-    const amountToLoad = Math.min(needed, available);
-
-    // 4. Обновление
-    await this.update({"system.resources.ap.value": curAP - apCost});
-    await weapon.update({"system.mag.value": magCur + amountToLoad});
-    await ammoItem.update({"system.quantity": available - amountToLoad});
-
-    // 5. Сообщение
-    ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({actor: this}),
-        content: `${this.name} перезаряжает <b>${weapon.name}</b> (${amountToLoad} пт.)`
-    });
+      if (!effectData) return;
+      const specificEffect = foundry.utils.deepClone(effectData);
+      specificEffect.name += ` (${_getLimbName(limb)})`;
+      await this.createEmbeddedDocuments("ActiveEffect", [specificEffect]);
   }
 
   getRollData() {
@@ -242,6 +251,41 @@ export class ZActor extends Actor {
 
   async rollSkill(skillId) { return Dice.rollSkill(this, skillId); }
   async performAttack(itemId) { return Dice.performAttack(this, itemId); }
+  
+  async reloadWeapon(weapon) {
+    const magMax = weapon.system.mag.max;
+    const magCur = weapon.system.mag.value;
+    const cal = weapon.system.ammoType;
+    const apCost = weapon.system.reloadAP || 4; 
+
+    if (magCur >= magMax) return ui.notifications.warn("Магазин полон.");
+    if (!cal) return ui.notifications.warn("У оружия не указан калибр.");
+    
+    const curAP = this.system.resources.ap.value;
+    if (curAP < apCost) return ui.notifications.warn("Недостаточно AP для перезарядки.");
+
+    const ammoItem = this.items.find(i => 
+        (i.type === "ammo" && i.system.calibre === cal) || 
+        (i.name === cal)
+    );
+
+    if (!ammoItem || ammoItem.system.quantity <= 0) {
+        return ui.notifications.warn(`Нет патронов калибра: ${cal}`);
+    }
+
+    const needed = magMax - magCur;
+    const available = ammoItem.system.quantity;
+    const amountToLoad = Math.min(needed, available);
+
+    await this.update({"system.resources.ap.value": curAP - apCost});
+    await weapon.update({"system.mag.value": magCur + amountToLoad});
+    await ammoItem.update({"system.quantity": available - amountToLoad});
+
+    ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({actor: this}),
+        content: `${this.name} перезаряжает <b>${weapon.name}</b> (${amountToLoad} пт.)`
+    });
+  }
 }
 
 function _getLimbName(key) {

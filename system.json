@@ -28,16 +28,16 @@
     "Actor": {
       "types": ["survivor", "npc"],
       "attributes": {
-        "str": { "value": 1, "min": 1, "max": 10 },
-        "agi": { "value": 1, "min": 1, "max": 10 },
-        "vig": { "value": 1, "min": 1, "max": 10 },
-        "per": { "value": 1, "min": 1, "max": 10 },
-        "cha": { "value": 1, "min": 1, "max": 10 },
-        "int": { "value": 1, "min": 1, "max": 10 }
+        "str": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 },
+        "agi": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 },
+        "vig": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 },
+        "per": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 },
+        "cha": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 },
+        "int": { "base": 1, "value": 1, "mod": 0, "min": 1, "max": 10 }
       },
       "resources": {
         "hp": { "value": 10, "max": 10, "min": 0 },
-        "ap": { "value": 7, "max": 7, "min": 0 },
+        "ap": { "value": 7, "max": 7, "min": 0, "bonus": 0, "effect": 0 },
         "morale": { "value": 10, "max": 100 },
         "reputation": { "value": 0 },
         "learningPoints": { "value": 0 }
