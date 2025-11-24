@@ -98,28 +98,25 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const curAP = Number(actor.system.resources.ap.value);
   if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP! Нужно ${apCost}.`);
 
-  // --- ПРОВЕРКА МАГАЗИНА ---
+  // --- МАГАЗИН ---
   const ammoType = item.system.ammoType;
   const maxMag = Number(item.system.mag?.max) || 0;
   
-  // Если это огнестрел с магазином
   if (ammoType && maxMag > 0) {
       const curMag = Number(item.system.mag.value) || 0;
       let ammoCost = 1;
       if (attack.name.toLowerCase().match(/burst|очередь/)) ammoCost = 3;
 
       if (curMag < ammoCost) {
-          return ui.notifications.warn(`Перезарядите оружие! (В стволе: ${curMag})`);
+          return ui.notifications.warn(`КЛИК! Пусто. (В стволе: ${curMag})`);
       }
-      // Списываем из оружия
       await item.update({ "system.mag.value": curMag - ammoCost });
   }
-  // -------------------------
 
+  // Списание AP
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
   let skillType = 'melee';
-  // Используем сохраненный в предмете тип (надежнее)
   if (item.system.weaponType === 'ranged') skillType = 'ranged';
   else if (['pistol', 'rifle', 'shotgun'].includes(item.system.subtype)) skillType = 'ranged';
 
@@ -145,7 +142,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   if (isHit) {
     try {
       let formulaString = attack.dmg || "0";
-      // Логика силы только для Melee
+      // Бонус силы только для Melee
       if (skillType === 'melee') {
         const str = Number(actor.system.attributes.str.value) || 1;
         const req = Number(item.system.strReq) || 1;
@@ -153,7 +150,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           const bonus = str - req;
           if (bonus > 0) formulaString += ` + ${bonus}`;
         } else {
-          formulaString = `(${formulaString}) * 0.5`;
+          formulaString = `(${formulaString}) * 0.5`; // Штраф за слабую руку
         }
       }
       
@@ -163,12 +160,12 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       
       dmgHTML = `<div class="z-damage-box"><div class="dmg-label">УРОН (${formulaString})</div><div class="dmg-val">${finalDamage} <span style="font-size:0.5em; color:#888;">${damageType}</span></div></div>`;
       btnHTML = `<button class="z-apply-damage" data-damage="${finalDamage}" data-type="${damageType}" data-limb="${location}"><i class="fas fa-crosshairs"></i> Применить (${_getLimbName(location)})</button>`;
-    } catch (e) { dmgHTML = `<div style="color:red; font-size:0.8em">Ошибка формулы</div>`; }
+    } catch (e) { dmgHTML = `<div style="color:red; font-size:0.8em">Err: ${e.message}</div>`; }
   }
 
+  // ШУМ
   const totalNoise = (Number(item.system.noise) || 0) + (Number(attack.noise) || 0);
   if (totalNoise > 0) {
-    const { NoiseManager } = await import("./noise.js"); 
     NoiseManager.add(totalNoise);
   }
   const noiseHTML = totalNoise > 0 ? `<div class="z-noise-alert"><i class="fas fa-volume-up"></i> Шум: ${totalNoise}</div>` : "";

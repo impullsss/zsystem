@@ -1,33 +1,32 @@
 export const INJURY_EFFECTS = {
   head: {
     id: "injury-head",
-    name: "Травма Головы (Контузия)",
+    name: "Травма Головы",
     img: "icons/svg/daze.svg",
     changes: [
       { key: "system.attributes.per.value", mode: 2, value: -2 },
       { key: "system.attributes.int.value", mode: 2, value: -2 }
     ],
-    description: "Голова повреждена. Снижено Восприятие и Интеллект."
+    description: "Контузия. Снижено Восприятие и Интеллект."
   },
   torso: {
     id: "injury-torso",
-    name: "Травма Торса (Сбито дыхание)",
+    name: "Травма Торса",
     img: "icons/svg/blood.svg",
     changes: [
-      // ИЗМЕНЕНО: Бьем по полю .effect
       { key: "system.resources.ap.effect", mode: 2, value: -2 } 
     ],
-    description: "Тяжелое ранение в грудь. Тяжело дышать, снижены ОД."
+    description: "Сбито дыхание. Штраф к ОД."
   },
   arm: {
     id: "injury-arm",
     name: "Сломана Рука",
     img: "icons/svg/paralysis.svg",
     changes: [
-      { key: "system.attributes.str.value", mode: 2, value: -1 }, // Str -1
-      { key: "system.attributes.agi.value", mode: 2, value: -1 }  // Agi -1
+      { key: "system.attributes.str.value", mode: 2, value: -1 }, 
+      { key: "system.attributes.agi.value", mode: 2, value: -1 } 
     ],
-    description: "Рука повреждена. Штраф к Силе и Ловкости."
+    description: "Больно держать оружие. Штраф Силы/Ловкости."
   },
    leg: {
     id: "injury-leg",
@@ -35,16 +34,44 @@ export const INJURY_EFFECTS = {
     img: "icons/svg/falling.svg",
     changes: [
       { key: "system.secondary.evasion.value", mode: 2, value: -10 },
-      // ИЗМЕНЕНО: Бьем по полю .effect
       { key: "system.resources.ap.effect", mode: 2, value: -1 } 
     ],
-    description: "Нога повреждена. Снижена скорость и уклонение."
+    description: "Хромота. Штраф скорости и уклонения."
   },
   unconscious: {
     id: "status-unconscious",
     name: "Без сознания",
     img: "icons/svg/unconscious.svg",
-    changes: [], // Тут нужна логика блокировки хода, пока просто маркер
+    changes: [], 
     description: "Персонаж выведен из строя."
+  }
+};
+
+export const GLOBAL_STATUSES = {
+  bleeding: {
+    id: "bleeding",
+    label: "Кровотечение", 
+    name: "Кровотечение",  
+    icon: "icons/svg/blood.svg",
+  },
+  prone: {
+    id: "prone",
+    label: "Сбит с ног",
+    name: "Сбит с ног",
+    icon: "icons/svg/falling.svg",
+    changes: [
+      { key: "system.attributes.agi.value", mode: 5, value: 1 }, 
+      { key: "system.secondary.evasion.value", mode: 5, value: 0 } 
+    ]
+  },
+  panic: {
+    id: "panic",
+    label: "Паника",
+    name: "Паника",
+    icon: "icons/svg/terror.svg",
+    changes: [
+        { key: "system.attributes.per.value", mode: 2, value: -2 }, 
+        { key: "system.resources.ap.effect", mode: 2, value: -2 } 
+    ]
   }
 };
