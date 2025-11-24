@@ -1,0 +1,68 @@
+{
+  "ZSYSTEM": {
+    "Name": "ZSystem",
+    "Attr": {
+      "Str": "Сила",
+      "Agi": "Ловкость",
+      "Vig": "Живучесть",
+      "Per": "Восприятие",
+      "Int": "Интеллект",
+      "Cha": "Харизма"
+    },
+    "Skill": {
+      "Melee": "Ближний бой",
+      "Ranged": "Стрельба",
+      "Science": "Наука",
+      "Mechanical": "Механика",
+      "Medical": "Медицина",
+      "Diplomacy": "Дипломатия",
+      "Leadership": "Лидерство",
+      "Survival": "Выживание",
+      "Athletics": "Атлетика",
+      "Stealth": "Скрытность"
+    },
+    "Secondary": {
+      "Bravery": "Храбрость",
+      "Tenacity": "Стойкость",
+      "Evasion": "Уклонение",
+      "CarryWeight": "Вес",
+      "LearningPoints": "Очки Обучения",
+      "NaturalAC": "Природная Броня",
+      "SpentStats": "Потрачено (Статы)",
+      "SpentSkills": "Потрачено (Навыки)"
+    },
+    "UI": {
+      "Equip": "Надеть",
+      "Unequip": "Снять",
+      "Attack": "Атака",
+      "NoAmmo": "Нет патронов типа",
+      "Reload": "Перезарядить",
+      "Weapons": "Оружие",
+      "Armor": "Броня",
+      "Ammo": "Амуниция",
+      "Medicine": "Медицина",
+      "Food": "Еда",
+      "Materials": "Материалы",
+      "Luxury": "Роскошь",
+      "Misc": "Разное"
+    }
+  },
+  "TYPES": {
+    "Item": {
+      "weapon": "Оружие",
+      "armor": "Броня",
+      "ammo": "Патроны",
+      "consumable": "Расходник",
+      "medicine": "Медицина",
+      "food": "Еда",
+      "resource": "Ресурс",
+      "materials": "Материалы",
+      "luxury": "Роскошь",
+      "misc": "Разное"
+    },
+    "Actor": {
+      "survivor": "Выживший",
+      "npc": "NPC"
+    }
+  }
+}

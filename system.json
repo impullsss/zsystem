@@ -2,32 +2,28 @@
   "id": "zsystem",
   "title": "ZSystem (Dead State RPG)",
   "description": "Survival RPG system.",
-  "version": "0.2.2",
+  "version": "0.3.1",
   "compatibility": { "minimum": 13, "verified": 13 },
   "authors": [{ "name": "ZSystem Dev", "url": "" }],
-
   "esmodules": ["dist/zsystem.js"],
-
   "styles": ["styles/system-styles.css"],
-
+  
   "documentTypes": {
-    "Actor": {
-      "survivor": {},
-      "npc": {}
-    },
-    "Item": {
-      "weapon": {},
-      "armor": {},
-      "consumable": {},
-      "resource": {},
-      "medicine": {},
-      "food": {},
-      "materials": {},
-      "luxury": {},
-      "misc": {}
+    "Actor": { "survivor": {}, "npc": {} },
+    "Item": { 
+        "weapon": {}, 
+        "armor": {}, 
+        "consumable": {}, 
+        "ammo": {}, 
+        "resource": {}, 
+        "medicine": {}, 
+        "food": {}, 
+        "materials": {}, 
+        "luxury": {}, 
+        "misc": {} 
     }
   },
-
+  
   "template": {
     "Actor": {
       "types": ["survivor", "npc"],
@@ -51,7 +47,10 @@
         "tenacity": { "value": 0 },
         "evasion": { "value": 0 },
         "carryWeight": { "value": 0, "max": 50 },
-        "infection": { "value": 0, "max": 100 }
+        "infection": { "value": 0, "max": 100 },
+        "spentStats": { "value": 0 }, 
+        "spentSkills": { "value": 0 },
+        "naturalAC": { "value": 0 }
       },
       "skills": {
         "melee": { "value": 0, "base": 0, "points": 0 },
@@ -66,60 +65,50 @@
         "stealth": { "value": 0, "base": 0, "points": 0 }
       },
       "limbs": {
-        "head": { "value": 10, "max": 10, "label": "Голова" },
-        "torso": { "value": 30, "max": 30, "label": "Торс" },
-        "lArm": { "value": 10, "max": 10, "label": "Л. Рука" },
-        "rArm": { "value": 10, "max": 10, "label": "П. Рука" },
-        "lLeg": { "value": 10, "max": 10, "label": "Л. Нога" },
-        "rLeg": { "value": 10, "max": 10, "label": "П. Нога" }
+        "head": { "value": 10, "max": 10 },
+        "torso": { "value": 30, "max": 30 },
+        "lArm": { "value": 10, "max": 10 },
+        "rArm": { "value": 10, "max": 10 },
+        "lLeg": { "value": 10, "max": 10 },
+        "rLeg": { "value": 10, "max": 10 }
       }
     },
     "Item": {
-      "types": [
-        "weapon", "armor", "consumable", "resource", 
-        "medicine", "food", "materials", "luxury", "misc"
-      ],
+      "types": ["weapon", "armor", "consumable", "ammo", "resource", "medicine", "food", "materials", "luxury", "misc"],
       "templates": {
         "base": {
           "weight": 0,
           "quantity": 1,
           "description": "",
-          "category": "misc" 
+          "category": "",
+          "equipped": false 
         }
       },
       "weapon": {
         "templates": ["base"],
         "hands": "1h",
         "weaponType": "melee",
+        "damageType": "blunt",
+        "strReq": 1,
         "noise": 0,
+        "hp": { "value": 100, "max": 100 },
         "ammoType": "",
-        "mag": 0,
+        "mag": { "value": 0, "max": 0 },
+        "reloadAP": 4,
         "range": 1,
         "attacks": {} 
+      },
+      "ammo": {
+        "templates": ["base"],
+        "calibre": "" 
       },
       "armor": {
         "templates": ["base"],
         "ac": 0,
-        "dr": {
-          "blunt": 0,
-          "slashing": 0,
-          "piercing": 0,
-          "ballistic": 0,
-          "fire": 0
-        },
-        "coverage": {
-          "head": false,
-          "torso": true,
-          "lArm": false,
-          "rArm": false,
-          "lLeg": false,
-          "rLeg": false
-        },
-        "penalties": {
-          "dex": 0,
-          "move": 0,
-          "noise": 0
-        }
+        "hp": { "value": 100, "max": 100 },
+        "dr": { "blunt": 0, "slashing": 0, "piercing": 0, "ballistic": 0, "fire": 0 },
+        "coverage": { "head": false, "torso": true, "lArm": false, "rArm": false, "lLeg": false, "rLeg": false },
+        "penalties": { "dex": 0, "move": 0, "noise": 0 }
       },
       "medicine": { "templates": ["base"] },
       "food": { "templates": ["base"] },

@@ -3,17 +3,38 @@ import { ZActor } from "./module/actor.js";
 import { ZActorSheet } from "./module/actor-sheet.js";
 import { ZItem } from "./module/item.js";
 import { ZItemSheet } from "./module/item-sheet.js";
+import { NoiseManager } from "./module/noise.js";
+import { ZChat } from "./module/chat.js";
 
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing ZSystem");
+
+  // --- РЕГИСТРАЦИЯ ХЕЛПЕРОВ HANDLEBARS ---
+  Handlebars.registerHelper('capitalize', function(str) {
+    if (typeof str !== 'string') return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  });
+  Handlebars.registerHelper('gt', function(a, b) { return a > b; });
+  Handlebars.registerHelper('eq', function(a, b) { return a == b; });
+  Handlebars.registerHelper('and', function(a, b) { return a && b; });
+  Handlebars.registerHelper('or', function(a, b) { return a || b; });
+  
+  Handlebars.registerHelper('concat', function() {
+    var outStr = '';
+    for (var arg in arguments) {
+      if (typeof arguments[arg] !== 'object') {
+        outStr += arguments[arg];
+      }
+    }
+    return outStr;
+  });
+  // ---------------------------------------------------
 
   // 1. Регистрация классов документов
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
 
   // 2. Настройка Инициативы
-  // Формула: 1d10 + Восприятие
-  // @attributes.per.value берется из getRollData() в actor.js
   CONFIG.Combat.initiative = {
     formula: "1d10 + @attributes.per.value",
     decimals: 2
@@ -28,7 +49,8 @@ Hooks.once("init", () => {
 
   Items.unregisterSheet("core", ItemSheet);
   Items.registerSheet("zsystem", ZItemSheet, {
-    types: ["weapon", "armor", "consumable", "resource", "medicine", "food", "materials", "luxury", "misc"],
+    // ДОБАВИЛ "ammo" В СПИСОК НИЖЕ
+    types: ["weapon", "armor", "consumable", "ammo", "resource", "medicine", "food", "materials", "luxury", "misc"],
     makeDefault: true,
   });
 
@@ -42,20 +64,23 @@ Hooks.once("init", () => {
     default: "7 + Math.ceil((agi - 1) / 2)",
   });
 
+  // Инициализация подсистем
+  NoiseManager.init();
+  ZChat.init(); 
+
   console.log("ZSystem | init hooks registered");
 });
 
 Hooks.once("ready", async () => {
   console.log("ZSystem | Ready — system loaded");
 
-  // Хук восстановления AP в начале хода
+  // Хук восстановления AP
   Hooks.on("updateCombat", async (combat, changed) => {
     if (changed.turn !== undefined || changed.round !== undefined) {
       const combatant = combat.combatant;
       if (!combatant || !combatant.actor) return;
       
       const actor = combatant.actor;
-      // Восстанавливаем AP до максимума
       const maxAP = actor.system.resources.ap.max;
       await actor.update({ "system.resources.ap.value": maxAP });
       
@@ -63,7 +88,7 @@ Hooks.once("ready", async () => {
     }
   });
 
-  // Хук для стака предметов (Stacking)
+  // Хук для стака предметов
   Hooks.on("preCreateItem", (itemDoc, createData) => {
     const parent = itemDoc.parent;
     if (!parent || parent.documentName !== "Actor") return true;
@@ -73,14 +98,13 @@ Hooks.once("ready", async () => {
     
     if (!incomingName) return true;
 
-    // Ищем предмет с таким же именем
     const existingItem = parent.items.find(i => i.name === incomingName && i.type === data.type);
     
     if (existingItem) {
       const newQty = (existingItem.system.quantity || 1) + (data.system.quantity || 1);
       existingItem.update({ "system.quantity": newQty });
       ui.notifications.info(`Предмет "${incomingName}" объединен (Кол-во: ${newQty})`);
-      return false; // Отменяем создание нового, так как обновили старый
+      return false;
     }
     return true;
   });

@@ -14,16 +14,16 @@ export class ZActorSheet extends ActorSheet {
 
   getData() {
     const context = super.getData();
-    context.system = this.actor.system;
+    // ЗАЩИТА: Проверяем, есть ли system
+    context.system = this.actor?.system || {};
     
     this._prepareInventory(context);
     
-    // Эффекты
+    // Подготовка эффектов
     context.effects = this.actor.effects.map(e => ({
       id: e.id,
       name: e.name,
-      // ИСПРАВЛЕНИЕ: icon -> img (для Foundry v13+)
-      img: e.img, 
+      img: e.img,
       disabled: e.disabled,
       duration: e.duration.label,
       isTemporary: e.isTemporary 
@@ -35,6 +35,7 @@ export class ZActorSheet extends ActorSheet {
   _prepareInventory(context) {
     const inventory = {
       weapon: { label: "Оружие", items: [] },
+      ammo: { label: "Патроны", items: [] },
       armor: { label: "Броня", items: [] },
       medicine: { label: "Медицина", items: [] },
       food: { label: "Еда", items: [] },
@@ -45,14 +46,16 @@ export class ZActorSheet extends ActorSheet {
 
     for (let i of this.actor.items) {
       let cat = i.system.category || "misc";
-      // Фоллбэк для старых предметов
-      if (i.type === "resource" && cat === "misc") cat = "materials";
-
-      if (inventory[cat]) {
-        inventory[cat].items.push(i);
-      } else {
-        inventory.misc.items.push(i);
-      }
+      
+      // Привязка типов к категориям
+      if (i.type === "weapon") cat = "weapon";
+      if (i.type === "ammo") cat = "ammo";
+      if (i.type === "armor") cat = "armor";
+      if (i.type === "food") cat = "food";
+      if (i.type === "medicine") cat = "medicine";
+      
+      if (inventory[cat]) inventory[cat].items.push(i);
+      else inventory.misc.items.push(i);
     }
     context.inventory = inventory;
   }
@@ -71,6 +74,7 @@ export class ZActorSheet extends ActorSheet {
       this.actor.rollSkill(skillKey);
     });
 
+    // --- Inventory ---
     html.find('.item-create').click(this._onItemCreate.bind(this));
     
     html.find('.item-edit').click(ev => {
@@ -94,7 +98,22 @@ export class ZActorSheet extends ActorSheet {
       this.actor.performAttack(li.data("itemId"));
     });
 
-    // Управление эффектами (кнопки внутри вкладки)
+    // Экипировка / Снятие
+    html.find('.item-toggle').click(async ev => {
+      ev.preventDefault();
+      const li = $(ev.currentTarget).parents(".item");
+      const item = this.actor.items.get(li.data("itemId"));
+      // Переключаем состояние
+      await item.update({ "system.equipped": !item.system.equipped });
+    });
+    
+    // Перезарядка
+    html.find('.item-reload').click(ev => {
+      const li = $(ev.currentTarget).parents(".item");
+      const item = this.actor.items.get(li.data("itemId"));
+      this.actor.reloadWeapon(item);
+    });
+
     html.find('.effect-control').click(ev => this._onManageEffect(ev));
   }
 
@@ -103,13 +122,25 @@ export class ZActorSheet extends ActorSheet {
     const header = event.currentTarget;
     const type = header.dataset.type;
     
+    // Дефолтные категории для порядка
     let cat = "misc";
     if (type === "weapon") cat = "weapon";
+    if (type === "ammo") cat = "ammo";
     if (type === "armor") cat = "armor";
     if (type === "food") cat = "food";
     
+    // Перевод имени при создании
+    const typeNames = {
+        weapon: "Оружие",
+        armor: "Броня",
+        ammo: "Патроны",
+        medicine: "Медицина",
+        food: "Еда",
+        misc: "Предмет"
+    };
+
     const itemData = {
-      name: `Новый предмет`,
+      name: `Новое ${typeNames[type] || "Предмет"}`,
       type: type,
       system: { category: cat }
     };
@@ -126,7 +157,7 @@ export class ZActorSheet extends ActorSheet {
       case "create":
         return this.actor.createEmbeddedDocuments("ActiveEffect", [{
           name: "Новый эффект",
-          img: "icons/svg/aura.svg", // icon -> img здесь тоже
+          img: "icons/svg/aura.svg",
           origin: this.actor.uuid,
           disabled: false
         }]);

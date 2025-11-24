@@ -157,14 +157,14 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
   border-radius: 4px;
 }
 
+/* Стили для схемы тела */
 .body-chart-container {
   position: relative;
   width: 200px;
   height: 300px;
-  margin: 0 auto 20px auto;
-  background: rgba(0,0,0,0.2);
+  margin: 0 auto; /* Центрируем */
+  background: rgba(0,0,0,0.1);
   border-radius: 8px;
-  border: 1px solid #444;
 }
 
 .limb-shape {
@@ -184,7 +184,7 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
   font-size: 10px;
   fill: #fff;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.3; /* Делаем надписи HEAD/TORSO тусклыми, чтобы не мешали цифрам */
 }
 
 .limb-input {
@@ -192,24 +192,40 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 40px;
+  width: 50px;
   pointer-events: auto;
-  text-shadow: 0 0 3px black;
+  z-index: 10; /* Поверх SVG */
 }
 
 .limb-input input {
   width: 30px;
   height: 18px;
-  font-size: 12px;
-  text-align: center;
-  background: rgba(0,0,0,0.5);
-  border: 1px solid #555;
+  font-size: 13px; /* Оптимальный размер */
+  font-weight: bold;
+  text-align: right;
+  padding: 0;
+  margin: 0;
+  background: transparent; 
+  border: none;
   color: #fff;
 }
 
+.limb-input input:focus {
+  box-shadow: none;
+  border-bottom: 1px solid #ffb74d;
+}
+.limb-input input::-webkit-outer-spin-button,
+.limb-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .limb-input span {
-  font-size: 10px;
-  color: #ccc;
+  font-size: 11px;
+  color: #ddd;
+  margin-left: 2px;
+  white-space: nowrap; /* Запрет переноса строки */
+  font-weight: bold;
 }
 
 /* Стили для таблицы атак в предмете */
@@ -247,3 +263,328 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
     align-items: center;
     gap: 2px;
 }
+
+/* --- ДИАЛОГ ВЫБОРА АТАКИ --- */
+.z-attack-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.z-attack-btn {
+  background: #333;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.z-attack-btn:hover {
+  background: #444;
+  border-color: #ffb74d;
+}
+
+.z-attack-btn .atk-name {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: #ffb74d;
+}
+
+.z-attack-btn .atk-info {
+  font-size: 0.85em;
+  color: #ccc;
+}
+
+/* --- ИНДИКАТОР ШУМА В ЧАТЕ --- */
+.z-noise-alert {
+  margin-top: 8px;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid #d32f2f;
+  color: #ff5252;
+  padding: 4px;
+  border-radius: 4px;
+  font-weight: bold;
+  text-align: center;
+  font-size: 0.9em;
+  animation: pulse-noise 2s infinite;
+}
+
+@keyframes pulse-noise {
+  0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(211, 47, 47, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+}
+/* NOISE METER HUD */
+#z-noise-meter {
+  position: fixed;
+  top: 100px;
+  left: 130px; /* Сдвиг, чтобы не перекрывать стандартные контролы */
+  width: 100px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #555;
+  border-radius: 6px;
+  padding: 5px;
+  z-index: 60; /* Поверх канваса */
+  pointer-events: none; /* Чтобы клики проходили сквозь */
+  box-shadow: 0 0 10px #000;
+}
+
+#z-noise-meter.danger {
+  border-color: #ff5252;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+}
+
+#z-noise-meter .noise-label {
+  color: #aaa;
+  font-size: 10px;
+  text-align: center;
+  letter-spacing: 2px;
+  font-weight: bold;
+}
+
+#z-noise-meter .noise-value {
+  color: #fff;
+  font-size: 24px;
+  text-align: center;
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+  text-shadow: 0 0 5px #fff;
+}
+
+#z-noise-meter.danger .noise-value {
+  color: #ff5252;
+  text-shadow: 0 0 5px #ff5252;
+}
+
+#z-noise-meter .noise-bar-bg {
+  height: 4px;
+  background: #333;
+  margin-top: 2px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#z-noise-meter .noise-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #4caf50;
+  transition: width 0.5s, background 0.5s;
+}
+
+#z-noise-meter.danger .noise-bar-fill {
+  background: #ff5252;
+}
+
+.z-apply-damage {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px;
+  background: #d32f2f; /* Красный */
+  color: white;
+  border: 1px solid #b71c1c;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: background 0.2s;
+}
+
+.z-apply-damage:hover {
+  background: #f44336;
+  box-shadow: 0 0 5px #f44336;
+}
+
+.z-apply-damage i {
+  margin-right: 5px;
+}
+
+.z-damage-result {
+    background: #eee;
+    color: #333;
+    padding: 5px;
+    border: 1px solid #ccc;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+.input-percent {
+    align-items: center;
+    gap: 5px;
+}
+.input-percent input {
+    text-align: right;
+}
+/* Основная сетка атрибутов: 1fr (Статы) 200px (Тело) 1fr (Навыки) */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 210px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+/* Стиль для списка навыков */
+.skill-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 2px 0;
+}
+.skill-name {
+  flex: 2;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+.skill-base {
+  flex: 0.5;
+  text-align: center;
+  color: #888;
+  font-size: 0.8em;
+}
+.skill-points {
+  flex: 0.5;
+  width: 30px;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+.skill-total {
+  flex: 0.5;
+  text-align: center;
+  font-weight: bold;
+  color: #333;
+}
+.skill-roll {
+  flex: 0.3;
+  text-align: right;
+  color: #444;
+  cursor: pointer;
+}
+.skill-roll:hover {
+  color: #d32f2f;
+}
+/* Стили для схемы тела */
+.body-chart-container {
+  position: relative;
+  width: 200px;
+  height: 300px;
+  margin: 0 auto 10px auto;
+  background: rgba(0,0,0,0.1);
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.limb-label {
+  font-size: 10px;
+  fill: #fff;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* Контейнер для цифр ХП */
+.limb-input {
+  position: absolute;
+  display: flex;
+  flex-direction: row; /* В одну строку */
+  align-items: center;
+  justify-content: center;
+  width: 60px; /* Чуть шире */
+  pointer-events: auto;
+  z-index: 10;
+  text-shadow: 0 0 4px #000; /* Черная обводка для читаемости */
+}
+
+.limb-input input {
+  width: 30px;
+  height: 20px;
+  font-size: 14px; /* Чуть меньше */
+  font-weight: bold;
+  text-align: right;
+  padding-right: 2px;
+  
+  background: transparent; 
+  border: none;
+  color: #fff;
+}
+
+
+/* Спан для слэша и макс. значения */
+.limb-input span {
+  font-size: 12px;
+  color: #ccc;
+  font-weight: normal;
+  margin-left: 2px;
+}
+
+/* Скрываем стрелочки input number */
+.limb-input input::-webkit-outer-spin-button,
+.limb-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* --- Header Layout --- */
+.zsystem-actor-sheet .sheet-header {
+  display: flex;
+  align-items: flex-start; /* Выравнивание по верху */
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.zsystem-actor-sheet .profile-img {
+  flex: 0 0 100px;
+  height: 100px;
+  border: 1px solid #333;
+}
+
+.zsystem-actor-sheet .header-fields {
+  flex: 1; /* Занимает все свободное место */
+}
+
+/* Место под куклу */
+.header-doll {
+  flex: 0 0 200px; /* Фиксированная ширина */
+}
+
+/* --- Resources (White Text + Shadow) --- */
+.resource-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4); /* Затемненный фон */
+  border-radius: 4px;
+  padding: 2px;
+  border: 1px solid #555;
+}
+
+.resource-content input {
+  width: 40px;
+  text-align: center;
+  border: none;
+  background: transparent;
+  
+  /* СТИЛИ ТЕКСТА */
+  color: #fff !important; /* Белый */
+  text-shadow: 0 0 3px #000; /* Тень */
+  font-weight: bold;
+}
+
+.resource-content span {
+  color: #ccc;
+  text-shadow: 0 0 3px #000;
+}
+
+/* --- Body Chart (Tweaks) --- */
+.body-chart-container {
+  /* Убираем margin auto, так как теперь она в flex контейнере */
+  margin: 0; 
+  height: 250px; /* Чуть меньше высота для шапки */
+  width: 100%;
+  background: rgba(0,0,0,0.1);
+}
+.body-chart {
+    height: 100%; /* SVG на всю высоту */
+}
+/* Скорректируем положение инпутов, так как высота контейнера изменилась */
+/* (Координаты top/left в HTML могут требовать микро-подгонки) */

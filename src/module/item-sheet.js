@@ -25,6 +25,15 @@ export class ZItemSheet extends ItemSheet {
     context.handsOptions = { "1h": "Одноручное", "2h": "Двуручное" };
 
     // --- СПИСКИ ОПЦИЙ ДЛЯ ВЫПАДАЮЩИХ МЕНЮ ---
+        // НОВОЕ: Типы урона
+
+    context.damageTypes = {
+      blunt: "Дробящий (Blunt)",
+      slashing: "Режущий (Slashing)",
+      piercing: "Колющий (Piercing)",
+      ballistic: "Пулевой (Ballistic)",
+      fire: "Огонь (Fire)"
+    };
     
     // 1. Категории (для consumable, misc и т.д.)
     context.categoryOptions = {

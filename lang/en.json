@@ -1,6 +1,49 @@
 {
   "ZSYSTEM": {
-    "NAME": "ZSystem",
-    "AP_BASE_FORMULA": "AP base formula"
+    "Name": "ZSystem",
+    "Attr": {
+      "Str": "Strength",
+      "Agi": "Agility",
+      "Vig": "Vigor",
+      "Per": "Perception",
+      "Int": "Intellect",
+      "Cha": "Charisma"
+    },
+    "Skill": {
+      "Melee": "Melee",
+      "Ranged": "Ranged",
+      "Science": "Science",
+      "Mechanical": "Mechanical",
+      "Medical": "Medical",
+      "Diplomacy": "Diplomacy",
+      "Leadership": "Leadership",
+      "Survival": "Survival",
+      "Athletics": "Athletics",
+      "Stealth": "Stealth"
+    },
+    "Secondary": {
+      "Bravery": "Bravery",
+      "Tenacity": "Tenacity",
+      "Evasion": "Evasion",
+      "CarryWeight": "Carry Weight",
+      "LearningPoints": "Learning Points",
+      "NaturalAC": "Natural AC",
+      "SpentStats": "Spent (Stats)",
+      "SpentSkills": "Spent (Skills)"
+    },
+    "UI": {
+      "Equip": "Equip",
+      "Unequip": "Unequip",
+      "Attack": "Attack",
+      "NoAmmo": "No ammo for",
+      "Reload": "Reload",
+      "Weapons": "Weapons",
+      "Armor": "Armor",
+      "Medicine": "Medicine",
+      "Food": "Food",
+      "Materials": "Materials",
+      "Luxury": "Luxury",
+      "Misc": "Misc"
+    }
   }
 }

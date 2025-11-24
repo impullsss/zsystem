@@ -30,6 +30,7 @@
         {{#if (eq item.type "weapon")}}
         <div class="weapon-properties">
             <div class="grid grid-3col">
+                <!-- Тип и Хват -->
                 <div class="form-group">
                     <label>Тип</label>
                     <select name="system.weaponType">
@@ -43,28 +44,62 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label>Урон</label>
+                    <select name="system.damageType">
+                        {{selectOptions damageTypes selected=system.damageType localize=false}}
+                    </select>
+                </div>
+                
+                <!-- Параметры -->
+                <div class="form-group">
                     <label>Дальность</label>
                     <input type="number" name="system.range" value="{{system.range}}"/>
                 </div>
                 <div class="form-group">
-                    <label>Базовый Шум</label>
+                    <label>Шум</label>
                     <input type="number" name="system.noise" value="{{system.noise}}"/>
                 </div>
                 <div class="form-group">
-                    <label>Тип Патронов</label>
-                    <input type="text" name="system.ammoType" value="{{system.ammoType}}" placeholder="9mm"/>
+                    <label>Треб. Силы</label>
+                    <input type="number" name="system.strReq" value="{{system.strReq}}"/>
+                </div>
+                
+                <!-- ПАТРОНЫ И МАГАЗИН -->
+                <div class="form-group">
+                <label>Используемые патроны</label>
+                {{#if hasAmmoOnActor}}
+                    <!-- Если у актера есть патроны, даем выбрать из списка -->
+                    <select name="system.ammoType">
+                        {{selectOptions availableAmmo selected=system.ammoType localize=false}}
+                    </select>
+                {{else}}
+                    <!-- Иначе пишем вручную (например, 9mm) -->
+                    <input type="text" name="system.ammoType" value="{{system.ammoType}}" placeholder="Напр: 9mm"/>
+                {{/if}}
+            </div>
+
+            <div class="form-group"><label>Емкость Маг.</label><input type="number" name="system.mag.max" value="{{system.mag.max}}"/></div>
+            <div class="form-group"><label>В стволе</label><input type="number" name="system.mag.value" value="{{system.mag.value}}"/></div>
+            <div class="form-group"><label>AP Перезаряд.</label><input type="number" name="system.reloadAP" value="{{system.reloadAP}}"/></div>
+
+                <!-- Прочность -->
+                <div class="form-group">
+                    <label>Прочность</label>
+                    <div class="flexrow">
+                        <input type="number" name="system.hp.value" value="{{system.hp.value}}" placeholder="Cur"/>
+                        <span>/</span>
+                        <input type="number" name="system.hp.max" value="{{system.hp.max}}" placeholder="Max"/>
+                    </div>
                 </div>
             </div>
         </div>
-
         <hr>
-        
+        <!-- Секция Атак -->
         <div class="attacks-section">
             <div class="flexrow" style="align-items:center; margin-bottom:5px;">
                 <h3>Варианты Атаки</h3>
                 <a class="attack-create" title="Добавить атаку"><i class="fas fa-plus"></i></a>
             </div>
-            
             <div class="attacks-table">
                 <div class="attack-header flexrow">
                     <div style="flex:2">Название</div>
@@ -74,34 +109,32 @@
                     <div style="flex:0.5; text-align:center;">Шум</div>
                     <div style="flex:0.3"></div>
                 </div>
-
                 {{#each system.attacks as |attack key|}}
                 <div class="attack-row flexrow" style="margin-top: 5px; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 4px;">
-                    <div style="flex:2">
-                        <input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}" placeholder="Swing"/>
-                    </div>
-                    <div style="flex:0.5">
-                        <input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/>
-                    </div>
-                    <div style="flex:1">
-                        <input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/>
-                    </div>
-                    <div style="flex:0.5">
-                        <input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/>
-                    </div>
-                    <div style="flex:0.5">
-                        <input type="number" name="system.attacks.{{key}}.noise" value="{{attack.noise}}"/>
-                    </div>
-                    <div style="flex:0.3; text-align:center;">
-                        <a class="attack-delete" data-key="{{key}}"><i class="fas fa-trash"></i></a>
-                    </div>
+                    <div style="flex:2"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}" placeholder="Swing"/></div>
+                    <div style="flex:0.5"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
+                    <div style="flex:1"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>
+                    <div style="flex:0.5"><input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/></div>
+                    <div style="flex:0.5"><input type="number" name="system.attacks.{{key}}.noise" value="{{attack.noise}}"/></div>
+                    <div style="flex:0.3; text-align:center;"><a class="attack-delete" data-key="{{key}}"><i class="fas fa-trash"></i></a></div>
                 </div>
                 {{/each}}
             </div>
         </div>
         {{/if}}
 
-        <!-- === СЕКЦИЯ БРОНИ === -->
+        <!-- ПАТРОНЫ (Новый тип) -->
+        {{#if (eq item.type "ammo")}}
+        <div class="ammo-properties">
+            <div class="form-group">
+                <label>Калибр (связь с оружием)</label>
+                <input type="text" name="system.calibre" value="{{system.calibre}}" placeholder="Напр: 9mm"/>
+                <p class="notes" style="font-size:0.8em; color:gray;">Это значение должно совпадать с полем "Калибр" у оружия.</p>
+            </div>
+        </div>
+        {{/if}}
+
+        <!-- БРОНЯ -->
         {{#if (eq item.type "armor")}}
         <div class="armor-properties">
             <div class="form-group">
@@ -112,26 +145,41 @@
             <div class="grid grid-2col">
                 <!-- RESISTANCE TABLE -->
                 <div class="dr-table">
-                    <h3>Сопротивление (DR)</h3>
+                    <h3>Сопротивление (%)</h3>
                     <div class="form-group flexrow">
                         <label>Дробящий</label>
-                        <input type="number" name="system.dr.blunt" value="{{system.dr.blunt}}"/>
+                        <div class="flexrow input-percent">
+                            <input type="number" name="system.dr.blunt" value="{{system.dr.blunt}}"/>
+                            <span>%</span>
+                        </div>
                     </div>
                     <div class="form-group flexrow">
                         <label>Режущий</label>
-                        <input type="number" name="system.dr.slashing" value="{{system.dr.slashing}}"/>
+                        <div class="flexrow input-percent">
+                            <input type="number" name="system.dr.slashing" value="{{system.dr.slashing}}"/>
+                            <span>%</span>
+                        </div>
                     </div>
                     <div class="form-group flexrow">
                         <label>Колющий</label>
-                        <input type="number" name="system.dr.piercing" value="{{system.dr.piercing}}"/>
+                        <div class="flexrow input-percent">
+                            <input type="number" name="system.dr.piercing" value="{{system.dr.piercing}}"/>
+                            <span>%</span>
+                        </div>
                     </div>
                     <div class="form-group flexrow">
                         <label>Пулевой</label>
-                        <input type="number" name="system.dr.ballistic" value="{{system.dr.ballistic}}"/>
+                        <div class="flexrow input-percent">
+                            <input type="number" name="system.dr.ballistic" value="{{system.dr.ballistic}}"/>
+                            <span>%</span>
+                        </div>
                     </div>
                     <div class="form-group flexrow">
                         <label>Огонь</label>
-                        <input type="number" name="system.dr.fire" value="{{system.dr.fire}}"/>
+                        <div class="flexrow input-percent">
+                            <input type="number" name="system.dr.fire" value="{{system.dr.fire}}"/>
+                            <span>%</span>
+                        </div>
                     </div>
                 </div>
 
@@ -185,12 +233,14 @@
         <!-- Категория для остальных предметов -->
         {{#if (ne item.type "weapon")}}
         {{#if (ne item.type "armor")}}
+        {{#if (ne item.type "ammo")}}
             <div class="form-group">
                 <label>Категория</label>
                 <select name="system.category">
                     {{selectOptions categoryOptions selected=system.category localize=false}}
                 </select>
             </div>
+        {{/if}}
         {{/if}}
         {{/if}}
 
