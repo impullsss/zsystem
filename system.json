@@ -2,18 +2,26 @@
   "id": "zsystem",
   "title": "ZSystem (Dead State RPG)",
   "description": "Survival RPG system.",
-  "version": "0.4.7",
+  "version": "0.8.5",
   "compatibility": { "minimum": 13, "verified": 13 },
   "authors": [{ "name": "ZSystem Dev", "url": "" }],
   "esmodules": ["dist/zsystem.js"],
   "styles": ["styles/system-styles.css"],
   
+  "languages": [
+    {
+      "lang": "ru",
+      "name": "Russian",
+      "path": "lang/ru.json"
+    }
+  ],
+
   "documentTypes": {
-    "Actor": { "survivor": {}, "npc": {}, "zombie": {} },
+    "Actor": { "survivor": {}, "npc": {}, "zombie": {}, "shelter": {} },
     "Item": { 
         "weapon": {}, "armor": {}, "consumable": {}, "ammo": {}, 
         "resource": {}, "medicine": {}, "food": {}, "materials": {}, 
-        "luxury": {}, "misc": {} 
+        "luxury": {}, "misc": {}, "upgrade": {}, "project": {}
     }
   },
   
@@ -64,7 +72,6 @@
       }
     },
     "zombie": {
-        "types": ["zombie"],
         "attributes": {
             "str": { "value": 4 },
             "agi": { "value": 2 },
@@ -76,8 +83,19 @@
             "noise": { "value": 0 } 
         }
     },
+    "shelter": {
+        "resources": {
+            "food": { "value": 50, "max": 500, "consumption": 1 }, 
+            "fuel": { "value": 20, "max": 100, "daily": 5 },
+            "parts": { "value": 0 },
+            "antibiotics": { "value": 5 },
+            "defense": { "value": 0 }, 
+            "luxury": { "value": 0 }
+        },
+        "morale": { "value": 50, "max": 100, "trend": -5 },
+        "residents": [] 
+    },
     "Item": {
-      "types": ["weapon", "armor", "consumable", "ammo", "resource", "medicine", "food", "materials", "luxury", "misc"],
       "templates": {
         "base": {
           "weight": 0,
@@ -117,6 +135,38 @@
           "templates": ["base"],
           "healAmount": 10,
           "quality": 1
+      },
+      "upgrade": {
+          "templates": ["base"],
+          "costParts": 50,
+          "hoursNeeded": 24,
+          "progress": 0,
+          "reqSkill": "mechanical",
+          "reqLevel": 1,
+          "minPeople": 1,
+          "partsCost": 0,
+          "partsPaid": 0,
+          "workers": [],
+          "isCompleted": false,
+          "bonusType": "none",
+          "bonusValue": 0,
+          "outputItem": ""
+      },
+      "project": {
+          "templates": ["base"],
+          "costParts": 0,
+          "hoursNeeded": 4,
+          "progress": 0,
+          "reqSkill": "science",
+          "reqLevel": 1,
+          "minPeople": 1,
+          "partsCost": 0,
+          "partsPaid": 0,
+          "workers": [],
+          "isCompleted": false,
+          "bonusType": "none",
+          "bonusValue": 0,
+          "outputItem": ""
       },
       "food": { "templates": ["base"] },
       "materials": { "templates": ["base"] },

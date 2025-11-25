@@ -1,0 +1,51 @@
+<li class="item" data-item-id="{{item._id}}" data-type="{{item.type}}" style="border:1px solid #999; margin-bottom:5px; padding:5px; background:rgba(255,255,255,0.2);">
+    <div class="flexrow" style="align-items:center;">
+        <img src="{{item.img}}" width="36" height="36" style="margin-right:10px; border:1px solid #000;"/>
+        <div style="flex:1;">
+            <h4 style="margin:0; font-size:1.1em;">{{item.name}}</h4>
+            <div style="font-size:0.8em; color:#444;">
+                Треб: <i class="fas fa-cogs"></i> {{item.system.partsPaid}}/{{item.system.partsCost}} | 
+                Навык: {{item.system.reqSkill}} {{item.system.reqLevel}}+
+            </div>
+        </div>
+        <div style="text-align:right;">
+            <a class="item-edit"><i class="fas fa-edit"></i></a>
+            <a class="item-delete"><i class="fas fa-trash"></i></a>
+        </div>
+    </div>
+    
+    <!-- Progress Bar (ИСПОЛЬЗУЕМ percentComplete) -->
+    <div style="display:flex; align-items:center; margin-top:5px; gap:5px;">
+        <a class="progress-control" data-action="minus"><i class="fas fa-minus"></i></a>
+        <div style="flex:1; height:10px; background:#ccc; border:1px solid #000; position:relative;">
+            <div style="height:100%; background:{{#if item.isBuilt}}green{{else}}orange{{/if}}; width:{{item.percentComplete}}%;"></div>
+        </div>
+        <span style="font-size:0.8em;">{{item.system.progress}} / {{item.system.hoursNeeded}} ч.</span>
+        <a class="progress-control" data-action="plus"><i class="fas fa-plus"></i></a>
+    </div>
+
+    <!-- Controls -->
+    <div style="margin-top:5px; font-size:0.9em;">
+        {{#unless item.isFunded}}
+        <button type="button" class="contribute-btn" style="padding:2px 5px; font-size:0.8em;"><i class="fas fa-box"></i> Внести детали</button>
+        {{/unless}}
+        
+        <div style="margin-top:5px; border-top:1px dashed #999; padding-top:2px;">
+            <div class="flexrow" style="justify-content: space-between; align-items: center;">
+                <strong>Работники ({{item.workersList.length}}/{{item.system.minPeople}}):</strong>
+                <a class="add-worker-btn" title="Назначить жителя" style="color:green; cursor:pointer;"><i class="fas fa-plus-circle"></i></a>
+            </div>
+            
+            <div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">
+                {{#each item.workersList as |worker|}}
+                <span style="background:#eee; border:1px solid #aaa; padding:1px 4px; font-size:0.8em; border-radius:3px;">
+                    {{worker.name}} <a class="remove-worker" data-id="{{worker.id}}" style="color:red; margin-left:2px; cursor:pointer;">×</a>
+                </span>
+                {{/each}}
+                {{#unless item.workersList.length}}
+                <span style="color:gray; font-style:italic; font-size:0.8em;">Никто не назначен...</span>
+                {{/unless}}
+            </div>
+        </div>
+    </div>
+</li>

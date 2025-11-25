@@ -1,5 +1,6 @@
 import { ZActor } from "./module/actor.js";
 import { ZActorSheet } from "./module/actor-sheet.js";
+import { ZShelterSheet } from "./module/shelter-sheet.js"; 
 import { ZItem } from "./module/item.js";
 import { ZItemSheet } from "./module/item-sheet.js";
 import { NoiseManager } from "./module/noise.js";
@@ -9,8 +10,10 @@ import { GLOBAL_STATUSES } from "./module/constants.js";
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing ZSystem");
 
-  // --- 1. ХЕЛПЕРЫ ---
-  // ВАЖНО: Мы НЕ добавляем selectOptions, он встроен в Foundry V13
+  // ВАЖНО: Путь соответствует твоей структуре папок (sheets в корне)
+  loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
+
+  // --- ХЕЛПЕРЫ ---
   Handlebars.registerHelper('capitalize', str => typeof str === 'string' ? str.charAt(0).toUpperCase() + str.slice(1) : '');
   Handlebars.registerHelper('gt', (a, b) => a > b);
   Handlebars.registerHelper('lt', (a, b) => a < b);
@@ -19,33 +22,40 @@ Hooks.once("init", () => {
   Handlebars.registerHelper('and', (a, b) => a && b);
   Handlebars.registerHelper('or', (a, b) => a || b);
   
-  // --- 2. НАСТРОЙКА КЛАССОВ ---
+  // 1. Классы
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = { formula: "1d10 + @attributes.per.value", decimals: 2 };
 
-  // --- 3. ЛЕЧЕНИЕ ВЫПАДАЮЩИХ СПИСКОВ (FIX [object Object]) ---
-  // Мы прописываем названия жестко в конфиг.
-  CONFIG.Actor.typeLabels = {
-    survivor: "Выживший",
-    npc: "NPC",
-    zombie: "Зомби"
+  // 2. ВНЕДРЕНИЕ ПЕРЕВОДОВ (Чтобы починить [object Object])
+  const customTranslations = {
+    TYPES: {
+      Actor: {
+        survivor: "Выживший",
+        npc: "NPC",
+        zombie: "Зомби",
+        shelter: "Убежище"
+      },
+      Item: {
+        weapon: "Оружие",
+        armor: "Броня",
+        consumable: "Расходник",
+        ammo: "Патроны",
+        resource: "Ресурс",
+        medicine: "Медицина",
+        food: "Еда",
+        materials: "Материалы",
+        luxury: "Роскошь",
+        misc: "Разное",
+        upgrade: "Постройка",
+        project: "Проект"
+      }
+    }
   };
+  foundry.utils.mergeObject(game.i18n.translations, customTranslations);
+  if (game.i18n._fallback) foundry.utils.mergeObject(game.i18n._fallback, customTranslations);
 
-  CONFIG.Item.typeLabels = {
-    weapon: "Оружие",
-    armor: "Броня",
-    consumable: "Расходник",
-    ammo: "Патроны",
-    resource: "Ресурс",
-    medicine: "Медицина",
-    food: "Еда",
-    materials: "Материалы",
-    luxury: "Роскошь",
-    misc: "Разное"
-  };
-
-  // --- 4. СТАТУСЫ ---
+  // 3. СТАТУСЫ
   CONFIG.statusEffects = [
     GLOBAL_STATUSES.bleeding,
     GLOBAL_STATUSES.prone,
@@ -53,17 +63,23 @@ Hooks.once("init", () => {
     { id: "dead", label: "Мертв", icon: "icons/svg/skull.svg" }
   ];
 
-  // --- 5. РЕГИСТРАЦИЯ ЛИСТОВ ---
+  // 4. РЕГИСТРАЦИЯ ЛИСТОВ
   Actors.unregisterSheet("core", ActorSheet);
+  
   Actors.registerSheet("zsystem", ZActorSheet, { 
     types: ["survivor", "npc", "zombie"], 
-    makeDefault: true 
+    makeDefault: true,
+    label: "Лист Персонажа"
+  });
+  
+  Actors.registerSheet("zsystem", ZShelterSheet, { 
+    types: ["shelter"], 
+    makeDefault: true,
+    label: "Управление Убежищем"
   });
 
   Items.unregisterSheet("core", ItemSheet);
-  Items.registerSheet("zsystem", ZItemSheet, { 
-    makeDefault: true 
-  });
+  Items.registerSheet("zsystem", ZItemSheet, { makeDefault: true });
 
   NoiseManager.init();
   ZChat.init(); 
@@ -71,17 +87,13 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", async () => {
   
-  // Хук начала хода
   Hooks.on("updateCombat", async (combat, changed) => {
     if (changed.turn !== undefined || changed.round !== undefined) {
       const combatant = combat.combatant;
-      if (combatant?.actor?.onTurnStart) {
-          await combatant.actor.onTurnStart();
-      }
+      if (combatant?.actor?.onTurnStart) await combatant.actor.onTurnStart();
     }
   });
 
-  // Хук Движения (Штраф Prone x2 AP)
   Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
       if (changes.x === undefined && changes.y === undefined) return true;
       const actor = tokenDoc.actor;
@@ -90,8 +102,6 @@ Hooks.once("ready", async () => {
       const currentPos = { x: tokenDoc.x, y: tokenDoc.y };
       const newPos = { x: changes.x ?? tokenDoc.x, y: changes.y ?? tokenDoc.y };
       const grid = canvas.grid;
-      
-      // Безопасный расчет дистанции для V13
       const size = grid.size;
       const dx = Math.abs(newPos.x - currentPos.x) / size;
       const dy = Math.abs(newPos.y - currentPos.y) / size;
@@ -112,11 +122,10 @@ Hooks.once("ready", async () => {
       }
 
       actor.update({ "system.resources.ap.value": curAP - totalCost });
-      ui.notifications.info(`Движение: -${totalCost} AP ${isProne ? "(Ползком)" : ""}`);
+      ui.notifications.info(`Движение: -${totalCost} AP`);
       return true;
   });
 
-  // Хук Стак Предметов
   Hooks.on("preCreateItem", (itemDoc, createData) => {
     const parent = itemDoc.parent;
     if (!parent || parent.documentName !== "Actor") return true;

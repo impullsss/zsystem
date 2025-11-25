@@ -3,30 +3,64 @@ import { INJURY_EFFECTS, GLOBAL_STATUSES } from "./constants.js";
 
 export class ZActor extends Actor {
   
+  /** @override */
+  async _onCreate(data, options, userId) {
+    await super._onCreate(data, options, userId);
+    if (this.type === "zombie" && userId === game.user.id) {
+        await this.createEmbeddedDocuments("Item", this._getZombieNaturalWeapons());
+    }
+  }
+
+  _getZombieNaturalWeapons() {
+      return [
+          {
+              name: "Гнилой Укус",
+              type: "weapon",
+              img: "icons/creatures/abilities/mouth-teeth-humanoid.webp",
+              system: {
+                  weaponType: "melee",
+                  damageType: "piercing",
+                  damage: "2d6 + 4",
+                  apCost: 4,
+                  equipped: true,
+                  attacks: {
+                      default: { name: "Укус", ap: 4, dmg: "2d6 + 4", mod: 40 }
+                  },
+                  description: "Опасный укус. Может вызвать инфекцию."
+              }
+          },
+          {
+              name: "Удар Когтями",
+              type: "weapon",
+              img: "icons/creatures/abilities/paw-claw-feline.webp",
+              system: {
+                  weaponType: "melee",
+                  damageType: "slashing",
+                  damage: "2d4+2",
+                  apCost: 2,
+                  equipped: true,
+                  attacks: {
+                      default: { name: "Царапина", ap: 2, dmg: "2d4+2", mod: 40 }
+                  }
+              }
+          }
+      ];
+  }
+
   prepareBaseData() {
     const system = this.system;
-    
-    // Зомби пропускаем, у них статика
-    if (this.type === 'zombie') return;
-
+    if (this.type === 'shelter' || this.type === 'zombie') return;
     if (!system.attributes) return;
 
-    // 1. Сброс Атрибутов
-    // Копируем Базу в Значение, чтобы Active Effects могли наложиться сверху
     const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
     attrKeys.forEach(key => {
         const attr = system.attributes[key];
         if (!attr) return;
-        
-        // Если базы нет, инициализируем
         if (attr.base === undefined) attr.base = attr.value || 1;
-        
-        // Сбрасываем Value к Base перед наложением эффектов
         attr.value = Number(attr.base) || 1;
         attr.mod = 0; 
     });
 
-    // 2. AP Init
     if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
     system.resources.ap.effect = 0;
   }
@@ -35,9 +69,9 @@ export class ZActor extends Actor {
     const actorData = this;
     const system = actorData.system;
 
-    if (this.type === 'zombie') return;
+    if (this.type === 'shelter' || this.type === 'zombie') return;
+    if (!system.attributes) return;
 
-    // Инициализация структур (защита от null)
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};
     if (!system.skills) system.skills = {};
@@ -46,75 +80,62 @@ export class ZActor extends Actor {
     const getNum = (val) => { const n = Number(val); return isNaN(n) ? 0 : n; };
     const s = {}; 
 
-    // 1. Атрибуты (Логика лимитов)
     let spentStats = 0;
     const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
     attrKeys.forEach(key => {
+        if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
         const attr = system.attributes[key];
-        
-        // Ограничиваем БАЗУ (1-10)
         attr.base = Math.max(1, Math.min(10, attr.base));
-        
-        // ИТОГОВОЕ значение (value) НЕ ограничиваем сверху (может быть > 10)
-        // Но не может быть меньше 1
         attr.value = Math.max(1, attr.value);
-
         attr.mod = attr.value - attr.base;
         spentStats += (attr.base - 1);
         s[key] = attr.value; 
     });
+    
     if (!system.secondary.spentStats) system.secondary.spentStats = { value: 0 };
     system.secondary.spentStats.value = spentStats;
 
-    // 2. Вторичные Характеристики
-    
-    // Храбрость
     system.secondary.bravery = { value: Math.floor((s.cha + s.per) / 2) };
-    // Стойкость
     system.secondary.tenacity = { value: s.vig };
 
-    // HP + Штрафы
     if (!system.resources.hp) system.resources.hp = { value: 70, max: 70, penalty: 0 };
     const baseMaxHP = 70 + (s.vig - 1) * 10;
     const hpPenalty = getNum(system.resources.hp.penalty);
     system.resources.hp.max = Math.max(10, baseMaxHP - hpPenalty);
     if (system.resources.hp.value > system.resources.hp.max) system.resources.hp.value = system.resources.hp.max;
 
-    // AP
     const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
     const userBonus = getNum(system.resources.ap.bonus);
     const effectBonus = getNum(system.resources.ap.effect);
     system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus);
 
-    // Вес
     if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0 };
     system.secondary.carryWeight.max = 40 + (s.str - 1) * 10;
     let totalWeight = 0;
-    this.items.forEach(item => { totalWeight += (getNum(item.system.weight) * getNum(item.system.quantity)); });
+    if (this.items) {
+        this.items.forEach(item => { 
+            totalWeight += (getNum(item.system.weight) * getNum(item.system.quantity)); 
+        });
+    }
     system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
 
-    // AC (Природная броня)
-    // ИСПРАВЛЕНО: Формула Vig / 2 (округление вниз).
-    // 10 Vig = 5 AC. 
     let naturalAC = Math.floor(s.vig / 2);
     if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };
     system.secondary.naturalAC.value = naturalAC;
 
-    // Уклонение
     if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
     system.secondary.evasion.value = s.agi;
 
-    // 3. Навыки (Дом. правила)
     let spentSkills = 0;
     const skillConfig = {
       melee:      { a1: 'str', a2: 'agi' },
       ranged:     { a1: 'agi', a2: 'per' },
-      science:    { a1: 'int', mult: 4 }, // Science * 4
-      mechanical: { a1: 'int', altA2: ['str', 'agi'] }, // Int + Max(Str, Agi)
+      science:    { a1: 'int', mult: 4 },
+      mechanical: { a1: 'int', altA2: ['str', 'agi'] },
       medical:    { a1: 'int', a2: 'per' },
       diplomacy:  { a1: 'cha', a2: 'per' },
       leadership: { a1: 'cha', a2: 'int' },
-      survival:   { a1: 'per', altA2: ['vig', 'int'] }, // Per + Max(Vig, Int)
+      survival:   { a1: 'per', altA2: ['vig', 'int'] },
       athletics:  { a1: 'str', a2: 'agi' },
       stealth:    { a1: 'agi', a2: 'per' }
     };
@@ -141,7 +162,6 @@ export class ZActor extends Actor {
     if (!system.secondary.spentSkills) system.secondary.spentSkills = { value: 0 };
     system.secondary.spentSkills.value = spentSkills;
 
-    // 4. Конечности
     const totalHP = system.resources.hp.max;
     const setLimb = (part, percent) => {
         if (!system.limbs[part]) system.limbs[part] = { value: 0, max: 0 };
@@ -155,11 +175,9 @@ export class ZActor extends Actor {
     setLimb('lLeg', 0.20); setLimb('rLeg', 0.20);
   }
 
-  // --- ДЕЙСТВИЯ ---
-
   async useMedicine(item) {
       if (this.system.resources.ap.value < 4) return ui.notifications.warn("Нужно 4 AP.");
-      const medSkill = this.system.skills.medical.value;
+      const medSkill = this.system.skills.medical?.value || 0;
       const itemHeal = item.system.healAmount || 10;
       const healAmount = itemHeal + Math.floor(medSkill / 2);
       const penalty = Math.ceil(healAmount * 0.2) || 1;
@@ -215,7 +233,7 @@ export class ZActor extends Actor {
       const pos = tokens[0] ? {x: tokens[0].x, y: tokens[0].y} : {x:0, y:0};
       const zombieData = {
           name: `Zombie (${this.name})`, type: "zombie", img: this.img,
-          system: { resources: { hp: {value:50, max:50}, ap:{value:4, max:4} }, attributes: { str:{value:6}, agi:{value:2}, vig:{value:10} } }
+          system: { resources: { hp: {value:50, max:50}, ap:{value:4, max:4} }, attributes: { str:{base:6, value:6}, agi:{base:2, value:2}, vig:{base:10, value:10} } }
       };
       const newZombie = await Actor.create(zombieData);
       const items = this.items.map(i => i.toObject());
@@ -231,29 +249,24 @@ export class ZActor extends Actor {
   async onTurnStart() {
       const maxAP = this.system.resources.ap.max;
       await this.update({ "system.resources.ap.value": maxAP });
-      
-      // Кровотечение
       const isBleeding = this.effects.some(e => e.statuses?.has("bleeding") || e.name === "Кровотечение");
       if (isBleeding) {
           const roll = new Roll("1d5"); await roll.evaluate();
-          
-          // Урон от кровотечения - тип "true" (чистый)
-          // Это игнорирует броню (и Natural AC тоже, см. applyDamage)
           await this.applyDamage(roll.total, "true", "torso");
-          
           ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `Кровотечение: -${roll.total} HP` });
       }
   }
 
   async applyDamage(amount, type = "blunt", limb = "torso") {
     if (this.type === 'zombie' && type === 'fire') amount *= 2;
-
-    let totalResist = 0, totalAC = 0; 
     
-    // Если тип НЕ "true", считаем броню
+    let totalResist = 0;
+    let totalAC = 0; // Инициализируем 0
+
+    // Если урон НЕ "true" (не кровотечение/яд), то считаем броню
     if (type !== "true") {
         const naturalAC = this.system.secondary?.naturalAC?.value || 0;
-        totalAC += naturalAC;
+        totalAC += naturalAC; // Природная броня работает только здесь
 
         const armors = this.items.filter(i => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]);
         for (let armor of armors) {
@@ -262,7 +275,7 @@ export class ZActor extends Actor {
         }
         totalResist = Math.min(100, totalResist);
     }
-    // Если тип "true" (кровотечение), блок выше пропускается, totalAC = 0
+    // Если type === "true", totalAC останется 0, и Natural AC не вычтется.
 
     const dmg = Math.max(0, Math.floor((amount * (1 - totalResist/100)) - totalAC));
 

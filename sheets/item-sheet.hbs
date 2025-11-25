@@ -26,6 +26,75 @@
     <!-- TAB: DETAILS -->
     <div class="tab details" data-group="primary" data-tab="details">
 
+        <!-- СЕКЦИЯ ПРОЕКТОВ И ПОСТРОЕК -->
+        {{#if (or (eq item.type "upgrade") (eq item.type "project"))}}
+        <div class="project-settings">
+            <h3>Требования Проекта</h3>
+            <div class="grid grid-2col">
+                <div class="form-group">
+                    <label>Время (Часы)</label>
+                    <input type="number" name="system.hoursNeeded" value="{{system.hoursNeeded}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Стоимость (Детали)</label>
+                    <input type="number" name="system.partsCost" value="{{system.partsCost}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Мин. Людей</label>
+                    <input type="number" name="system.minPeople" value="{{system.minPeople}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Навык</label>
+                    <select name="system.reqSkill">
+                        {{selectOptions skillsList selected=system.reqSkill localize=false}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Мин. Уровень Навыка</label>
+                    <input type="number" name="system.reqLevel" value="{{system.reqLevel}}"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Текущий прогресс (Часы)</label>
+                <input type="number" name="system.progress" value="{{system.progress}}"/>
+            </div>
+            <div class="form-group">
+                <label>Внесено деталей</label>
+                <input type="number" name="system.partsPaid" value="{{system.partsPaid}}"/>
+            </div>
+            <hr>
+            <h3>Эффект при завершении (Ежедневный)</h3>
+            <div class="grid grid-2col">
+                <div class="form-group">
+                    <label>Тип Бонуса</label>
+                    <select name="system.bonusType">
+                        {{selectOptions bonusTypes selected=system.bonusType localize=false}}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Значение / Кол-во</label>
+                    <input type="number" name="system.bonusValue" value="{{system.bonusValue}}"/>
+                </div>
+
+                <!-- Если это медицина, показываем поле для ввода имени предмета -->
+                {{#if (eq system.bonusType "medicine")}}
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Создаваемый предмет (название)</label>
+                    <input type="text" name="system.outputItem" value="{{system.outputItem}}" placeholder="Например: Бинт"/>
+                </div>
+                {{/if}}
+
+                <div class="form-group flexrow">
+                    <label>Завершено?</label>
+                    <input type="checkbox" name="system.isCompleted" {{checked system.isCompleted}}/>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        {{/if}}
+        
         <!-- === СЕКЦИЯ ОРУЖИЯ === -->
         {{#if (eq item.type "weapon")}}
         <div class="weapon-properties">
