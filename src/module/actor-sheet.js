@@ -14,18 +14,30 @@ export class ZActorSheet extends ActorSheet {
 
   getData() {
     const context = super.getData();
-    // ЗАЩИТА: Проверяем, есть ли system
-    context.system = this.actor?.system || {};
+    // Защита: если system нет, берем пустой объект
+    context.system = this.actor.system || {};
     
+    context.isGM = game.user.isGM; 
+    
+    // ЗАЩИТА ОТ ОШИБОК ЗДЕСЬ: используем ?. (optional chaining)
+    // Если effects нет, вернет false.
+    context.isProne = this.actor.effects?.some(e => e.statuses.has("prone")) || false;
+    
+    // ЗАЩИТА ОТ ОШИБОК ЗДЕСЬ:
+    // Проверяем resources?.hp?.value. Если чего-то нет, считаем HP = 0 (мертв) или 1 (жив) по ситуации.
+    // Используем (val ?? 0), чтобы null/undefined стали 0.
+    const currentHP = this.actor.system.resources?.hp?.value ?? 0;
+    context.isDead = currentHP <= 0;
+
     this._prepareInventory(context);
     
-    // Подготовка эффектов
-    context.effects = this.actor.effects.map(e => ({
+    // Защита для эффектов
+    context.effects = (this.actor.effects || []).map(e => ({
       id: e.id,
       name: e.name,
       img: e.img,
       disabled: e.disabled,
-      duration: e.duration.label,
+      duration: e.duration?.label || "",
       isTemporary: e.isTemporary 
     }));
 
@@ -44,10 +56,12 @@ export class ZActorSheet extends ActorSheet {
       misc: { label: "Разное", items: [] }
     };
 
-    for (let i of this.actor.items) {
+    // Защита: если items нет
+    const items = this.actor.items || [];
+
+    for (let i of items) {
       let cat = i.system.category || "misc";
       
-      // Привязка типов к категориям
       if (i.type === "weapon") cat = "weapon";
       if (i.type === "ammo") cat = "ammo";
       if (i.type === "armor") cat = "armor";
@@ -64,9 +78,37 @@ export class ZActorSheet extends ActorSheet {
     super.activateListeners(html);
     if (!this.isEditable) return;
 
-    html.find('.ap-reset').click(async ev => {
-      const max = this.actor.system.resources.ap.max;
-      await this.actor.update({"system.resources.ap.value": max});
+    // Кнопка Встать
+    html.find('.stand-up-btn').click(ev => this.actor.standUp());
+    
+    // Кнопка Отдых
+    html.find('.rest-btn').click(ev => {
+        Dialog.confirm({
+            title: "Ночной отдых",
+            content: "Отдохнуть и восстановить силы (снимает штрафы ХП)?",
+            yes: () => this.actor.longRest()
+        });
+    });
+
+    // Кнопка Зомбификация (GM)
+    html.find('.zombie-rise-btn').click(ev => {
+        Dialog.confirm({
+            title: "Восстать из мертвых?",
+            content: "Персонаж станет зомби-NPC.",
+            yes: () => this.actor.riseAsZombie()
+        });
+    });
+    
+    // Использование медицины
+    html.find('.item-use').click(ev => {
+        const li = $(ev.currentTarget).parents(".item");
+        const item = this.actor.items.get(li.data("itemId"));
+        if (item.type === "medicine") this.actor.useMedicine(item);
+    });
+
+    html.find('.ap-reset').click(async ev => { 
+        const max = this.actor.system.resources?.ap?.max || 0;
+        await this.actor.update({"system.resources.ap.value": max}); 
     });
 
     html.find('.skill-roll').click(ev => {
@@ -98,16 +140,13 @@ export class ZActorSheet extends ActorSheet {
       this.actor.performAttack(li.data("itemId"));
     });
 
-    // Экипировка / Снятие
     html.find('.item-toggle').click(async ev => {
       ev.preventDefault();
       const li = $(ev.currentTarget).parents(".item");
       const item = this.actor.items.get(li.data("itemId"));
-      // Переключаем состояние
       await item.update({ "system.equipped": !item.system.equipped });
     });
     
-    // Перезарядка
     html.find('.item-reload').click(ev => {
       const li = $(ev.currentTarget).parents(".item");
       const item = this.actor.items.get(li.data("itemId"));
@@ -122,21 +161,15 @@ export class ZActorSheet extends ActorSheet {
     const header = event.currentTarget;
     const type = header.dataset.type;
     
-    // Дефолтные категории для порядка
     let cat = "misc";
     if (type === "weapon") cat = "weapon";
     if (type === "ammo") cat = "ammo";
     if (type === "armor") cat = "armor";
     if (type === "food") cat = "food";
-    
-    // Перевод имени при создании
+
     const typeNames = {
-        weapon: "Оружие",
-        armor: "Броня",
-        ammo: "Патроны",
-        medicine: "Медицина",
-        food: "Еда",
-        misc: "Предмет"
+        weapon: "Оружие", armor: "Броня", ammo: "Патроны",
+        medicine: "Медицина", food: "Еда", misc: "Предмет"
     };
 
     const itemData = {
@@ -156,10 +189,7 @@ export class ZActorSheet extends ActorSheet {
     switch ( a.dataset.action ) {
       case "create":
         return this.actor.createEmbeddedDocuments("ActiveEffect", [{
-          name: "Новый эффект",
-          img: "icons/svg/aura.svg",
-          origin: this.actor.uuid,
-          disabled: false
+          name: "Новый эффект", img: "icons/svg/aura.svg", origin: this.actor.uuid, disabled: false
         }]);
       case "edit":
         return this.actor.effects.get(effectId).sheet.render(true);
