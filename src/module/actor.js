@@ -1,3 +1,5 @@
+// --- START OF FILE src/module/actor.js ---
+
 import * as Dice from "./dice.js";
 import { INJURY_EFFECTS, GLOBAL_STATUSES } from "./constants.js"; 
 
@@ -14,34 +16,18 @@ export class ZActor extends Actor {
   _getZombieNaturalWeapons() {
       return [
           {
-              name: "Гнилой Укус",
-              type: "weapon",
-              img: "icons/creatures/abilities/mouth-teeth-humanoid.webp",
+              name: "Гнилой Укус", type: "weapon", img: "icons/creatures/abilities/mouth-teeth-humanoid.webp",
               system: {
-                  weaponType: "melee",
-                  damageType: "piercing",
-                  damage: "2d6 + 4",
-                  apCost: 4,
-                  equipped: true,
-                  attacks: {
-                      default: { name: "Укус", ap: 4, dmg: "2d6 + 4", mod: 40 }
-                  },
+                  weaponType: "melee", damageType: "piercing", damage: "2d6 + 4", apCost: 4, equipped: true,
+                  attacks: { default: { name: "Укус", ap: 4, dmg: "2d6 + 4", mod: 40, effect: "infected", chance: 25 } },
                   description: "Опасный укус. Может вызвать инфекцию."
               }
           },
           {
-              name: "Удар Когтями",
-              type: "weapon",
-              img: "icons/creatures/abilities/paw-claw-feline.webp",
+              name: "Удар Когтями", type: "weapon", img: "icons/creatures/abilities/paw-claw-feline.webp",
               system: {
-                  weaponType: "melee",
-                  damageType: "slashing",
-                  damage: "2d4+2",
-                  apCost: 2,
-                  equipped: true,
-                  attacks: {
-                      default: { name: "Царапина", ap: 2, dmg: "2d4+2", mod: 40 }
-                  }
+                  weaponType: "melee", damageType: "slashing", damage: "2d4+2", apCost: 2, equipped: true,
+                  attacks: { default: { name: "Царапина", ap: 2, dmg: "2d4+2", mod: 40, effect: "bleeding", chance: 15 } }
               }
           }
       ];
@@ -50,28 +36,36 @@ export class ZActor extends Actor {
   prepareBaseData() {
     const system = this.system;
     if (this.type === 'shelter' || this.type === 'zombie') return;
-    if (!system.attributes) return;
+    
+    // --- ИСПРАВЛЕНИЕ ИНИЦИАЛИЗАЦИИ ---
+    // Сначала гарантируем существование основных объектов
+    if (!system.attributes) system.attributes = {};
+    if (!system.resources) system.resources = {};
+    if (!system.secondary) system.secondary = {}; // Важно! Создаем объект, если его нет
 
     const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
     attrKeys.forEach(key => {
+        if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
         const attr = system.attributes[key];
-        if (!attr) return;
         if (attr.base === undefined) attr.base = attr.value || 1;
         attr.value = Number(attr.base) || 1;
         attr.mod = 0; 
     });
 
     if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
+    if (!system.resources.infection) system.resources.infection = { value: 0, stage: 0, active: false };
     system.resources.ap.effect = 0;
+    
+    // Теперь безопасно обращаемся к secondary
+    if (!system.secondary.xp) system.secondary.xp = { value: 0 };
   }
 
   prepareDerivedData() {
-    const actorData = this;
-    const system = actorData.system;
-
+    const system = this.system;
     if (this.type === 'shelter' || this.type === 'zombie') return;
     if (!system.attributes) return;
 
+    // Еще раз проверяем структуру для надежности
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};
     if (!system.skills) system.skills = {};
@@ -88,6 +82,7 @@ export class ZActor extends Actor {
         attr.base = Math.max(1, Math.min(10, attr.base));
         attr.value = Math.max(1, attr.value);
         attr.mod = attr.value - attr.base;
+        
         spentStats += (attr.base - 1);
         s[key] = attr.value; 
     });
@@ -126,6 +121,9 @@ export class ZActor extends Actor {
     if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
     system.secondary.evasion.value = s.agi;
 
+    // XP
+    if (!system.secondary.xp) system.secondary.xp = { value: 0 };
+
     let spentSkills = 0;
     const skillConfig = {
       melee:      { a1: 'str', a2: 'agi' },
@@ -143,16 +141,10 @@ export class ZActor extends Actor {
     for (let [key, conf] of Object.entries(skillConfig)) {
       if (!system.skills[key]) system.skills[key] = { base: 0, value: 0, points: 0 };
       const skill = system.skills[key];
-      
-      if (key === 'science') {
-          skill.base = s.int * 4;
-      } else if (key === 'mechanical') {
-          skill.base = s.int + Math.max(s.str, s.agi);
-      } else if (key === 'survival') {
-          skill.base = s.per + Math.max(s.vig, s.int);
-      } else {
-          skill.base = s[conf.a1] + s[conf.a2];
-      }
+      if (key === 'science') skill.base = s.int * 4;
+      else if (key === 'mechanical') skill.base = s.int + Math.max(s.str, s.agi);
+      else if (key === 'survival') skill.base = s.per + Math.max(s.vig, s.int);
+      else skill.base = s[conf.a1] + s[conf.a2];
 
       const invested = getNum(skill.points);
       spentSkills += invested;
@@ -175,6 +167,10 @@ export class ZActor extends Actor {
     setLimb('lLeg', 0.20); setLimb('rLeg', 0.20);
   }
 
+  hasStatusEffect(statusId) {
+      return this.effects.some(e => e.statuses.has(statusId) || e.flags?.core?.statusId === statusId);
+  }
+
   async useMedicine(item) {
       if (this.system.resources.ap.value < 4) return ui.notifications.warn("Нужно 4 AP.");
       const medSkill = this.system.skills.medical?.value || 0;
@@ -194,6 +190,7 @@ export class ZActor extends Actor {
       await item.update({"system.quantity": item.system.quantity - 1});
       if (item.system.quantity <= 0) item.delete();
 
+      // Лечение может снимать кровотечение
       const bleeding = this.effects.find(e => e.statuses.has("bleeding") || e.name === "Кровотечение");
       if (bleeding) await bleeding.delete();
 
@@ -219,12 +216,45 @@ export class ZActor extends Actor {
       const newMax = baseMax - newPenalty;
       const healedHP = Math.min(newMax, this.system.resources.hp.value + recovery);
 
+      // Логика Инфекции при отдыхе
+      const infected = this.effects.find(e => e.statuses.has("infected"));
+      if (infected) {
+          const currentStage = this.system.resources.infection?.stage || 1;
+          // Если стадия 3 - смерть (999 урона в голову)
+          if (currentStage >= 3) {
+              return this.applyDamage(999, "true", "head"); 
+          }
+           await this.update({"system.resources.infection.stage": currentStage + 1});
+           ui.notifications.warn(`${this.name}: Инфекция прогрессирует (Стадия ${currentStage + 1})!`);
+      }
+
       await this.update({
           "system.resources.hp.penalty": newPenalty,
           "system.resources.hp.value": healedHP,
           "system.resources.ap.value": this.system.resources.ap.max
       });
       ui.notifications.info("Отдых завершен.");
+  }
+
+  async reloadWeapon(item) {
+      if (item.type !== 'weapon') return;
+      const ammoType = item.system.ammoType;
+      if (!ammoType) return ui.notifications.warn("Этому оружию не нужны патроны.");
+      const maxMag = Number(item.system.mag.max) || 0;
+      const currentMag = Number(item.system.mag.value) || 0;
+      if (currentMag >= maxMag) return ui.notifications.info("Магазин полон.");
+      const apCost = Number(item.system.reloadAP) || 0;
+      if (this.system.resources.ap.value < apCost) return ui.notifications.warn(`Нужно ${apCost} AP для перезарядки.`);
+      const ammoItem = this.items.find(i => i.type === 'ammo' && i.system.calibre === ammoType);
+      if (!ammoItem) return ui.notifications.warn(`Нет патронов калибра "${ammoType}".`);
+      const needed = maxMag - currentMag;
+      const available = ammoItem.system.quantity;
+      const toLoad = Math.min(needed, available);
+      await this.update({"system.resources.ap.value": this.system.resources.ap.value - apCost});
+      await item.update({"system.mag.value": currentMag + toLoad});
+      if (available - toLoad <= 0) await ammoItem.delete();
+      else await ammoItem.update({"system.quantity": available - toLoad});
+      ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `${this.name} перезаряжает ${item.name} (${toLoad} пт.).` });
   }
 
   async riseAsZombie() {
@@ -261,13 +291,11 @@ export class ZActor extends Actor {
     if (this.type === 'zombie' && type === 'fire') amount *= 2;
     
     let totalResist = 0;
-    let totalAC = 0; // Инициализируем 0
+    let totalAC = 0; 
 
-    // Если урон НЕ "true" (не кровотечение/яд), то считаем броню
     if (type !== "true") {
         const naturalAC = this.system.secondary?.naturalAC?.value || 0;
-        totalAC += naturalAC; // Природная броня работает только здесь
-
+        totalAC += naturalAC; 
         const armors = this.items.filter(i => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]);
         for (let armor of armors) {
             totalResist += (Number(armor.system.dr[type]) || 0);
@@ -275,23 +303,61 @@ export class ZActor extends Actor {
         }
         totalResist = Math.min(100, totalResist);
     }
-    // Если type === "true", totalAC останется 0, и Natural AC не вычтется.
 
     const dmg = Math.max(0, Math.floor((amount * (1 - totalResist/100)) - totalAC));
 
     if (dmg > 0) {
-        const newHP = Math.max(0, this.system.resources.hp.value - dmg);
+        // Вычитаем урон (может уйти в минус)
+        const newHP = this.system.resources.hp.value - dmg;
         const updateData = { "system.resources.hp.value": newHP };
+        
+        // Лимбы
         if (this.system.limbs && this.system.limbs[limb]) {
             const newLimbHP = this.system.limbs[limb].value - dmg;
             updateData[`system.limbs.${limb}.value`] = newLimbHP;
             if (this.system.limbs[limb].value > 0 && newLimbHP <= 0) await this._applyInjury(limb);
         }
-        if (this.system.resources.hp.value > 0 && newHP <= 0) await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious]);
+        
+        // Логика KO (0 HP) и Смерти ( -5 * Vig)
+        const vig = this.system.attributes.vig.value || 1;
+        const deathThreshold = -(vig * 5);
+
+        if (newHP <= deathThreshold) {
+             // СМЕРТЬ
+             await this.createEmbeddedDocuments("ActiveEffect", [{
+                 id: "dead", label: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
+             }]);
+             ui.notifications.error(`${this.name} ПОГИБАЕТ!`);
+        } else if (this.system.resources.hp.value > 0 && newHP <= 0) {
+             // KO (только если еще жив, но упал в 0)
+             await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
+        }
+        
         await this.update(updateData);
+
+        // ПРОВЕРКА ПАНИКИ (только если жив)
+        if (this.type !== 'zombie' && this.type !== 'shelter' && newHP > deathThreshold) {
+            await this.checkPanic(dmg);
+        }
     }
     const speaker = ChatMessage.getSpeaker({ actor: this });
     ChatMessage.create({ user: game.user.id, speaker, content: `<div class="z-damage-result">Урон: <b>${amount}</b> (${type}) -> <b>-${dmg} HP</b> (${_getLimbName(limb)})</div>` });
+  }
+
+  async checkPanic(damageAmount) {
+      if (this.hasStatusEffect("panic")) return;
+      const bravery = this.system.secondary.bravery.value || 0;
+      const isLowHP = (this.system.resources.hp.value / this.system.resources.hp.max) < 0.3;
+      const isHighDamage = damageAmount > bravery;
+
+      if (isLowHP || isHighDamage) {
+          const panicRoll = new Roll("1d100");
+          await panicRoll.evaluate();
+          if (panicRoll.total <= 50) {
+               await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.panic]);
+               await Dice.rollPanicTable(this);
+          }
+      }
   }
 
   async _applyInjury(limb) {
@@ -310,7 +376,6 @@ export class ZActor extends Actor {
   getRollData() { return { ...super.getRollData(), ...this.system }; }
   async rollSkill(skillId) { return Dice.rollSkill(this, skillId); }
   async performAttack(itemId) { return Dice.performAttack(this, itemId); }
-  async reloadWeapon(w) { /* ... */ }
 }
 
 function _getLimbName(key) { return { head:"Голова", torso:"Торс", lArm:"Л.Рука", rArm:"П.Рука", lLeg:"Л.Нога", rLeg:"П.Нога" }[key] || key; }

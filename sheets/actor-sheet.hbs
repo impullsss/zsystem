@@ -1,3 +1,4 @@
+
 <form class="{{cssClass}}" autocomplete="off">
   <header class="sheet-header">
     <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="100" width="100"/>
@@ -32,6 +33,13 @@
           </div>
         </div>
       </div>
+
+      <!-- INFECTION WARNING BAR -->
+      {{#if (gt system.resources.infection.stage 0)}}
+      <div style="background: #3a0000; border: 2px solid red; color: red; text-align: center; font-weight: bold; margin-top: 5px; padding: 4px; border-radius: 4px; animation: pulse-injury 2s infinite;">
+          <i class="fas fa-biohazard"></i> ИНФЕКЦИЯ: СТАДИЯ {{system.resources.infection.stage}} <i class="fas fa-biohazard"></i>
+      </div>
+      {{/if}}
 
       <!-- Кнопки действий -->
       <div class="action-buttons flexrow" style="margin-top:5px; gap:5px;">
@@ -79,7 +87,7 @@
         
         <!-- ХАРАКТЕРИСТИКИ -->
         <div class="stats-panel">
-          <h3>Характеристики</h3>
+          <h3>Характеристики <span style="font-size:0.6em; color:#888;">(Потрачено: {{system.secondary.spentStats.value}})</span></h3>
           <div class="flexrow stat-header" style="font-size:0.8em; color:#666; margin-bottom:2px;">
               <span style="flex:2"></span>
               <span style="flex:1; text-align:center;">База</span>
@@ -93,11 +101,6 @@
             <span class="stat-mod" style="flex:1; text-align:center;">{{#if (gt system.attributes.str.mod 0)}}+{{/if}}{{system.attributes.str.mod}}</span>
             <span class="stat-total value-box" style="flex:1; text-align:center; font-weight:bold;">{{system.attributes.str.value}}</span>
           </div>
-          
-          <!-- ... (аналогично для AGI, VIG, PER, INT, CHA) ... -->
-          <!-- Для краткости пропущено, копируй из старого, структура та же -->
-          <!-- Но убедись, что все статы есть -->
-          
           <div class="stat-row flexrow" style="align-items:center; margin-bottom:2px;">
             <label style="flex:2; font-weight:bold;">ЛОВКОСТЬ</label>
             <input type="number" name="system.attributes.agi.base" value="{{system.attributes.agi.base}}" min="1" max="10" style="flex:1; text-align:center;"/>
@@ -131,19 +134,25 @@
 
           <hr>
           <h3>Вторичные</h3>
+          <div class="stat-row flexrow"><label>Уклонение</label><span class="value-box">{{system.secondary.evasion.value}}</span></div>
           <div class="stat-row flexrow"><label>Природная Броня</label><span class="value-box">{{system.secondary.naturalAC.value}}</span></div>
           <div class="stat-row flexrow"><label>Переносимый вес</label><span class="value-box">{{system.secondary.carryWeight.value}} / {{system.secondary.carryWeight.max}}</span></div>
-          <!-- Новые статы -->
           <div class="stat-row flexrow"><label>Храбрость</label><span class="value-box">{{system.secondary.bravery.value}}</span></div>
           <div class="stat-row flexrow"><label>Стойкость</label><span class="value-box">{{system.secondary.tenacity.value}}</span></div>
+          <div class="stat-row flexrow">
+              <label>Очки Улучшения (XP)</label>
+              <input type="number" name="system.secondary.xp.value" value="{{system.secondary.xp.value}}" style="width:50px; text-align:center; background:rgba(255,255,255,0.1); color:black; border:1px solid #555;"/>
+          </div>
         </div>
 
         <div class="body-panel"></div>
 
         <!-- НАВЫКИ -->
         <div class="skills-panel">
+          <h3 style="border-bottom:1px solid #ccc; margin-bottom:5px;">
+              Навыки <span style="font-size:0.6em; color:#888; float:right;">Потрачено: {{system.secondary.spentSkills.value}}</span>
+          </h3>
           <ul class="skills-list">
-            <!-- Пропиши все навыки, как было, они работают -->
             <li class="skill-row flexrow" data-skill="melee"><span class="skill-name">Ближний бой</span><span class="skill-base">{{system.skills.melee.base}}</span><input class="skill-points" type="number" name="system.skills.melee.points" value="{{system.skills.melee.points}}"/><span class="skill-total">{{system.skills.melee.value}}</span><a class="skill-roll"><i class="fas fa-dice-d20"></i></a></li>
             <li class="skill-row flexrow" data-skill="ranged"><span class="skill-name">Стрельба</span><span class="skill-base">{{system.skills.ranged.base}}</span><input class="skill-points" type="number" name="system.skills.ranged.points" value="{{system.skills.ranged.points}}"/><span class="skill-total">{{system.skills.ranged.value}}</span><a class="skill-roll"><i class="fas fa-dice-d20"></i></a></li>
             <li class="skill-row flexrow" data-skill="science"><span class="skill-name">Наука</span><span class="skill-base">{{system.skills.science.base}}</span><input class="skill-points" type="number" name="system.skills.science.points" value="{{system.skills.science.points}}"/><span class="skill-total">{{system.skills.science.value}}</span><a class="skill-roll"><i class="fas fa-dice-d20"></i></a></li>

@@ -1,11 +1,15 @@
+// --- START OF FILE src/module/item-sheet.js ---
+
+import { GLOBAL_STATUSES } from "./constants.js";
+
 export class ZItemSheet extends ItemSheet {
 
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ["zsystem", "sheet", "item"],
       template: "systems/zsystem/sheets/item-sheet.hbs",
-      width: 520,
-      height: 550,
+      width: 650,
+      height: 600,
       tabs: [{ navSelector: ".sheet-tabs", contentSelector: ".sheet-body", initial: "details" }]
     });
   }
@@ -47,8 +51,7 @@ export class ZItemSheet extends ItemSheet {
         survival: "Выживание", leadership: "Лидерство"
     };
 
-    // Бонусы для построек
-     context.bonusTypes = {
+    context.bonusTypes = {
         none: "Нет эффекта",
         morale: "Мораль (Повышение)",
         food: "Еда (Производство)",
@@ -57,22 +60,65 @@ export class ZItemSheet extends ItemSheet {
         defense: "Защита (Пассивный)",
         medicine: "Медицина (Крафт)"
     };
+
+    // Статусы для dropdown
+    context.statusOptions = { "": "Нет" };
+    for (let [key, val] of Object.entries(GLOBAL_STATUSES)) {
+        context.statusOptions[key] = val.label;
+    }
     
     return context;
   }
   
   activateListeners(html) {
-    super.activateListeners(html);
+    // --- FIX V13 (FINAL): Чистка jQuery объекта ---
+    // Foundry V13 ItemSheet (Legacy) ожидает jQuery.
+    // Но если в HBS есть комментарии, html[0] может быть комментарием, вызывая краш.
+    // Мы находим саму форму и передаем ЕЁ, обернутую в jQuery.
+    
+    let $form = null;
+    
+    // 1. Если это jQuery
+    if (html instanceof jQuery) {
+        if (html.is("form")) $form = html; // Это уже форма
+        else $form = html.find("form");    // Ищем форму внутри
+        
+        // Если find ничего не дал, возможно html - это коллекция узлов (Top Level nodes)
+        if (!$form || $form.length === 0) {
+             // Фильтруем коллекцию, ищем узлы-элементы
+             const found = html.filter((i, el) => el.nodeType === 1 && el.tagName === "FORM");
+             if (found.length > 0) $form = found.eq(0);
+        }
+    } 
+    // 2. Если это DOM (HTMLElement)
+    else if (html instanceof HTMLElement) {
+        $form = $(html);
+    }
+
+    // Если форму так и не нашли (что странно), используем исходный html, но это риск
+    const target = ($form && $form.length > 0) ? $form : html;
+
+    try {
+        super.activateListeners(target);
+    } catch (err) {
+        console.error("ZSystem | Ошибка в super.activateListeners:", err);
+    }
+    // ----------------------------------------
+
     if (!this.isEditable) return;
 
-    html.find('.attack-create').click(async ev => {
+    // Используем наш очищенный объект для поиска кнопок
+    const $html = target;
+
+    $html.find('.attack-create').click(async ev => {
       ev.preventDefault();
       const newKey = foundry.utils.randomID();
-      const newAttack = { name: "Новая атака", ap: 4, dmg: "1d6", noise: 5, mod: 0 };
+      // Инициализируем атаку с пустым эффектом и нулевым шансом
+      const newAttack = { name: "Новая атака", ap: 4, dmg: "1d6", noise: 5, mod: 0, effect: "", chance: 0 };
       await this.item.update({ [`system.attacks.${newKey}`]: newAttack });
     });
 
-    html.find('.attack-delete').click(async ev => {
+    $html.find('.attack-delete').click(async ev => {
       ev.preventDefault();
       const key = ev.currentTarget.dataset.key;
       await this.item.update({ [`system.attacks.-=${key}`]: null });

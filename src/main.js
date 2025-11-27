@@ -10,10 +10,9 @@ import { GLOBAL_STATUSES } from "./module/constants.js";
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing ZSystem");
 
-  // ВАЖНО: Путь соответствует твоей структуре папок (sheets в корне)
   loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
 
-  // --- ХЕЛПЕРЫ ---
+  // Хелперы Handlebars (оставляем как было)
   Handlebars.registerHelper('capitalize', str => typeof str === 'string' ? str.charAt(0).toUpperCase() + str.slice(1) : '');
   Handlebars.registerHelper('gt', (a, b) => a > b);
   Handlebars.registerHelper('lt', (a, b) => a < b);
@@ -22,62 +21,37 @@ Hooks.once("init", () => {
   Handlebars.registerHelper('and', (a, b) => a && b);
   Handlebars.registerHelper('or', (a, b) => a || b);
   
-  // 1. Классы
+  // Классы
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = { formula: "1d10 + @attributes.per.value", decimals: 2 };
 
-  // 2. ВНЕДРЕНИЕ ПЕРЕВОДОВ (Чтобы починить [object Object])
+  // Переводы (оставляем как было)
   const customTranslations = {
     TYPES: {
-      Actor: {
-        survivor: "Выживший",
-        npc: "NPC",
-        zombie: "Зомби",
-        shelter: "Убежище"
-      },
-      Item: {
-        weapon: "Оружие",
-        armor: "Броня",
-        consumable: "Расходник",
-        ammo: "Патроны",
-        resource: "Ресурс",
-        medicine: "Медицина",
-        food: "Еда",
-        materials: "Материалы",
-        luxury: "Роскошь",
-        misc: "Разное",
-        upgrade: "Постройка",
-        project: "Проект"
-      }
+      Actor: { survivor: "Выживший", npc: "NPC", zombie: "Зомби", shelter: "Убежище" },
+      Item: { weapon: "Оружие", armor: "Броня", consumable: "Расходник", ammo: "Патроны", resource: "Ресурс", medicine: "Медицина", food: "Еда", materials: "Материалы", luxury: "Роскошь", misc: "Разное", upgrade: "Постройка", project: "Проект" }
     }
   };
   foundry.utils.mergeObject(game.i18n.translations, customTranslations);
   if (game.i18n._fallback) foundry.utils.mergeObject(game.i18n._fallback, customTranslations);
 
-  // 3. СТАТУСЫ
-  CONFIG.statusEffects = [
-    GLOBAL_STATUSES.bleeding,
-    GLOBAL_STATUSES.prone,
-    GLOBAL_STATUSES.panic,
-    { id: "dead", label: "Мертв", icon: "icons/svg/skull.svg" }
-  ];
+  // --- ВАЖНО: СТАТУСЫ ДЛЯ ТОКЕНОВ ---
+  // Мы берем значения из constants.js и превращаем в массив
+  CONFIG.statusEffects = Object.values(GLOBAL_STATUSES).map(s => ({
+      id: s.id,
+      label: s.label,
+      icon: s.icon,
+      // Foundry v11+ может требовать statuses, v10 uses id
+      statuses: [s.id] 
+  }));
+  // Добавляем стандартный статус "Мертв"
+  CONFIG.statusEffects.push({ id: "dead", label: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"] });
 
-  // 4. РЕГИСТРАЦИЯ ЛИСТОВ
+  // Регистрация листов
   Actors.unregisterSheet("core", ActorSheet);
-  
-  Actors.registerSheet("zsystem", ZActorSheet, { 
-    types: ["survivor", "npc", "zombie"], 
-    makeDefault: true,
-    label: "Лист Персонажа"
-  });
-  
-  Actors.registerSheet("zsystem", ZShelterSheet, { 
-    types: ["shelter"], 
-    makeDefault: true,
-    label: "Управление Убежищем"
-  });
-
+  Actors.registerSheet("zsystem", ZActorSheet, { types: ["survivor", "npc", "zombie"], makeDefault: true, label: "Лист Персонажа" });
+  Actors.registerSheet("zsystem", ZShelterSheet, { types: ["shelter"], makeDefault: true, label: "Управление Убежищем" });
   Items.unregisterSheet("core", ItemSheet);
   Items.registerSheet("zsystem", ZItemSheet, { makeDefault: true });
 
