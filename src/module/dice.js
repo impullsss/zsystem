@@ -1,4 +1,3 @@
-
 import { NoiseManager } from "./noise.js"; 
 import { GLOBAL_STATUSES } from "./constants.js";
 
@@ -30,38 +29,25 @@ export async function rollSkill(actor, skillId) {
 export async function performAttack(actor, itemId) {
   const item = actor.items.get(itemId);
   if (!item) return ui.notifications.error("Предмет не найден!");
-
-  // Проверка на Панику
   if (actor.hasStatusEffect("panic")) {
       return ui.notifications.error("Вы в панике! Вы не можете контролировать свои атаки.");
   }
-
   const attacks = item.system.attacks || {};
   const attackKeys = Object.keys(attacks);
-
   if (attackKeys.length === 0) {
-    const defaultAttack = {
-      name: "Базовая атака",
-      ap: Number(item.system.apCost) || 3,
-      dmg: item.system.damage || "1d6",
-      mod: 0,
-      noise: item.system.noise || 0
-    };
+    const defaultAttack = { name: "Базовая атака", ap: Number(item.system.apCost) || 3, dmg: item.system.damage || "1d6", mod: 0, noise: item.system.noise || 0 };
     return _showAttackDialog(actor, item, { "default": defaultAttack });
   }
-
   return _showAttackDialog(actor, item, attacks);
 }
 
 async function _showAttackDialog(actor, item, attacks) {
   let buttonsHTML = "";
   for (let [key, atk] of Object.entries(attacks)) {
-    // Отображаем эффект в кнопке, если есть
     let effectInfo = "";
     if (atk.effect) {
         effectInfo = `<span style="color:cyan; font-size:0.8em; display:block;">${GLOBAL_STATUSES[atk.effect]?.label || atk.effect} (${atk.chance}%)</span>`;
     }
-
     buttonsHTML += `
       <button class="z-attack-btn" data-key="${key}">
         <div class="atk-name">${atk.name}</div>
@@ -69,7 +55,6 @@ async function _showAttackDialog(actor, item, attacks) {
         ${effectInfo}
       </button>`;
   }
-
   const content = `
     <form class="z-attack-dialog">
       <div class="form-group">
@@ -87,20 +72,15 @@ async function _showAttackDialog(actor, item, attacks) {
       <div class="attack-buttons">${buttonsHTML}</div>
     </form>
   `;
-
   new Dialog({
-    title: `Атака: ${item.name}`,
-    content: content,
-    buttons: {},
+    title: `Атака: ${item.name}`, content: content, buttons: {},
     render: (html) => {
       html.find('.z-attack-btn').click(async (ev) => {
         ev.preventDefault();
         const key = ev.currentTarget.dataset.key;
         const location = html.find('#aim-location').val(); 
         const selectedAttack = attacks[key];
-        
         Object.values(ui.windows).forEach(w => { if (w.title === `Атака: ${item.name}`) w.close(); });
-
         await _executeAttack(actor, item, selectedAttack, location);
       });
     }
@@ -112,22 +92,16 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const curAP = Number(actor.system.resources.ap.value);
   if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP! Нужно ${apCost}.`);
 
-  // --- МАГАЗИН ---
   const ammoType = item.system.ammoType;
   const maxMag = Number(item.system.mag?.max) || 0;
-  
   if (ammoType && maxMag > 0) {
       const curMag = Number(item.system.mag.value) || 0;
       let ammoCost = 1;
       if (attack.name.toLowerCase().match(/burst|очередь/)) ammoCost = 3;
-
-      if (curMag < ammoCost) {
-          return ui.notifications.warn(`КЛИК! Пусто. (В стволе: ${curMag})`);
-      }
+      if (curMag < ammoCost) return ui.notifications.warn(`КЛИК! Пусто.`);
       await item.update({ "system.mag.value": curMag - ammoCost });
   }
 
-  // Списание AP
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
   let skillType = 'melee';
@@ -137,8 +111,6 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const skill = actor.system.skills[skillType];
   const skillBase = skill ? skill.value : 0;
   const atkMod = Number(attack.mod) || 0;
-  
-  // Эффекты актора
   const isDizzy = actor.hasStatusEffect("dizzy");
   const dizzyMod = isDizzy ? -50 : 0;
 
@@ -146,18 +118,13 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   if (location === "head") aimMod = -40;
   else if (location !== "torso") aimMod = -20;
 
-  // УЧЕТ ЦЕЛЕЙ И УКЛОНЕНИЯ
-  // Берем первую цель для расчета штрафа (если целей несколько, считаем по первой)
   const targets = Array.from(game.user.targets);
   let targetEvasion = 0;
   if (targets.length > 0) {
       const tActor = targets[0].actor;
-      if (tActor) {
-          targetEvasion = tActor.system.secondary?.evasion?.value || 0;
-      }
+      if (tActor) targetEvasion = tActor.system.secondary?.evasion?.value || 0;
   }
 
-  // Формула попадания: Skill + Mods - TargetEvasion
   const targetChance = Math.max(0, skillBase + atkMod + aimMod + dizzyMod - targetEvasion); 
   const damageType = item.system.damageType || "blunt";
 
@@ -181,7 +148,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           const bonus = str - req;
           if (bonus > 0) formulaString += ` + ${bonus}`;
         } else {
-          formulaString = `(${formulaString}) * 0.5`; // Штраф за слабую руку
+          formulaString = `(${formulaString}) * 0.5`; 
         }
       }
       
@@ -189,7 +156,6 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       await dmgRoll.evaluate();
       finalDamage = Math.ceil(dmgRoll.total); 
       
-      // --- АВТО-УРОН ПО ЦЕЛЯМ ---
       if (targets.length > 0) {
           for (let target of targets) {
               if (target.actor) {
@@ -199,47 +165,73 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           }
            btnHTML = `<div style="text-align:center; color:#888; font-style:italic;">Урон нанесен автоматически</div>`;
       } else {
-           // Кнопка, если целей не было выбрано через T
-           btnHTML = `<button class="z-apply-damage" data-damage="${finalDamage}" data-type="${damageType}" data-limb="${location}"><i class="fas fa-crosshairs"></i> Применить (${_getLimbName(location)})</button>`;
+           btnHTML = `<button class="z-apply-damage" data-damage="${finalDamage}" data-type="${damageType}" data-limb="${location}"><i class="fas fa-crosshairs"></i> Применить (${location})</button>`;
       }
       
       dmgHTML = `<div class="z-damage-box"><div class="dmg-label">УРОН (${formulaString})</div><div class="dmg-val">${finalDamage} <span style="font-size:0.5em; color:#888;">${damageType}</span></div>${autoDamageMsg}</div>`;
 
-      // --- ЛОГИКА ЭФФЕКТОВ ОРУЖИЯ (PROC) ---
+      // --- ЛОГИКА ЭФФЕКТОВ ---
       if (attack.effect && attack.chance > 0) {
+          const statusDef = GLOBAL_STATUSES[attack.effect];
+          let finalChance = attack.chance;
+          
+          if (statusDef && statusDef.isPhysical && targets.length > 0) {
+              const targetActor = targets[0].actor;
+              if (targetActor) {
+                  const tenacity = targetActor.system.secondary?.tenacity?.value || 0;
+                  finalChance = Math.max(0, finalChance - tenacity);
+              }
+          }
+
           const procRoll = new Roll("1d100");
           await procRoll.evaluate();
-          const procSuccess = procRoll.total <= attack.chance;
-          const statusName = GLOBAL_STATUSES[attack.effect]?.label || attack.effect;
+          const procSuccess = procRoll.total <= finalChance;
+          const statusName = statusDef?.label || attack.effect;
           
           if (procSuccess) {
-             // Если авто-урон был, накладываем эффект автоматически
              if (targets.length > 0) {
-                 const statusData = GLOBAL_STATUSES[attack.effect];
                  for (let target of targets) {
-                     if (target.actor) await target.actor.createEmbeddedDocuments("ActiveEffect", [statusData]);
+                     if (target.actor) {
+                         // ЕСЛИ ИНФЕКЦИЯ - НЕ ВЕШАЕМ СТАТУС, А ОБНОВЛЯЕМ ДАННЫЕ СКРЫТО
+                         if (attack.effect === 'infected') {
+                             await target.actor.update({
+                                 "system.resources.infection.active": true,
+                                 "system.resources.infection.stage": 1
+                             });
+                             // Сообщение только ГМу
+                             ChatMessage.create({
+                                 content: `<span style="color:purple; font-weight:bold;">(GM) ${target.name} ЗАРАЖЕН! (Скрыто)</span>`,
+                                 whisper: ChatMessage.getWhisperRecipients("GM")
+                             });
+                         } 
+                         // ДЛЯ ВСЕХ ОСТАЛЬНЫХ ЭФФЕКТОВ
+                         else if (statusDef) {
+                             const hasEffect = target.actor.effects.some(e => e.statuses.has(attack.effect));
+                             if (!hasEffect) await target.actor.createEmbeddedDocuments("ActiveEffect", [statusDef]);
+                         }
+                     }
                  }
-                 effectResultHTML = `<div style="margin-top:5px; padding:4px; border:1px solid cyan; color:cyan; font-weight:bold;"><i class="fas fa-bolt"></i> Эффект ${statusName} наложен!</div>`;
+                 if (attack.effect === 'infected') {
+                     effectResultHTML = `<div style="margin-top:5px; color:purple; font-style:italic;">(GM: Инфекция применена скрыто)</div>`;
+                 } else {
+                     effectResultHTML = `<div style="margin-top:5px; padding:4px; border:1px solid cyan; color:cyan; font-weight:bold;"><i class="fas fa-bolt"></i> Эффект ${statusName} наложен!</div>`;
+                 }
              } else {
-                 // Кнопка для ручного наложения
                  effectResultHTML = `<div style="margin-top:5px; padding:4px; border:1px solid cyan; color:cyan; font-weight:bold;">
                     <i class="fas fa-bolt"></i> Эффект: ${statusName} СРАБОТАЛ!
                     <button class="z-apply-effect" data-effect="${attack.effect}" style="margin-top:2px; font-size:0.8em;">Наложить ${statusName}</button>
                  </div>`;
              }
           } else {
-             effectResultHTML = `<div style="margin-top:5px; color:#666; font-size:0.8em;">Эффект ${statusName} не сработал (${procRoll.total} > ${attack.chance})</div>`;
+             effectResultHTML = `<div style="margin-top:5px; color:#666; font-size:0.8em;">Эффект ${statusName} не сработал (${procRoll.total} > ${finalChance}%)</div>`;
           }
       }
 
     } catch (e) { dmgHTML = `<div style="color:red; font-size:0.8em">Err: ${e.message}</div>`; }
   }
 
-  // ШУМ
   const totalNoise = (Number(item.system.noise) || 0) + (Number(attack.noise) || 0);
-  if (totalNoise > 0) {
-    NoiseManager.add(totalNoise);
-  }
+  if (totalNoise > 0) NoiseManager.add(totalNoise);
   const noiseHTML = totalNoise > 0 ? `<div class="z-noise-alert"><i class="fas fa-volume-up"></i> Шум: ${totalNoise}</div>` : "";
 
   const resultClass = isHit ? "success" : "failure";
@@ -248,7 +240,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const content = `
     <div class="z-chat-card">
       <div class="z-card-header">${item.name} <span style="font-size:0.8em; color:#aaa;">(${attack.name})</span></div>
-      <div class="z-card-sub">${skillType.toUpperCase()} (${skillBase}) ${atkMod >= 0 ? '+' : ''}${atkMod} ${aimMod} (Aim) - ${targetEvasion} (Eva) = <b>${targetChance}%</b></div>
+      <div class="z-card-sub">${skillType.toUpperCase()} (${skillBase}) ${atkMod>=0?'+':''}${atkMod} ${aimMod}(Aim) - ${targetEvasion}(Eva) = <b>${targetChance}%</b></div>
       <div class="z-slot-machine"><div class="z-reel-window"><div class="z-reel-spin ${resultClass}">${roll.total}</div></div></div>
       <div class="z-result-label ${resultClass}">${resultText}</div>
       ${dmgHTML}
@@ -258,7 +250,6 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       <div class="z-ap-spent">Потрачено <b>${apCost} AP</b></div>
     </div>
   `;
-
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: actor}), content: content, type: CONST.CHAT_MESSAGE_TYPES.OTHER });
 }
 

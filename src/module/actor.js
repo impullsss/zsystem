@@ -37,11 +37,9 @@ export class ZActor extends Actor {
     const system = this.system;
     if (this.type === 'shelter' || this.type === 'zombie') return;
     
-    // --- ИСПРАВЛЕНИЕ ИНИЦИАЛИЗАЦИИ ---
-    // Сначала гарантируем существование основных объектов
     if (!system.attributes) system.attributes = {};
     if (!system.resources) system.resources = {};
-    if (!system.secondary) system.secondary = {}; // Важно! Создаем объект, если его нет
+    if (!system.secondary) system.secondary = {}; 
 
     const attrKeys = ['str', 'agi', 'vig', 'per', 'int', 'cha'];
     attrKeys.forEach(key => {
@@ -56,7 +54,6 @@ export class ZActor extends Actor {
     if (!system.resources.infection) system.resources.infection = { value: 0, stage: 0, active: false };
     system.resources.ap.effect = 0;
     
-    // Теперь безопасно обращаемся к secondary
     if (!system.secondary.xp) system.secondary.xp = { value: 0 };
   }
 
@@ -65,7 +62,6 @@ export class ZActor extends Actor {
     if (this.type === 'shelter' || this.type === 'zombie') return;
     if (!system.attributes) return;
 
-    // Еще раз проверяем структуру для надежности
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};
     if (!system.skills) system.skills = {};
@@ -82,7 +78,6 @@ export class ZActor extends Actor {
         attr.base = Math.max(1, Math.min(10, attr.base));
         attr.value = Math.max(1, attr.value);
         attr.mod = attr.value - attr.base;
-        
         spentStats += (attr.base - 1);
         s[key] = attr.value; 
     });
@@ -121,7 +116,6 @@ export class ZActor extends Actor {
     if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
     system.secondary.evasion.value = s.agi;
 
-    // XP
     if (!system.secondary.xp) system.secondary.xp = { value: 0 };
 
     let spentSkills = 0;
@@ -171,40 +165,253 @@ export class ZActor extends Actor {
       return this.effects.some(e => e.statuses.has(statusId) || e.flags?.core?.statusId === statusId);
   }
 
-  async useMedicine(item) {
-      if (this.system.resources.ap.value < 4) return ui.notifications.warn("Нужно 4 AP.");
-      const medSkill = this.system.skills.medical?.value || 0;
-      const itemHeal = item.system.healAmount || 10;
-      const healAmount = itemHeal + Math.floor(medSkill / 2);
-      const penalty = Math.ceil(healAmount * 0.2) || 1;
+  async onTurnStart() {
+      let maxAP = this.system.resources.ap.max;
+      
+      if (this.hasStatusEffect("immolated")) {
+          const fireRoll = new Roll("1d6");
+          await fireRoll.evaluate();
+          const fireDmg = fireRoll.total;
 
-      const curPenalty = this.system.resources.hp.penalty || 0;
-      const curHP = this.system.resources.hp.value;
-      const maxHP = this.system.resources.hp.max;
+          let newHP = this.system.resources.hp.value - fireDmg;
+          const updates = { "system.resources.hp.value": newHP };
 
-      await this.update({
-          "system.resources.ap.value": this.system.resources.ap.value - 4,
-          "system.resources.hp.penalty": curPenalty + penalty,
-          "system.resources.hp.value": Math.min(maxHP - penalty, curHP + healAmount)
-      });
-      await item.update({"system.quantity": item.system.quantity - 1});
-      if (item.system.quantity <= 0) item.delete();
+          const limbs = ["head", "torso", "lArm", "rArm", "lLeg", "rLeg"];
+          for (let limb of limbs) {
+              const currentLimbHP = this.system.limbs[limb].value;
+              updates[`system.limbs.${limb}.value`] = Math.max(0, currentLimbHP - fireDmg);
+          }
+          await this.update(updates);
 
-      // Лечение может снимать кровотечение
-      const bleeding = this.effects.find(e => e.statuses.has("bleeding") || e.name === "Кровотечение");
-      if (bleeding) await bleeding.delete();
+          ChatMessage.create({ 
+              speaker: ChatMessage.getSpeaker({actor: this}), 
+              content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg} по всем частям тела.</div>` 
+          });
 
-      ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `Лечение: +${healAmount} HP. (Штраф: ${penalty})` });
+          if (this.type !== 'zombie') {
+              maxAP = Math.max(0, maxAP - 4);
+          }
+      }
+
+      await this.update({ "system.resources.ap.value": maxAP });
+
+      if (this.hasStatusEffect("bleeding")) {
+          const roll = new Roll("1d5"); await roll.evaluate();
+          await this.applyDamage(roll.total, "true", "torso"); 
+          ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `Кровотечение: -${roll.total} HP` });
+      }
+
+      if (this.hasStatusEffect("poisoned")) {
+          const roll = new Roll("1d6"); await roll.evaluate();
+          await this.applyDamage(roll.total, "true", "torso");
+          ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `Отравление: -${roll.total} HP` });
+      }
+
+      if (this.hasStatusEffect("panic")) {
+          const bravery = this.system.secondary.bravery?.value || 0;
+          const target = bravery * 5;
+          const roll = new Roll("1d100");
+          await roll.evaluate();
+          
+          if (roll.total <= target) {
+              const panicEffect = this.effects.find(e => e.statuses.has("panic"));
+              if (panicEffect) await panicEffect.delete();
+              ChatMessage.create({ 
+                  speaker: ChatMessage.getSpeaker({actor: this}), 
+                  content: `<div style="color:green; font-weight:bold;">Персонаж берет себя в руки! Паника прошла. (${roll.total} <= ${target})</div>` 
+              });
+          } else {
+              ChatMessage.create({ 
+                  speaker: ChatMessage.getSpeaker({actor: this}), 
+                  content: `<div style="color:red;">Персонаж все еще в панике! (${roll.total} > ${target})</div>` 
+              });
+              await Dice.rollPanicTable(this);
+          }
+      }
   }
 
-  async standUp() {
-      const prone = this.effects.find(e => e.statuses.has("prone"));
-      if (!prone) return;
-      const cost = Math.ceil(this.system.resources.ap.max / 2);
-      if (this.system.resources.ap.value < cost) return ui.notifications.warn(`Нужно ${cost} AP.`);
-      await this.update({"system.resources.ap.value": this.system.resources.ap.value - cost});
-      await prone.delete();
-      ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `${this.name} встает.` });
+  async applyDamage(amount, type = "blunt", limb = "torso") {
+    if (this.type === 'zombie' && type === 'fire') amount *= 2;
+    
+    let totalResist = 0;
+    let totalAC = 0; 
+
+    if (type !== "true") {
+        const naturalAC = this.system.secondary?.naturalAC?.value || 0;
+        totalAC += naturalAC; 
+        const armors = this.items.filter(i => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]);
+        for (let armor of armors) {
+            totalResist += (Number(armor.system.dr[type]) || 0);
+            totalAC += (Number(armor.system.ac) || 0);
+        }
+        totalResist = Math.min(100, totalResist);
+    }
+
+    const dmg = Math.max(0, Math.floor((amount * (1 - totalResist/100)) - totalAC));
+
+    if (dmg > 0) {
+        const newHP = this.system.resources.hp.value - dmg;
+        const updateData = { "system.resources.hp.value": newHP };
+        
+        if (this.system.limbs && this.system.limbs[limb]) {
+            const newLimbHP = this.system.limbs[limb].value - dmg;
+            updateData[`system.limbs.${limb}.value`] = newLimbHP;
+            if (this.system.limbs[limb].value > 0 && newLimbHP <= 0) await this._applyInjury(limb);
+        }
+        
+        const vig = this.system.attributes.vig.value || 1;
+        const deathThreshold = -(vig * 5);
+
+        // --- ИСПРАВЛЕНИЕ ОШИБКИ СМЕРТИ ---
+        if (newHP <= deathThreshold) {
+             if (!this.hasStatusEffect("dead")) {
+                 // Важно: name обязательно для ActiveEffect
+                 await this.createEmbeddedDocuments("ActiveEffect", [{
+                     id: "dead", name: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
+                 }]);
+                 ui.notifications.error(`${this.name} ПОГИБАЕТ!`);
+             }
+        } else if (this.system.resources.hp.value > 0 && newHP <= 0) {
+             if (!this.hasStatusEffect("status-unconscious")) {
+                 await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
+             }
+        }
+        
+        await this.update(updateData);
+
+        if (this.type !== 'zombie' && this.type !== 'shelter' && newHP > deathThreshold) {
+            await this.checkPanic(dmg);
+        }
+    }
+
+    // --- ОБНОВЛЕННЫЙ ЛОГ ДЛЯ GM (Стойкость/Храбрость) ---
+    const tenacity = this.system.secondary.tenacity?.value || 0;
+    const bravery = this.system.secondary.bravery?.value || 0;
+
+    const speaker = ChatMessage.getSpeaker({ actor: this });
+    ChatMessage.create({ 
+        user: game.user.id, 
+        speaker, 
+        content: `<div class="z-damage-result" style="border-left: 5px solid darkred; font-size: 0.9em;">
+                    <b>(GM) Результат урона:</b><br>
+                    Входящий: ${amount} (${type})<br>
+                    Броня: -${totalAC} (Resist ${totalResist}%)<br>
+                    <b>Итог: -${dmg} HP</b> (${_getLimbName(limb)})<br>
+                    <hr style="margin: 2px 0;">
+                    <div style="font-size: 0.85em; color: #555;">
+                       🛡️ Стойкость: <b>${tenacity}</b> (vs Эффекты)<br>
+                       🦁 Храбрость: <b>${bravery}</b> (vs Паника)
+                    </div>
+                  </div>`,
+        whisper: ChatMessage.getWhisperRecipients("GM")
+    });
+  }
+
+   /** @override */
+  async _onUpdate(changed, options, userId) {
+    await super._onUpdate(changed, options, userId);
+    
+    // Работаем только если обновление инициировал текущий пользователь (чтобы не было циклов у всех)
+    if (userId !== game.user.id) return;
+
+    // 1. Проверка конечностей на 0 ХП (при ручном изменении)
+    if (changed.system?.limbs) {
+        for (const [key, limbData] of Object.entries(changed.system.limbs)) {
+            // Если значение изменилось и стало <= 0
+            if (limbData.value !== undefined && limbData.value <= 0) {
+                // Проверяем, есть ли уже травма, чтобы не спамить
+                const statusId = `injury-${key}`;
+                if (!this.hasStatusEffect(statusId)) {
+                    await this._applyInjury(key);
+                    ui.notifications.warn(`${this.name}: Конечность ${key} повреждена вручную!`);
+                }
+            }
+        }
+    }
+
+    // 2. Проверка выхода из KO (Если ХП стало > 0, а был в KO)
+    // Механика Wounded: Если вышел из KO -> получает Wounded
+    if (changed.system?.resources?.hp?.value) {
+        const newHP = changed.system.resources.hp.value;
+        // Если был в бессознании, а теперь ХП > 0
+        if (this.hasStatusEffect("status-unconscious") && newHP > 0) {
+            // Снимаем KO и Кровотечение
+            const koEffect = this.effects.find(e => e.statuses.has("status-unconscious"));
+            const bleedEffect = this.effects.find(e => e.statuses.has("bleeding"));
+            if (koEffect) await koEffect.delete();
+            if (bleedEffect) await bleedEffect.delete();
+
+            // Накладываем Wounded (Ранен)
+            if (!this.hasStatusEffect("wounded")) {
+                await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.wounded]);
+                ui.notifications.info(`${this.name} приходит в себя, но он Ранен (Wounded).`);
+            }
+        }
+    }
+  }
+
+  // --- ПОЛНОЕ ЛЕЧЕНИЕ (GM) ---
+  async fullHeal() {
+      const updates = {
+          "system.resources.hp.value": this.system.resources.hp.max,
+          "system.resources.hp.penalty": 0,
+          "system.resources.ap.value": this.system.resources.ap.max
+      };
+
+      // Восстанавливаем конечности
+      if (this.system.limbs) {
+          for (const key of Object.keys(this.system.limbs)) {
+              updates[`system.limbs.${key}.value`] = this.system.limbs[key].max;
+          }
+      }
+
+      // Удаляем все негативные эффекты (Травмы, Кровь, KO, и т.д.)
+      // Фильтруем эффекты, которые есть в наших списках негативных статусов
+      const effectsToDelete = this.effects.filter(e => {
+          const isInjury = Object.values(INJURY_EFFECTS).some(ie => e.statuses.has(ie.id));
+          const isGlobal = Object.values(GLOBAL_STATUSES).some(gs => e.statuses.has(gs.id));
+          return isInjury || isGlobal || e.statuses.has("dead");
+      }).map(e => e.id);
+
+      if (effectsToDelete.length > 0) {
+          await this.deleteEmbeddedDocuments("ActiveEffect", effectsToDelete);
+      }
+
+      await this.update(updates);
+      ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `<span style="color:green; font-weight:bold;">Божественное исцеление!</span>` });
+  }
+
+  async checkPanic(damageAmount) {
+      if (this.hasStatusEffect("panic")) return;
+
+      const bravery = this.system.secondary.bravery.value || 0;
+      const isLowHP = (this.system.resources.hp.value / this.system.resources.hp.max) < 0.3;
+      const isHighDamage = damageAmount > bravery;
+
+      if (isLowHP || isHighDamage) {
+          // Формула: 50 - (Bravery * 2)
+          const panicChance = Math.max(5, 50 - (bravery * 2)); 
+          const panicRoll = new Roll("1d100");
+          await panicRoll.evaluate();
+          
+          const speaker = ChatMessage.getSpeaker({ actor: this });
+          
+          if (panicRoll.total <= panicChance) {
+               await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.panic]);
+               ChatMessage.create({
+                   speaker,
+                   content: `<span style="color:orange; font-weight:bold;">ПРОВАЛ ВОЛИ! (${panicRoll.total} <= ${panicChance}%)</span>`,
+                   whisper: ChatMessage.getWhisperRecipients("GM") // Лог броска только ГМу, чтобы игроки не видели математику
+               });
+               await Dice.rollPanicTable(this);
+          } else {
+               ChatMessage.create({
+                   speaker,
+                   content: `<span style="color:green;">Воля: Персонаж сдержал панику. (${panicRoll.total} > ${panicChance}%)</span>`,
+                   whisper: ChatMessage.getWhisperRecipients("GM")
+               });
+          }
+      }
   }
 
   async longRest() {
@@ -216,16 +423,36 @@ export class ZActor extends Actor {
       const newMax = baseMax - newPenalty;
       const healedHP = Math.min(newMax, this.system.resources.hp.value + recovery);
 
-      // Логика Инфекции при отдыхе
-      const infected = this.effects.find(e => e.statuses.has("infected"));
-      if (infected) {
-          const currentStage = this.system.resources.infection?.stage || 1;
-          // Если стадия 3 - смерть (999 урона в голову)
+      const infection = this.system.resources.infection;
+      if (infection && infection.active) {
+          const currentStage = infection.stage || 1;
+          
           if (currentStage >= 3) {
-              return this.applyDamage(999, "true", "head"); 
+              const deathThreshold = -(vig * 5);
+              await this.update({"system.resources.hp.value": deathThreshold});
+              
+              if (!this.hasStatusEffect("dead")) {
+                  await this.createEmbeddedDocuments("ActiveEffect", [{
+                     id: "dead", name: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
+                  }]);
+              }
+              
+              new Dialog({
+                  title: "Смерть от Инфекции",
+                  content: `<p style="color:red; font-weight:bold;">${this.name} погибает от вируса!</p><p>Восстать как зомби?</p>`,
+                  buttons: {
+                      yes: { label: "Восстать (Зомби)", callback: () => this.riseAsZombie() },
+                      no: { label: "Оставить трупом" }
+                  }
+              }).render(true);
+              return; 
           }
+          
            await this.update({"system.resources.infection.stage": currentStage + 1});
-           ui.notifications.warn(`${this.name}: Инфекция прогрессирует (Стадия ${currentStage + 1})!`);
+           ChatMessage.create({
+               content: `<span style="color:purple; font-weight:bold;">(GM INFO) ${this.name}: Инфекция прогрессирует до стадии ${currentStage + 1}.</span>`,
+               whisper: ChatMessage.getWhisperRecipients("GM")
+           });
       }
 
       await this.update({
@@ -276,90 +503,6 @@ export class ZActor extends Actor {
       ui.notifications.notify(`${this.name} восстает!`);
   }
 
-  async onTurnStart() {
-      const maxAP = this.system.resources.ap.max;
-      await this.update({ "system.resources.ap.value": maxAP });
-      const isBleeding = this.effects.some(e => e.statuses?.has("bleeding") || e.name === "Кровотечение");
-      if (isBleeding) {
-          const roll = new Roll("1d5"); await roll.evaluate();
-          await this.applyDamage(roll.total, "true", "torso");
-          ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor: this}), content: `Кровотечение: -${roll.total} HP` });
-      }
-  }
-
-  async applyDamage(amount, type = "blunt", limb = "torso") {
-    if (this.type === 'zombie' && type === 'fire') amount *= 2;
-    
-    let totalResist = 0;
-    let totalAC = 0; 
-
-    if (type !== "true") {
-        const naturalAC = this.system.secondary?.naturalAC?.value || 0;
-        totalAC += naturalAC; 
-        const armors = this.items.filter(i => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]);
-        for (let armor of armors) {
-            totalResist += (Number(armor.system.dr[type]) || 0);
-            totalAC += (Number(armor.system.ac) || 0);
-        }
-        totalResist = Math.min(100, totalResist);
-    }
-
-    const dmg = Math.max(0, Math.floor((amount * (1 - totalResist/100)) - totalAC));
-
-    if (dmg > 0) {
-        // Вычитаем урон (может уйти в минус)
-        const newHP = this.system.resources.hp.value - dmg;
-        const updateData = { "system.resources.hp.value": newHP };
-        
-        // Лимбы
-        if (this.system.limbs && this.system.limbs[limb]) {
-            const newLimbHP = this.system.limbs[limb].value - dmg;
-            updateData[`system.limbs.${limb}.value`] = newLimbHP;
-            if (this.system.limbs[limb].value > 0 && newLimbHP <= 0) await this._applyInjury(limb);
-        }
-        
-        // Логика KO (0 HP) и Смерти ( -5 * Vig)
-        const vig = this.system.attributes.vig.value || 1;
-        const deathThreshold = -(vig * 5);
-
-        if (newHP <= deathThreshold) {
-             // СМЕРТЬ
-             await this.createEmbeddedDocuments("ActiveEffect", [{
-                 id: "dead", label: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
-             }]);
-             ui.notifications.error(`${this.name} ПОГИБАЕТ!`);
-        } else if (this.system.resources.hp.value > 0 && newHP <= 0) {
-             // KO (только если еще жив, но упал в 0)
-             await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
-        }
-        
-        await this.update(updateData);
-
-        // ПРОВЕРКА ПАНИКИ (только если жив)
-        if (this.type !== 'zombie' && this.type !== 'shelter' && newHP > deathThreshold) {
-            await this.checkPanic(dmg);
-        }
-    }
-    const speaker = ChatMessage.getSpeaker({ actor: this });
-    ChatMessage.create({ user: game.user.id, speaker, content: `<div class="z-damage-result">Урон: <b>${amount}</b> (${type}) -> <b>-${dmg} HP</b> (${_getLimbName(limb)})</div>` });
-  }
-
-  async checkPanic(damageAmount) {
-      if (this.hasStatusEffect("panic")) return;
-      const bravery = this.system.secondary.bravery.value || 0;
-      const isLowHP = (this.system.resources.hp.value / this.system.resources.hp.max) < 0.3;
-      const isHighDamage = damageAmount > bravery;
-
-      if (isLowHP || isHighDamage) {
-          const panicRoll = new Roll("1d100");
-          await panicRoll.evaluate();
-          if (panicRoll.total <= 50) {
-               await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.panic]);
-               await Dice.rollPanicTable(this);
-          }
-      }
-  }
-
   async _applyInjury(limb) {
       let effectData = null;
       if (limb === 'head') effectData = INJURY_EFFECTS.head;
@@ -367,9 +510,12 @@ export class ZActor extends Actor {
       else if (limb.includes('Arm')) effectData = INJURY_EFFECTS.arm;
       else if (limb.includes('Leg')) effectData = INJURY_EFFECTS.leg;
       if (effectData) {
-        const eff = foundry.utils.deepClone(effectData);
-        eff.name += ` (${_getLimbName(limb)})`;
-        await this.createEmbeddedDocuments("ActiveEffect", [eff]);
+        const statusId = effectData.id || `injury-${limb}`;
+        if (!this.hasStatusEffect(statusId)) {
+            const eff = foundry.utils.deepClone(effectData);
+            eff.name += ` (${_getLimbName(limb)})`;
+            await this.createEmbeddedDocuments("ActiveEffect", [eff]);
+        }
       }
   }
 

@@ -34,10 +34,33 @@
         </div>
       </div>
 
-      <!-- INFECTION WARNING BAR -->
-      {{#if (gt system.resources.infection.stage 0)}}
-      <div style="background: #3a0000; border: 2px solid red; color: red; text-align: center; font-weight: bold; margin-top: 5px; padding: 4px; border-radius: 4px; animation: pulse-injury 2s infinite;">
-          <i class="fas fa-biohazard"></i> ИНФЕКЦИЯ: СТАДИЯ {{system.resources.infection.stage}} <i class="fas fa-biohazard"></i>
+      <!-- GM SECRET SECTION -->
+      {{#if isGM}}
+      <div style="margin-top: 5px; padding: 5px; border: 1px dashed #ff0000; background: rgba(0, 0, 0, 0.2); border-radius: 5px;">
+          <div style="font-weight: bold; color: #ff6666; font-size: 0.9em; text-align: center; margin-bottom: 3px;">
+              <i class="fas fa-user-secret"></i> ПАНЕЛЬ ВЕДУЩЕГО
+          </div>
+          
+          <div class="flexrow" style="align-items: center; justify-content: center; gap: 10px;">
+              <!-- Инфекция -->
+              <div style="display: flex; align-items: center; gap: 5px;">
+                  <label style="color: #ffaaaa;"><i class="fas fa-biohazard"></i> Инфекция:</label>
+                  <input type="number" name="system.resources.infection.stage" value="{{system.resources.infection.stage}}" min="0" max="3" 
+                         style="width: 40px; text-align: center; background: #330000; color: white; border: 1px solid red;">
+              </div>
+
+              <!-- Кнопка Зомби (при 3 стадии) -->
+              {{#if (gte system.resources.infection.stage 3)}}
+                  <a class="zombie-rise-btn" title="Превратить в Зомби" style="color: red; border: 1px solid red; padding: 2px 5px; border-radius: 4px; background: black;">
+                      <i class="fas fa-skull"></i> ВОССТАТЬ!
+                  </a>
+              {{/if}}
+              
+              <!-- Кнопка Полного Лечения (Новая) -->
+              <a class="full-heal-btn" title="Полное Исцеление" style="color: #4caf50; border: 1px solid #4caf50; padding: 2px 5px; border-radius: 4px; background: black; cursor: pointer;">
+                  <i class="fas fa-heart"></i> FULL HEAL
+              </a>
+          </div>
       </div>
       {{/if}}
 
@@ -47,9 +70,13 @@
           {{#if isProne}}
             <button type="button" class="stand-up-btn" style="background:#ffcc80; color:black;"><i class="fas fa-child"></i> Встать</button>
           {{/if}}
-          {{#if (and isGM isDead)}}
-            <button type="button" class="zombie-rise-btn" style="background:black; color:red;"><i class="fas fa-skull"></i> Зомбификация</button>
-          {{/if}}
+          {{#if isGM}} <!-- ТОЛЬКО ДЛЯ GM -->
+      {{#if (gt system.resources.infection.stage 0)}}
+      <div style="background: #3a0000; border: 2px solid red; color: red; text-align: center; font-weight: bold; margin-top: 5px; padding: 4px; border-radius: 4px; animation: pulse-injury 2s infinite;">
+          <i class="fas fa-biohazard"></i> ИНФЕКЦИЯ: СТАДИЯ {{system.resources.infection.stage}} <i class="fas fa-biohazard"></i>
+      </div>
+      {{/if}}
+      {{/if}}
       </div>
     </div>
 

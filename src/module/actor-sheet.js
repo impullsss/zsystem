@@ -153,6 +153,15 @@ export class ZActorSheet extends ActorSheet {
       this.actor.reloadWeapon(item);
     });
 
+     // Кнопка Полного лечения (GM)
+    html.find('.full-heal-btn').click(async ev => {
+        Dialog.confirm({
+            title: "Полное исцеление",
+            content: "Восстановить всё ХП, конечности и снять все травмы?",
+            yes: () => this.actor.fullHeal()
+        });
+    });
+
     html.find('.effect-control').click(ev => this._onManageEffect(ev));
   }
 
