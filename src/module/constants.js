@@ -1,10 +1,8 @@
-// --- START OF FILE src/module/constants.js ---
-
 export const INJURY_EFFECTS = {
   head: {
     id: "injury-head",
     name: "Травма Головы (Контузия)",
-    img: "icons/svg/daze.svg",
+    img: "icons/svg/daze.svg", // OK
     statuses: ["injury-head"],
     isPhysical: true,
     changes: [
@@ -16,7 +14,7 @@ export const INJURY_EFFECTS = {
   torso: {
     id: "injury-torso",
     name: "Травма Торса (Сбито дыхание)",
-    img: "icons/svg/blood.svg",
+    img: "icons/svg/blood.svg", // OK
     statuses: ["injury-torso"],
     isPhysical: true,
     changes: [
@@ -27,7 +25,7 @@ export const INJURY_EFFECTS = {
   arm: {
     id: "injury-arm",
     name: "Сломана Рука",
-    img: "icons/svg/paralysis.svg",
+    img: "icons/svg/paralysis.svg", // OK
     statuses: ["injury-arm"],
     isPhysical: true,
     changes: [
@@ -39,7 +37,7 @@ export const INJURY_EFFECTS = {
    leg: {
     id: "injury-leg",
     name: "Сломана Нога",
-    img: "icons/svg/falling.svg",
+    img: "icons/svg/falling.svg", // OK
     statuses: ["injury-leg"],
     isPhysical: true,
     changes: [
@@ -51,7 +49,7 @@ export const INJURY_EFFECTS = {
   unconscious: {
     id: "status-unconscious",
     name: "Без сознания (KO)",
-    img: "icons/svg/unconscious.svg",
+    img: "icons/svg/unconscious.svg", // OK
     statuses: ["status-unconscious"],
     isPhysical: true,
     changes: [
@@ -66,7 +64,7 @@ export const GLOBAL_STATUSES = {
     id: "bleeding",
     label: "Кровотечение", 
     name: "Кровотечение",  
-    icon: "icons/svg/blood.svg",
+    icon: "icons/svg/blood.svg", // OK
     statuses: ["bleeding"],
     isPhysical: true,
     description: "Теряет 1-5 HP каждый ход."
@@ -75,7 +73,7 @@ export const GLOBAL_STATUSES = {
     id: "prone",
     label: "Сбит с ног",
     name: "Сбит с ног",
-    icon: "icons/svg/falling.svg",
+    icon: "icons/svg/falling.svg", // OK
     statuses: ["prone"],
     isPhysical: true,
     changes: [
@@ -88,7 +86,7 @@ export const GLOBAL_STATUSES = {
       id: "dizzy",
       label: "Головокружение",
       name: "Головокружение",
-      icon: "icons/svg/daze.svg",
+      icon: "icons/svg/daze.svg", // OK
       statuses: ["dizzy"],
       isPhysical: true,
       description: "-50% Точности на 3 хода."
@@ -97,7 +95,7 @@ export const GLOBAL_STATUSES = {
       id: "blind",
       label: "Слепота",
       name: "Слепота",
-      icon: "icons/svg/blind.svg",
+      icon: "icons/svg/blind.svg", // OK
       statuses: ["blind"],
       isPhysical: true,
       changes: [
@@ -110,7 +108,7 @@ export const GLOBAL_STATUSES = {
       id: "immolated",
       label: "Горение",
       name: "Горение",
-      icon: "icons/svg/fire.svg",
+      icon: "icons/svg/fire.svg", // OK
       statuses: ["immolated"],
       description: "Наносит урон по всему телу каждый ход."
   },
@@ -118,7 +116,7 @@ export const GLOBAL_STATUSES = {
       id: "poisoned",
       label: "Отравление",
       name: "Отравление",
-      icon: "icons/svg/poison.svg",
+      icon: "icons/svg/poison.svg", // OK
       statuses: ["poisoned"],
       isPhysical: true,
       description: "Урон 1d6 каждый ход."
@@ -127,7 +125,7 @@ export const GLOBAL_STATUSES = {
     id: "panic",
     label: "Паника",
     name: "Паника",
-    icon: "icons/svg/terror.svg",
+    icon: "icons/svg/terror.svg", // OK
     statuses: ["panic"],
     description: "Потеря контроля. См. таблицу Паники."
   },
@@ -135,21 +133,20 @@ export const GLOBAL_STATUSES = {
       id: "infected",
       label: "Инфекция",
       name: "Инфекция",
-      icon: "icons/svg/biohazard.svg",
+      icon: "icons/svg/biohazard.svg", // OK
       statuses: ["infected"],
       isPhysical: true,
       description: "Скрытый статус. Смерть через 3 дня."
   },
-  // --- НОВЫЕ СТАТУСЫ ---
   wounded: {
       id: "wounded",
       label: "Ранен (Wounded)",
       name: "Ранен (Wounded)",
-      icon: "icons/svg/degen.svg",
+      icon: "icons/svg/degen.svg", // OK
       statuses: ["wounded"],
       isPhysical: true,
       changes: [
-          { key: "system.resources.ap.max", mode: 2, value: -2 } // Штраф к макс. ОД
+          { key: "system.resources.ap.max", mode: 2, value: -2 } 
       ],
       description: "После тяжелого ранения. -2 Макс АП. Лечится только отдыхом."
   },
@@ -157,10 +154,10 @@ export const GLOBAL_STATUSES = {
       id: "fatigued",
       label: "Утомление",
       name: "Утомление",
-      icon: "icons/svg/downgrade.svg",
+      icon: "icons/svg/downgrade.svg", // OK
       statuses: ["fatigued"],
       changes: [
-          { key: "system.secondary.evasion.value", mode: 1, value: 0.75 } // -25% Уклонения
+          { key: "system.secondary.evasion.value", mode: 1, value: 0.75 } 
       ],
       description: "Усталость или голод. -25% Точности и Уклонения."
   }

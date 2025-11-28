@@ -3,7 +3,7 @@
   "TYPES.Actor.npc": "NPC",
   "TYPES.Actor.zombie": "Зомби",
   "TYPES.Actor.shelter": "Убежище",
-
+  "TYPES.Actor.container": "Контейнер / Лут",
   "TYPES.Item.weapon": "Оружие",
   "TYPES.Item.armor": "Броня",
   "TYPES.Item.consumable": "Расходник",

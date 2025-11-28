@@ -643,3 +643,103 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* --- СТИЛИ КОНТЕЙНЕРА (Container Sheet) --- */
+
+.zsystem.sheet.container {
+    min-height: 400px;
+    background: #1a1a1a; /* Темный фон */
+    color: #eee;
+    border: 2px solid #444;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+}
+
+/* Шапка контейнера */
+.zsystem.sheet.container .sheet-header {
+    background: #2b2b2b;
+    padding: 10px;
+    border-bottom: 2px solid #8b0000; /* Кроваво-красная линия */
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.zsystem.sheet.container .profile-img {
+    border: 1px solid #666;
+    background: #000;
+}
+
+.zsystem.sheet.container .charname input {
+    color: #fff;
+    background: rgba(0,0,0,0.3);
+    border: none;
+    border-bottom: 1px solid #555;
+    font-family: "Courier New", monospace; /* Шрифтовая стилизация */
+}
+
+/* Список предметов в контейнере */
+.zsystem.sheet.container .inventory-section {
+    margin-bottom: 15px;
+    padding: 0 5px;
+}
+
+.zsystem.sheet.container .item-group-header {
+    background: linear-gradient(to right, #333, #222);
+    border-bottom: 1px solid #555;
+    color: #ccc;
+    font-size: 0.9em;
+    padding: 2px 5px;
+    margin: 0 0 5px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.zsystem.sheet.container .item-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.zsystem.sheet.container .item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    border-bottom: 1px solid #333;
+    padding: 4px;
+    margin-bottom: 2px;
+    transition: background 0.2s;
+}
+
+.zsystem.sheet.container .item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #555;
+}
+
+.zsystem.sheet.container .item-name {
+    color: black;
+    font-weight: bold;
+}
+
+.zsystem.sheet.container .item-qty {
+    color: black;
+    font-family: monospace;
+    font-size: 1.1em;
+}
+
+/* Кнопки управления */
+.zsystem.sheet.container .item-controls a {
+    color: #666;
+    margin-left: 5px;
+}
+.zsystem.sheet.container .item-controls a:hover {
+    color: #ff5252; /* Красный при наведении */
+    text-shadow: 0 0 5px red;
+}
+
+/* Placeholder при пустом списке */
+.zsystem.sheet.container .inventory-placeholder {
+    text-align: center;
+    color: #555;
+    font-style: italic;
+    padding: 20px;
+}

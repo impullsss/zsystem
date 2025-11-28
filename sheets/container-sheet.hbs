@@ -1,0 +1,53 @@
+<form class="{{cssClass}}" autocomplete="off">
+    <header class="sheet-header">
+        <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" height="64" width="64"/>
+        <div class="header-fields">
+            <h1 class="charname">
+                <input name="name" type="text" value="{{actor.name}}" placeholder="Название контейнера"/>
+            </h1>
+        </div>
+    </header>
+
+    <div class="sheet-body">
+        <div class="inventory-list">
+            {{#each inventory as |section key|}}
+                {{#if section.items.length}}
+                <div class="inventory-section">
+                    <h3 class="item-group-header flexrow">
+                        <span class="flex2">{{section.label}}</span>
+                        <span class="item-qty" style="flex:0 0 50px; text-align:center;">Кол-во</span>
+                        <span class="item-controls" style="flex:0 0 50px;"></span>
+                    </h3>
+                    
+                    <ol class="item-list">
+                    {{#each section.items as |item id|}}
+                        <li class="item flexrow" data-item-id="{{item.id}}">
+                            <div class="item-image" style="flex:0 0 24px; margin-right:5px;">
+                                <img src="{{item.img}}" title="{{item.name}}" width="24" height="24"/>
+                            </div>
+                            <h4 class="item-name flex2" style="margin:0;">
+                                <a class="item-edit">{{item.name}}</a>
+                            </h4>
+                            <div class="item-qty" style="flex:0 0 50px; text-align:center;">
+                                {{item.system.quantity}}
+                            </div>
+                            <div class="item-controls" style="flex:0 0 50px; text-align:right;">
+                                <a class="item-delete" title="Удалить"><i class="fas fa-trash"></i></a>
+                            </div>
+                        </li>
+                    {{/each}}
+                    </ol>
+                </div>
+                {{/if}}
+            {{/each}}
+        </div>
+        
+        <!-- Кнопка добавления для GM -->
+        {{#if isGM}}
+        <div style="margin-top:10px; text-align:center; border-top:1px solid #333; padding-top:5px;">
+            <span style="font-size:0.8em; color:#666;">GM Controls:</span>
+            <a class="item-create" data-type="misc" title="Добавить предмет"><i class="fas fa-plus"></i> Добавить предмет</a>
+        </div>
+        {{/if}}
+    </div>
+</form>

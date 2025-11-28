@@ -1,6 +1,7 @@
 import { ZActor } from "./module/actor.js";
 import { ZActorSheet } from "./module/actor-sheet.js";
-import { ZShelterSheet } from "./module/shelter-sheet.js"; 
+import { ZShelterSheet } from "./module/shelter-sheet.js";
+import { ZContainerSheet } from "./module/container-sheet.js";
 import { ZItem } from "./module/item.js";
 import { ZItemSheet } from "./module/item-sheet.js";
 import { NoiseManager } from "./module/noise.js";
@@ -52,6 +53,7 @@ Hooks.once("init", () => {
   Actors.unregisterSheet("core", ActorSheet);
   Actors.registerSheet("zsystem", ZActorSheet, { types: ["survivor", "npc", "zombie"], makeDefault: true, label: "Лист Персонажа" });
   Actors.registerSheet("zsystem", ZShelterSheet, { types: ["shelter"], makeDefault: true, label: "Управление Убежищем" });
+  Actors.registerSheet("zsystem", ZContainerSheet, { types: ["container"], makeDefault: true, label: "Контейнер" });
   Items.unregisterSheet("core", ItemSheet);
   Items.registerSheet("zsystem", ZItemSheet, { makeDefault: true });
 

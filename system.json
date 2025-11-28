@@ -17,7 +17,13 @@
   ],
 
   "documentTypes": {
-    "Actor": { "survivor": {}, "npc": {}, "zombie": {}, "shelter": {} },
+    "Actor": { 
+        "survivor": {}, 
+        "npc": {}, 
+        "zombie": {}, 
+        "shelter": {}, 
+        "container": {} 
+    },
     "Item": { 
         "weapon": {}, "armor": {}, "consumable": {}, "ammo": {}, 
         "resource": {}, "medicine": {}, "food": {}, "materials": {}, 
