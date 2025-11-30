@@ -22,7 +22,8 @@
         "npc": {}, 
         "zombie": {}, 
         "shelter": {}, 
-        "container": {} 
+        "container": {},
+        "harvest_spot": {}
     },
     "Item": { 
         "weapon": {}, "armor": {}, "consumable": {}, "ammo": {}, 
@@ -108,13 +109,14 @@
           "quantity": 1,
           "description": "",
           "category": "",
-          "equipped": false 
+          "equipped": false
         }
       },
       "weapon": {
         "templates": ["base"],
         "hands": "1h",
         "weaponType": "melee",
+        "subtype": "melee_blunt",
         "damageType": "blunt",
         "strReq": 1,
         "noise": 0,
@@ -123,7 +125,10 @@
         "mag": { "value": 0, "max": 0 },
         "reloadAP": 4,
         "range": 1,
-        "attacks": {} 
+        "attacks": {} ,
+        "isThrowing": false,
+        "blastRadius": 0,
+        "templateType": "circle"
       },
       "ammo": {
         "templates": ["base"],
@@ -140,7 +145,8 @@
       "medicine": { 
           "templates": ["base"],
           "healAmount": 10,
-          "quality": 1
+          "quality": 1,
+          "isAntibiotic": false
       },
       "upgrade": {
           "templates": ["base"],
@@ -174,7 +180,12 @@
           "bonusValue": 0,
           "outputItem": ""
       },
-      "food": { "templates": ["base"] },
+      "food": { 
+          "templates": ["base"],
+          "satiety": 0,      
+          "spoilage": 0,     
+          "resourceValue": 1 
+      },
       "materials": { "templates": ["base"] },
       "luxury": { "templates": ["base"] },
       "resource": { "templates": ["base"] },

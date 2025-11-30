@@ -150,45 +150,69 @@
                     </div>
                 </div>
             </div>
-        </div>
-        <hr>
-        <!-- Секция Атак -->
-        <div class="attacks-section">
-            <div class="flexrow" style="align-items:center; margin-bottom:5px;">
-                <h3>Варианты Атаки</h3>
-                <a class="attack-create" title="Добавить атаку"><i class="fas fa-plus"></i></a>
+
+            <hr>
+            
+            <!-- Метательное оружие -->
+            <div class="form-group flexrow">
+                <label>Метательное?</label>
+                <input type="checkbox" name="system.isThrowing" {{checked system.isThrowing}}/>
             </div>
             
-            <div class="attacks-table">
-                <div class="attack-header flexrow" style="border-bottom:1px solid #777; padding-bottom:2px; margin-bottom:5px; font-weight:bold;">
-                    <div style="flex:1.5">Название</div>
-                    <div style="flex:0.4; text-align:center;">AP</div>
-                    <div style="flex:0.8; text-align:center;">Урон</div>
-                    <div style="flex:0.4; text-align:center;">Точн.</div>
-                    <div style="flex:1; text-align:center;">Эффект</div>
-                    <div style="flex:0.4; text-align:center;">%</div>
-                    <div style="flex:0.3"></div>
+            {{#if system.isThrowing}}
+            <div class="grid grid-2col" style="background: rgba(255,100,0,0.1); padding: 5px; border-radius: 4px; margin-bottom: 10px;">
+                <div class="form-group">
+                    <label>Радиус Взрыва (м)</label>
+                    <input type="number" name="system.blastRadius" value="{{system.blastRadius}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Форма</label>
+                    <select name="system.templateType">
+                        <option value="circle" {{#if (eq system.templateType "circle")}}selected{{/if}}>Круг</option>
+                        <option value="cone" {{#if (eq system.templateType "cone")}}selected{{/if}}>Конус</option>
+                    </select>
+                </div>
+            </div>
+            {{/if}}
+
+            <!-- Секция Атак -->
+            <div class="attacks-section">
+                <div class="flexrow" style="align-items:center; margin-bottom:5px;">
+                    <h3>Варианты Атаки</h3>
+                    <a class="attack-create" title="Добавить атаку"><i class="fas fa-plus"></i></a>
                 </div>
                 
-                {{#each system.attacks as |attack key|}}
-                <div class="attack-row flexrow" style="margin-top: 5px; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 4px; align-items:center;">
-                    <div style="flex:1.5"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}" placeholder="Name"/></div>
-                    <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
-                    <div style="flex:0.8"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>
-                    <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/></div>
-                    
-                    <!-- Выбор эффекта -->
-                    <div style="flex:1">
-                        <select name="system.attacks.{{key}}.effect" style="width:100%; font-size:0.8em;">
-                            {{selectOptions ../statusOptions selected=attack.effect localize=false}}
-                        </select>
+                <div class="attacks-table">
+                    <div class="attack-header flexrow" style="border-bottom:1px solid #777; padding-bottom:2px; margin-bottom:5px; font-weight:bold;">
+                        <div style="flex:1.5">Название</div>
+                        <div style="flex:0.4; text-align:center;">AP</div>
+                        <div style="flex:0.8; text-align:center;">Урон</div>
+                        <div style="flex:0.4; text-align:center;">Точн.</div>
+                        <div style="flex:1; text-align:center;">Эффект</div>
+                        <div style="flex:0.4; text-align:center;">%</div>
+                        <div style="flex:0.3"></div>
                     </div>
-                    <!-- Шанс -->
-                    <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.chance" value="{{attack.chance}}" placeholder="%"/></div>
+                    
+                    {{#each system.attacks as |attack key|}}
+                    <div class="attack-row flexrow" style="margin-top: 5px; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 4px; align-items:center;">
+                        <div style="flex:1.5"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}" placeholder="Name"/></div>
+                        <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
+                        <div style="flex:0.8"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>
+                        <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/></div>
+                        
+                        <!-- Выбор эффекта -->
+                        <div style="flex:1">
+                            <select name="system.attacks.{{key}}.effect" style="width:100%; font-size:0.8em;">
+                                {{selectOptions ../statusOptions selected=attack.effect localize=false}}
+                            </select>
+                        </div>
+                        <!-- Шанс -->
+                        <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.chance" value="{{attack.chance}}" placeholder="%"/></div>
 
-                    <div style="flex:0.3; text-align:center;"><a class="attack-delete" data-key="{{key}}"><i class="fas fa-trash"></i></a></div>
+                        <div style="flex:0.3; text-align:center;"><a class="attack-delete" data-key="{{key}}"><i class="fas fa-trash"></i></a></div>
+                    </div>
+                    {{/each}}
                 </div>
-                {{/each}}
             </div>
         </div>
         {{/if}}
@@ -200,6 +224,36 @@
                 <label>Калибр</label>
                 <input type="text" name="system.calibre" value="{{system.calibre}}" placeholder="Напр: 9mm"/>
             </div>
+        </div>
+        {{/if}}
+        
+        <!-- ЕДА (НОВАЯ СЕКЦИЯ) -->
+        {{#if (eq item.type "food")}}
+        <div class="food-properties" style="background: rgba(0,255,0,0.05); padding: 5px; border-radius: 4px; border: 1px solid #777;">
+            <h3>Склад Убежища</h3>
+            <div class="form-group">
+                <label>Очков Провизии (Resource Value)</label>
+                <input type="number" name="system.resourceValue" value="{{system.resourceValue}}" placeholder="Напр: 1"/>
+                <p class="notes" style="font-size: 0.8em; color: #888; margin-top: 2px;">
+                    Вклад в общий запас еды при сдаче на склад. (Потребление: 3/чел в день)
+                </p>
+            </div>
+        </div>
+        {{/if}}
+
+        <!-- МЕДИЦИНА -->
+        {{#if (eq item.type "medicine")}}
+        <div class="medicine-properties">
+             <div class="grid grid-2col">
+                <div class="form-group">
+                    <label>Сила Лечения</label>
+                    <input type="number" name="system.healAmount" value="{{system.healAmount}}"/>
+                </div>
+                <div class="form-group flexrow">
+                    <label>Это Антибиотик?</label>
+                    <input type="checkbox" name="system.isAntibiotic" {{checked system.isAntibiotic}}/>
+                </div>
+             </div>
         </div>
         {{/if}}
 
@@ -228,7 +282,7 @@
 
         {{#if (ne item.type "weapon")}}
         {{#if (ne item.type "armor")}}
-            <div class="form-group">
+            <div class="form-group" style="margin-top: 10px;">
                 <label>Категория</label>
                 <select name="system.category">
                     {{selectOptions categoryOptions selected=system.category localize=false}}

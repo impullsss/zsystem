@@ -65,22 +65,21 @@ export class ZContainerSheet extends ActorSheet {
 
     // Удаление предмета
     $html.find('.item-delete').click(async ev => {
-        const li = $(ev.currentTarget).parents(".item");
-        const item = this.actor.items.get(li.data("itemId"));
-        if (item) {
-             Dialog.confirm({
-                title: "Выбросить/Удалить?",
-                content: `<p>Удалить <strong>${item.name}</strong> из контейнера?</p>`,
-                yes: () => item.delete()
-            });
-        }
+        ev.preventDefault();
+        // Ищем ближайший родительский элемент с атрибутом data-item-id
+        const li = $(ev.currentTarget).closest("[data-item-id]"); 
+        const itemId = li.data("itemId");
+        const item = this.actor.items.get(itemId);
+        if (item) await item.delete();
     });
 
     // Редактирование предмета (просмотр)
     $html.find('.item-edit').click(ev => {
-        const li = $(ev.currentTarget).parents(".item");
-        const item = this.actor.items.get(li.data("itemId"));
-        item.sheet.render(true);
+        ev.preventDefault();
+        const li = $(ev.currentTarget).closest("[data-item-id]");
+        const itemId = li.data("itemId");
+        const item = this.actor.items.get(itemId);
+        if (item) item.sheet.render(true);
     });
 
     // Создание предмета (для GM, чтобы быстро наполнять лут)

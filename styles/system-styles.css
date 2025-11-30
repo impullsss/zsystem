@@ -743,3 +743,140 @@ button.ap-decrease, button.ap-increase, button.ap-reset {
     font-style: italic;
     padding: 20px;
 }
+
+/* --- UNIVERSAL LIGHT SHEET (Harvest & Container) --- */
+.zsystem.sheet.harvest,
+.zsystem.sheet.container {
+    background: #e3decb; /* Старая бумага */
+    color: #1a1a1a;
+    border: 2px solid #5d4037;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Общая шапка */
+.zsystem.sheet.harvest .sheet-header,
+.zsystem.sheet.container .sheet-header {
+    background: #d7ccc8;
+    padding: 10px;
+    border-bottom: 2px solid #8d6e63;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-img-box {
+    flex: 0 0 64px;
+    height: 64px;
+    background: #fff;
+    border: 1px solid #555;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+.charname-input {
+    width: 100%;
+    font-size: 1.5em;
+    font-weight: bold;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid #555 !important;
+    color: #222 !important;
+    border-radius: 0 !important;
+}
+
+/* Заголовки секций */
+.section-header {
+    background: rgba(0,0,0,0.05);
+    border-bottom: 2px solid #a1887f;
+    padding: 5px;
+    margin: 5px 0;
+    color: #3e2723;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.9em;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Список предметов */
+.light-item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.light-item {
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    margin-bottom: 3px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    border-radius: 3px;
+}
+
+.light-item:hover {
+    background: #fff;
+    border-color: #8d6e63;
+}
+
+.light-item img {
+    border: 1px solid #999;
+    margin-right: 8px;
+    background: #ccc;
+}
+
+.item-name { font-weight: bold; color: #222; flex: 1; }
+.item-qty { font-weight: bold; color: #555; margin-right: 10px; }
+.item-controls a { color: #777; margin-left: 5px; cursor: pointer; }
+.item-controls a:hover { color: #d32f2f; }
+
+/* --- HARVEST SPECIFIC --- */
+
+/* Панель GM */
+.gm-panel {
+    background: #dcedc8; /* Светло-зеленый */
+    border: 1px dashed #689f38;
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.gm-panel label { font-weight: bold; color: #33691e; }
+.gm-panel input, .gm-panel select { background: rgba(255,255,255,0.8); border: 1px solid #888; }
+
+/* Замок */
+.harvest-lock-screen {
+    text-align: center;
+    padding: 20px;
+    background: rgba(0,0,0,0.03);
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+.harvest-btn {
+    background: #ff7043;
+    color: #fff;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 12px;
+    width: 100%;
+    border: 1px solid #d84315;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.harvest-btn:hover { background: #ff5722; }
+.harvest-btn:disabled { background: #9e9e9e; border-color: #757575; cursor: not-allowed; }
+
+.status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9em; text-transform: uppercase; }
+.status-msg.error { color: #d32f2f; }
+
+.gm-panel {
+    background: #dcedc8;
+    border: 1px dashed #689f38;
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}

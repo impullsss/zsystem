@@ -7,6 +7,7 @@ import { ZItemSheet } from "./module/item-sheet.js";
 import { NoiseManager } from "./module/noise.js";
 import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES } from "./module/constants.js";
+import { ZHarvestSheet } from "./module/harvest-sheet.js";
 
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing ZSystem");
@@ -54,6 +55,7 @@ Hooks.once("init", () => {
   Actors.registerSheet("zsystem", ZActorSheet, { types: ["survivor", "npc", "zombie"], makeDefault: true, label: "Лист Персонажа" });
   Actors.registerSheet("zsystem", ZShelterSheet, { types: ["shelter"], makeDefault: true, label: "Управление Убежищем" });
   Actors.registerSheet("zsystem", ZContainerSheet, { types: ["container"], makeDefault: true, label: "Контейнер" });
+  Actors.registerSheet("zsystem", ZHarvestSheet, { types: ["harvest_spot"], makeDefault: true, label: "Сбор Ресурсов" });
   Items.unregisterSheet("core", ItemSheet);
   Items.registerSheet("zsystem", ZItemSheet, { makeDefault: true });
 
@@ -120,4 +122,36 @@ Hooks.once("ready", async () => {
     }
     return true;
   });
+
+  Hooks.on("createToken", async (tokenDoc, options, userId) => {
+      if (userId !== game.user.id) return;
+
+      // Только для отвязанных токенов (не прототипов)
+      if (!tokenDoc.actorLink) {
+          const actor = tokenDoc.actor;
+          if (!actor) return;
+
+          if (["harvest_spot", "container"].includes(actor.type)) {
+              // 3 = OWNER (Владелец). Это позволяет запускать скрипты внутри.
+              await actor.update({
+                  "ownership.default": 3 
+              });
+          }
+      }
+  });
+  Hooks.on("preDeleteToken", (tokenDoc, context, userId) => {
+      // Если удаляет ГМ - разрешаем
+      if (game.user.isGM) return true;
+
+      const actor = tokenDoc.actor;
+      if (!actor) return true;
+
+      // Если игрок пытается удалить лут
+      if (["harvest_spot", "container"].includes(actor.type)) {
+          ui.notifications.warn("Вы не можете удалить этот объект!");
+          return false; // ОТМЕНЯЕМ УДАЛЕНИЕ
+      }
+      return true;
+  });
+
 });

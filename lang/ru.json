@@ -15,5 +15,6 @@
   "TYPES.Item.luxury": "Роскошь",
   "TYPES.Item.misc": "Разное",
   "TYPES.Item.upgrade": "Постройка",
-  "TYPES.Item.project": "Проект (Крафт)"
+  "TYPES.Item.project": "Проект (Крафт)",
+  "TYPES.Actor.harvest_spot": "Точка Сбора"
 }
