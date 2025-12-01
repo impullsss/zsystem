@@ -2,28 +2,45 @@ export class NoiseManager {
   static ID = "z-noise-meter";
 
   static init() {
-    // Настройка мира для хранения
     game.settings.register("zsystem", "currentNoise", {
       scope: "world",
       config: false,
       type: Number,
       default: 0,
-      onChange: (val) => NoiseManager.updateHUD(val)
+      onChange: (val) => {
+          // Лог, чтобы видеть, что настройка реально поменялась
+          console.log("ZSystem | Noise Setting Updated:", val);
+          NoiseManager.updateHUD(val);
+      }
     });
 
     Hooks.once("ready", () => NoiseManager.renderHUD());
+    
     Hooks.on("updateCombat", (combat, changed) => {
-      if (changed.round) NoiseManager.decay();
+      if (game.user.isGM && changed.round) NoiseManager.decay();
     });
   }
 
   static get value() { return game.settings.get("zsystem", "currentNoise"); }
 
   static async add(amount) {
-    const current = NoiseManager.value;
-    const newVal = Math.max(0, current + amount);
-    await game.settings.set("zsystem", "currentNoise", newVal);
-    if(amount > 0) ui.notifications.info(`Шум: +${amount} (Всего: ${newVal})`);
+    if (game.user.isGM) {
+        // ГМ меняет напрямую
+        const current = NoiseManager.value;
+        const newVal = Math.max(0, current + amount);
+        await game.settings.set("zsystem", "currentNoise", newVal);
+        
+        if(amount > 0) ui.notifications.info(`Шум: +${amount} (Всего: ${newVal})`);
+    } else {
+        // Игрок шлет сокет
+        console.log("ZSystem (Player) | Emitting 'zsystemSocket' ->", amount);
+        game.socket.emit("zsystemSocket", {
+            type: "noise",
+            amount: amount
+        });
+        
+        if(amount > 0) ui.notifications.warn(`Произведен шум: +${amount} (Отправлено ГМу)`);
+    }
   }
 
   static async decay() {
@@ -37,7 +54,6 @@ export class NoiseManager {
   static renderHUD() {
     if ($(`#${this.ID}`).length) return;
 
-    // Только ГМ может кликать кнопки, но видеть могут все
     const controls = game.user.isGM ? `
       <div class="noise-controls">
         <i class="fas fa-minus noise-btn" data-action="sub"></i>
@@ -54,10 +70,9 @@ export class NoiseManager {
     `;
     $('body').append(html);
     
-    // Активация слушателей
     $(`#${this.ID} .noise-btn`).click(ev => {
         const action = ev.target.dataset.action;
-        if(action === "add") NoiseManager.add(5); // Шаг 5
+        if(action === "add") NoiseManager.add(5); 
         if(action === "sub") NoiseManager.add(-5);
     });
 

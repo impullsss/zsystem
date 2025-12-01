@@ -9,12 +9,23 @@ import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 
+// --- Хелпер для обработки сокетов ---
+// Выносим функцию отдельно, чтобы она была стабильной
+function handleZSystemSocket(data) {
+    if (!game.user.isGM) return; 
+    console.log("ZSystem (GM) | Socket received:", data);
+    
+    if (data.type === "noise") {
+        NoiseManager.add(data.amount);
+    }
+}
+
 Hooks.once("init", () => {
-  console.log("ZSystem | Initializing ZSystem");
+  console.log("ZSystem | Initializing...");
 
   loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
 
-  // Хелперы Handlebars (оставляем как было)
+  // --- HANDLEBARS HELPERS ---
   Handlebars.registerHelper('capitalize', str => typeof str === 'string' ? str.charAt(0).toUpperCase() + str.slice(1) : '');
   Handlebars.registerHelper('gt', (a, b) => a > b);
   Handlebars.registerHelper('lt', (a, b) => a < b);
@@ -28,34 +39,26 @@ Hooks.once("init", () => {
       return Math.min(100, Math.max(0, (value / max) * 100));
   });
   
-  // Классы
+  // --- CONFIG ---
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = { formula: "1d10 + @attributes.per.value", decimals: 2 };
 
-  // Переводы (оставляем как было)
   const customTranslations = {
     TYPES: {
-      Actor: { survivor: "Выживший", npc: "NPC", zombie: "Зомби", shelter: "Убежище" },
+      Actor: { survivor: "Выживший", npc: "NPC", zombie: "Зомби", shelter: "Убежище", container: "Контейнер", harvest_spot: "Точка Сбора" },
       Item: { weapon: "Оружие", armor: "Броня", consumable: "Расходник", ammo: "Патроны", resource: "Ресурс", medicine: "Медицина", food: "Еда", materials: "Материалы", luxury: "Роскошь", misc: "Разное", upgrade: "Постройка", project: "Проект" }
     }
   };
   foundry.utils.mergeObject(game.i18n.translations, customTranslations);
   if (game.i18n._fallback) foundry.utils.mergeObject(game.i18n._fallback, customTranslations);
 
-  // --- ВАЖНО: СТАТУСЫ ДЛЯ ТОКЕНОВ ---
-  // Мы берем значения из constants.js и превращаем в массив
   CONFIG.statusEffects = Object.values(GLOBAL_STATUSES).map(s => ({
-      id: s.id,
-      label: s.label,
-      icon: s.icon,
-      // Foundry v11+ может требовать statuses, v10 uses id
-      statuses: [s.id] 
+      id: s.id, label: s.label, icon: s.icon, statuses: [s.id] 
   }));
-  // Добавляем стандартный статус "Мертв"
   CONFIG.statusEffects.push({ id: "dead", label: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"] });
 
-  // Регистрация листов
+  // --- REGISTRATION ---
   Actors.unregisterSheet("core", ActorSheet);
   Actors.registerSheet("zsystem", ZActorSheet, { types: ["survivor", "npc", "zombie"], makeDefault: true, label: "Лист Персонажа" });
   Actors.registerSheet("zsystem", ZShelterSheet, { types: ["shelter"], makeDefault: true, label: "Управление Убежищем" });
@@ -69,7 +72,14 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", async () => {
-  
+  // --- SOCKETS (FINAL ATTEMPT) ---
+  // 1. Отключаем старое (если было)
+  game.socket.off("system.zsystem");
+  // 2. Включаем новое
+  game.socket.on("system.zsystem", handleZSystemSocket);
+  console.log("ZSystem | Socket Listener Attached.");
+  // -------------------------------
+
   Hooks.on("updateCombat", async (combat, changed) => {
     if (changed.turn !== undefined || changed.round !== undefined) {
       const combatant = combat.combatant;
@@ -77,6 +87,7 @@ Hooks.once("ready", async () => {
     }
   });
 
+  // Логика движения AP
   Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
       if (changes.x === undefined && changes.y === undefined) return true;
       const actor = tokenDoc.actor;
@@ -84,8 +95,7 @@ Hooks.once("ready", async () => {
 
       const currentPos = { x: tokenDoc.x, y: tokenDoc.y };
       const newPos = { x: changes.x ?? tokenDoc.x, y: changes.y ?? tokenDoc.y };
-      const grid = canvas.grid;
-      const size = grid.size;
+      const size = canvas.grid.size;
       const dx = Math.abs(newPos.x - currentPos.x) / size;
       const dy = Math.abs(newPos.y - currentPos.y) / size;
       const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
@@ -103,12 +113,12 @@ Hooks.once("ready", async () => {
           ui.notifications.warn(`${actor.name}: Недостаточно AP (${totalCost} нужно, ${curAP} есть).`);
           return false;
       }
-
       actor.update({ "system.resources.ap.value": curAP - totalCost });
       ui.notifications.info(`Движение: -${totalCost} AP`);
       return true;
   });
 
+  // Логика стаков
   Hooks.on("preCreateItem", (itemDoc, createData) => {
     const parent = itemDoc.parent;
     if (!parent || parent.documentName !== "Actor") return true;
@@ -128,35 +138,26 @@ Hooks.once("ready", async () => {
     return true;
   });
 
+  // Логика токенов
   Hooks.on("createToken", async (tokenDoc, options, userId) => {
       if (userId !== game.user.id) return;
-
-      // Только для отвязанных токенов (не прототипов)
       if (!tokenDoc.actorLink) {
           const actor = tokenDoc.actor;
           if (!actor) return;
-
           if (["harvest_spot", "container"].includes(actor.type)) {
-              // 3 = OWNER (Владелец). Это позволяет запускать скрипты внутри.
-              await actor.update({
-                  "ownership.default": 3 
-              });
+              await actor.update({ "ownership.default": 3 });
           }
       }
   });
-  Hooks.on("preDeleteToken", (tokenDoc, context, userId) => {
-      // Если удаляет ГМ - разрешаем
-      if (game.user.isGM) return true;
 
+  Hooks.on("preDeleteToken", (tokenDoc, context, userId) => {
+      if (game.user.isGM) return true;
       const actor = tokenDoc.actor;
       if (!actor) return true;
-
-      // Если игрок пытается удалить лут
       if (["harvest_spot", "container"].includes(actor.type)) {
           ui.notifications.warn("Вы не можете удалить этот объект!");
-          return false; // ОТМЕНЯЕМ УДАЛЕНИЕ
+          return false;
       }
       return true;
   });
-
 });

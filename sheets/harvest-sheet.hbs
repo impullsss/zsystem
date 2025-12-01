@@ -41,55 +41,113 @@
                 
                 <!-- TOOLS CONFIG -->
                 <div style="margin-top: 8px; border-top: 1px dotted #8d6e63; padding-top: 5px;">
-                    
-                    <!-- 1. Верхний инпут: Предмет (Drag Zone) -->
                     <div style="margin-bottom: 5px;">
                         <label style="font-size: 0.8em; font-weight: bold; color: #5d4037;">Необходимый инструмент:</label>
                         <input type="text" class="action-input tool-drop" data-field="reqTool" value="{{act.reqTool}}" 
                                placeholder="Перетащите предмет сюда..." 
                                style="width: 100%; height: 35px; background: rgba(255,255,255,0.9); border: 2px dashed #795548; text-align: center;"/>
-                        
                         <div style="text-align: right;">
                             <label style="font-size: 0.8em;">
                                 <input type="checkbox" class="action-input" data-field="toolRequired" {{checked act.toolRequired}}/> Обязателен?
                             </label>
                         </div>
                     </div>
-
-                    <!-- 2. Нижний инпут: Модификатор -->
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                        <label style="font-size: 0.8em; font-weight: bold; color: #5d4037;">Бонус к шансу (%):</label>
-                        <input type="number" class="action-input" data-field="bonusMod" value="{{act.bonusMod}}" placeholder="0" 
-                               style="width: 60px; text-align: center; border-bottom: 2px solid #5d4037; background: transparent; font-weight: bold;"/>
+                    <!-- BONUS TOOL -->
+                    <div style="background: rgba(255,255,255,0.4); padding:3px; border-radius:3px;">
+                        <label style="font-size: 0.8em; font-weight: bold; color: #1b5e20;">Бонус (Предмет + Шанс):</label>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" class="action-input tool-drop" data-field="bonusTool" value="{{act.bonusTool}}" 
+                                   placeholder="Название предмета..." style="flex:1; font-size:0.8em; text-align:center;"/>
+                            <input type="number" class="action-input" data-field="bonusMod" value="{{act.bonusMod}}" placeholder="%" 
+                                   style="width: 50px; text-align: center; font-weight: bold; color: #1b5e20;"/>
+                        </div>
                     </div>
                 </div>
-             </div>
+            </div>
             {{/each}}
             
             <div style="margin-top:10px;">
                 <label>Скрытое описание:</label>
                 <textarea class="harvest-desc-input" rows="2">{{description}}</textarea>
             </div>
-        </div> <!-- <--- ВОТ ЭТОГО DIV НЕ ХВАТАЛО -->
+        </div>
 
         <!-- TAB 2: OUTCOMES -->
         <div class="tab" data-tab="outcomes">
-            <div class="outcome-box">
-                <label class="outcome-label success">Успех (Текст)</label>
-                <input type="text" class="outcome-input" data-field="outcomes.success.text" value="{{outcomes.success.text}}"/>
-            </div>
-            <div class="outcome-box">
-                <label class="outcome-label fail">Провал (Текст / Шум)</label>
-                <div class="flexrow">
-                    <input type="text" class="outcome-input" data-field="outcomes.fail.text" value="{{outcomes.fail.text}}"/>
-                    <input type="number" class="outcome-input" data-field="outcomes.fail.noise" value="{{outcomes.fail.noise}}" placeholder="Noise" style="width:50px;"/>
+            
+            <!-- --- CRIT SUCCESS --- -->
+            <div class="outcome-box" style="border-left: 4px solid #66bb6a;">
+                <label class="outcome-label success">Критический Успех</label>
+                <input type="text" class="outcome-input" data-field="outcomes.critSuccess.text" value="{{outcomes.critSuccess.text}}" placeholder="Текст..."/>
+                <div class="flexrow" style="margin-top:5px; gap:5px; align-items:center;">
+                    <select class="outcome-input" data-field="outcomes.critSuccess.type" style="font-size:0.8em; width:auto;">
+                        {{selectOptions outcomeTypes selected=outcomes.critSuccess.type localize=false}}
+                    </select>
+                    
+                    {{#if (eq outcomes.critSuccess.type "damage")}}
+                    <select class="outcome-input" data-field="outcomes.critSuccess.limb" style="font-size:0.8em; width:auto; color:#d32f2f;">
+                        {{selectOptions limbOptions selected=outcomes.critSuccess.limb localize=false}}
+                    </select>
+                    {{/if}}
+
+                    <input type="number" class="outcome-input" data-field="outcomes.critSuccess.value" value="{{outcomes.critSuccess.value}}" placeholder="0" style="width:60px;"/>
                 </div>
             </div>
-            <div class="outcome-box">
-                <label class="outcome-label crit-fail">Крит. Провал (Текст / Шум)</label>
-                <div class="flexrow">
-                    <input type="text" class="outcome-input" data-field="outcomes.critFail.text" value="{{outcomes.critFail.text}}"/>
-                    <input type="number" class="outcome-input" data-field="outcomes.critFail.noise" value="{{outcomes.critFail.noise}}" placeholder="Noise" style="width:50px;"/>
+
+            <!-- --- SUCCESS --- -->
+            <div class="outcome-box" style="border-left: 4px solid #81c784;">
+                <label class="outcome-label success">Успех</label>
+                <input type="text" class="outcome-input" data-field="outcomes.success.text" value="{{outcomes.success.text}}"/>
+                <div class="flexrow" style="margin-top:5px; gap:5px; align-items:center;">
+                    <select class="outcome-input" data-field="outcomes.success.type" style="font-size:0.8em; width:auto;">
+                        {{selectOptions outcomeTypes selected=outcomes.success.type localize=false}}
+                    </select>
+
+                    {{#if (eq outcomes.success.type "damage")}}
+                    <select class="outcome-input" data-field="outcomes.success.limb" style="font-size:0.8em; width:auto; color:#d32f2f;">
+                        {{selectOptions limbOptions selected=outcomes.success.limb localize=false}}
+                    </select>
+                    {{/if}}
+
+                    <input type="number" class="outcome-input" data-field="outcomes.success.value" value="{{outcomes.success.value}}" placeholder="0" style="width:60px;"/>
+                </div>
+            </div>
+
+            <!-- --- FAIL --- -->
+            <div class="outcome-box" style="border-left: 4px solid #ff7043;">
+                <label class="outcome-label fail">Провал</label>
+                <input type="text" class="outcome-input" data-field="outcomes.fail.text" value="{{outcomes.fail.text}}"/>
+                <div class="flexrow" style="margin-top:5px; gap:5px; align-items:center;">
+                    <select class="outcome-input" data-field="outcomes.fail.type" style="font-size:0.8em; width:auto;">
+                        {{selectOptions outcomeTypes selected=outcomes.fail.type localize=false}}
+                    </select>
+
+                    {{#if (eq outcomes.fail.type "damage")}}
+                    <select class="outcome-input" data-field="outcomes.fail.limb" style="font-size:0.8em; width:auto; color:#d32f2f;">
+                        {{selectOptions limbOptions selected=outcomes.fail.limb localize=false}}
+                    </select>
+                    {{/if}}
+
+                    <input type="number" class="outcome-input" data-field="outcomes.fail.value" value="{{outcomes.fail.value}}" placeholder="0" style="width:60px;"/>
+                </div>
+            </div>
+
+            <!-- --- CRIT FAIL --- -->
+            <div class="outcome-box" style="border-left: 4px solid #d32f2f;">
+                <label class="outcome-label crit-fail">Крит. Провал</label>
+                <input type="text" class="outcome-input" data-field="outcomes.critFail.text" value="{{outcomes.critFail.text}}"/>
+                <div class="flexrow" style="margin-top:5px; gap:5px; align-items:center;">
+                    <select class="outcome-input" data-field="outcomes.critFail.type" style="font-size:0.8em; width:auto;">
+                        {{selectOptions outcomeTypes selected=outcomes.critFail.type localize=false}}
+                    </select>
+
+                    {{#if (eq outcomes.critFail.type "damage")}}
+                    <select class="outcome-input" data-field="outcomes.critFail.limb" style="font-size:0.8em; width:auto; color:#d32f2f;">
+                        {{selectOptions limbOptions selected=outcomes.critFail.limb localize=false}}
+                    </select>
+                    {{/if}}
+
+                    <input type="number" class="outcome-input" data-field="outcomes.critFail.value" value="{{outcomes.critFail.value}}" placeholder="0" style="width:60px;"/>
                 </div>
             </div>
         </div>
@@ -115,7 +173,6 @@
 
         <!-- PLAYER VIEW -->
         {{#unless isGM}}
-            <!-- ОПИСАНИЕ -->
             {{#if description}}
                 <div class="harvest-description-box">"{{description}}"</div>
             {{/if}}
@@ -127,7 +184,6 @@
                 </div>
             {{else}}
                 {{#if isHarvested}}
-                    <!-- LOOT VIEW -->
                     <div class="section-header"><span><i class="fas fa-box-open"></i> Содержимое</span></div>
                     <ol class="light-item-list">
                         {{#each inventory as |item|}}
@@ -143,10 +199,8 @@
                         {{#unless inventory}}<li style="text-align:center;color:#777;padding:10px;">Пусто...</li>{{/unless}}
                     </ol>
                 {{else}}
-                    <!-- ACTIONS VIEW -->
                     <div class="harvest-lock-screen">
                         <i class="fas fa-lock" style="font-size:48px; color:#555; margin-bottom:15px;"></i>
-                        
                         {{#if canHarvest}}
                             {{#each actions as |act idx|}}
                                 <button class="harvest-action-btn" data-idx="{{idx}}">
@@ -157,6 +211,11 @@
                                     {{#if act.reqTool}}
                                         <div style="font-size:0.7em; color:#ffebee; margin-top:2px;">
                                             <i class="fas fa-key"></i> Требуется: {{act.reqTool}}
+                                        </div>
+                                    {{/if}}
+                                    {{#if act.bonusTool}}
+                                        <div style="font-size:0.7em; color:#e8f5e9; margin-top:2px;">
+                                            <i class="fas fa-plus-circle"></i> Бонус: {{act.bonusTool}} (+{{act.bonusMod}}%)
                                         </div>
                                     {{/if}}
                                 </button>
