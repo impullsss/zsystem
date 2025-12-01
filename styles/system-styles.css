@@ -1,882 +1,555 @@
-.zsystem.sheet.actor {
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Patrick+Hand&display=swap');
+
+.zsystem {
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
-.zsystem-actor-sheet .sheet-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:10px;
+
+/* --- ACTOR SHEET CONTAINER (The Table) --- */
+.zsystem.sheet.actor {
+  background-color: #222; /* Темный стол */
+  box-shadow: 0 0 20px rgba(0,0,0,0.8);
+  padding: 0;
 }
-.zsystem-actor-sheet .resources {
-  display:flex;
-  gap:12px;
+
+/* --- THE CLIPBOARD PAPER --- */
+.zsystem-actor-sheet {
+  background-color: #f4e1c1; /* Старая бумага */
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjRlMWMxIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNykiLz4KPC9zdmc+');
+  margin: 10px;
+  padding: 15px;
+  height: calc(100% - 20px);
+  overflow-y: auto;
+  font-family: 'Courier Prime', monospace;
+  color: #212121;
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  border-radius: 2px;
 }
-.resource-line {
-  display:flex;
-  gap:6px;
-  align-items:center;
+
+/* --- TYPOGRAPHY & INPUTS --- */
+h1, h2, h3 {
+  font-family: 'Courier Prime', monospace;
+  text-transform: uppercase;
+  border-bottom: 2px solid #212121;
+  margin-bottom: 8px;
+  padding-bottom: 2px;
+  font-weight: bold;
 }
-button.ap-decrease, button.ap-increase, button.ap-reset {
-  cursor:pointer;
-  padding:2px 6px;
-  margin-left:6px;
+
+/* Рукописные инпуты */
+.zsystem-actor-sheet input[type="text"],
+.zsystem-actor-sheet input[type="number"] {
+  font-family: 'Patrick Hand', cursive;
+  font-size: 1.2em;
+  color: #0d47a1; /* Синяя ручка */
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed #999;
+  padding: 0 5px;
 }
+.zsystem-actor-sheet input:focus {
+  border-bottom: 1px solid #000;
+  box-shadow: none;
+}
+
+/* --- HEADER AREA --- */
+.clipboard-header {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+  margin-bottom: 15px;
+  border-bottom: 3px double #5d4037;
+  padding-bottom: 10px;
+}
+
+.profile-img-container {
+  flex: 0 0 100px;
+  height: 100px;
+  border: 2px solid #333;
+  background: #fff;
+  transform: rotate(-2deg); /* Эффект приклеенного фото */
+  box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+.profile-img-container img { width: 100%; height: 100%; object-fit: cover; }
+
+.header-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Bars (HP/AP) */
+.stat-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.bar-label { font-weight: bold; font-size: 0.9em; width: 60px; text-align: right; }
+.bar-track {
+  flex: 1;
+  height: 18px;
+  background: #ccc;
+  border: 1px solid #333;
+  position: relative;
+}
+.bar-fill { height: 100%; transition: width 0.3s; }
+.bar-fill.hp { background: #b71c1c; }
+.bar-fill.ap { background: #2e7d32; }
+.bar-text {
+  position: absolute; top: -2px; left: 0; right: 0;
+  text-align: center; font-size: 12px; font-weight: bold; color: #fff; text-shadow: 1px 1px 0 #000;
+}
+
+/* GM Panel */
+.gm-infection-box {
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px dashed red;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8em;
+  margin-top: 5px;
+}
+
+/* --- NAVIGATION TABS --- */
 .sheet-tabs {
-  display:flex;
-  gap:8px;
-  margin:8px 0;
+  display: flex;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #333;
 }
-.sheet-tabs .item.active { font-weight:bold; }
-.sheet-body .tab { padding:8px; border-top:1px solid #333; }
-.skills .skill { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
-.inventory-placeholder { color: #999; font-style: italic; }
+.sheet-tabs .item {
+  padding: 5px 15px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  font-family: 'Courier Prime', monospace;
+}
+.sheet-tabs .item.active {
+  background: rgba(0,0,0,0.05);
+  border-color: #333;
+  border-radius: 5px 5px 0 0;
+}
 
-/* Основной стиль листа (уже был у тебя, добавь это ниже) */
+/* --- 3-COLUMN LAYOUT (The Concept Look) --- */
+.paper-grid {
+  display: grid;
+  grid-template-columns: 1fr 200px 1fr; /* Stats | Doll | Inventory */
+  gap: 15px;
+  align-items: start;
+}
 
-/* --- CHAT CARD / SLOT MACHINE STYLES --- */
+/* Col 1: Attributes */
+.attr-table { width: 100%; margin-bottom: 15px; }
+.attr-row {
+    border-bottom: 1px dotted #ccc;
+    padding: 2px 0;
+}
+.attr-name { font-weight: bold; }
+.attr-val input { text-align: right; width: 40px; font-weight: bold; }
 
-.zsystem-actor-sheet .sheet-header { display: flex; align-items: center; margin-bottom: 10px; }
-.zsystem-actor-sheet .profile-img { flex: 0 0 100px; height: 100px; margin-right: 10px; border: 1px solid #333; }
-.zsystem-actor-sheet .header-fields { flex: 1; }
-.zsystem-actor-sheet .charname input { width: 100%; height: 40px; font-size: 24px; margin-bottom: 5px; border: none; border-bottom: 1px solid #333; background: transparent; }
-.zsystem-actor-sheet .resources { display: grid; gap: 5px; grid-template-columns: repeat(4, 1fr); }
-.resource-content { display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.05); border-radius: 4px; padding: 2px; }
-.resource-content input { width: 40px; text-align: center; border: none; background: transparent; }
-.sheet-tabs { flex: 0 0 30px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 10px 0; display: flex; align-items: center; justify-content: center; }
-.sheet-tabs .item { padding: 5px 10px; font-weight: bold; cursor: pointer; }
-.sheet-tabs .item.active { text-shadow: 0 0 5px red; color: red; border-bottom: 2px solid red; }
-.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.flexrow { display: flex; }
+.attr-grid {
+    display: grid;
+    /* Columns: Label | Base | Mod | Total */
+    grid-template-columns: 1fr 40px 30px 40px; 
+    gap: 5px;
+    align-items: center;
+}
 
-/* --- ЧАТ & СЛОТ-МАШИНА --- */
+.attr-header {
+    font-size: 0.7em; 
+    color: #666; 
+    border-bottom: 1px solid #777;
+    margin-bottom: 5px;
+    padding-bottom: 2px;
+    text-align: center;
+}
+
+.attr-header > span:first-child { text-align: left; } 
+
+.attr-row label { font-weight: bold; font-size: 0.9em; }
+.attr-row input { text-align: center; font-weight: bold; background: rgba(255,255,255,0.3); border: 1px solid #aaa; border-radius: 3px; }
+.attr-mod { text-align: center; font-size: 0.9em; color: #555; }
+.attr-total { text-align: center; font-weight: bold; font-family: 'Patrick Hand'; font-size: 1.2em; }
+
+
+
+.skills-list { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
+.skill-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px dotted #ccc; cursor: pointer; }
+.skill-row:hover { color: #d84315; }
+.skill-val { font-weight: bold; font-family: 'Patrick Hand'; font-size: 1.1em; text-align: center; }
+
+.skill-grid {
+    display: grid;
+    /* Columns: Name | Base | + | Input | = | Total | Roll */
+    grid-template-columns: 1fr 25px 10px 35px 10px 35px 25px;
+    gap: 2px;
+    align-items: center;
+}
+
+.skill-header {
+    font-size: 0.7em;
+    color: #666;
+    border-bottom: 1px solid #777;
+    margin-bottom: 5px;
+    text-align: center;
+}
+.skill-header > span:first-child { text-align: left; }
+
+.skill-row {
+    border-bottom: 1px dotted #ccc;
+    padding: 2px 0;
+}
+
+.skill-row:hover { background: rgba(0,0,0,0.03); }
+
+.skill-input { width: 100% !important; text-align: center; padding: 0; margin: 0; font-size: 0.9em; }
+
+/* Col 2: Doll */
+.body-chart-container {
+  position: relative;
+  width: 200px;
+  height: 300px;
+  margin: 0 auto;
+}
+.limb-shape { fill: #333; stroke: none; opacity: 0.8; transition: fill 0.2s; }
+.limb-zone:hover .limb-shape { fill: #555; }
+
+.limb-input {
+  position: absolute;
+  width: 30px; height: 20px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid #333;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+}
+.limb-input input {
+  font-size: 12px; border: none; text-align: center; color: #000; padding: 0;
+  font-family: 'Courier Prime';
+}
+
+/* Col 3: Inventory Grid */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.inv-slot {
+  aspect-ratio: 1;
+  border: 1px solid #555;
+  background: rgba(255,255,255,0.3);
+  position: relative;
+  cursor: pointer;
+}
+.inv-slot img { width: 100%; height: 100%; object-fit: contain; }
+.inv-qty {
+  position: absolute; bottom: 0; right: 0;
+  background: rgba(0,0,0,0.7); color: #fff;
+  font-size: 9px; padding: 1px 3px;
+}
+.inv-slot:hover { border-color: #d84315; background: rgba(255,255,255,0.6); }
+
+/* --- OTHER TABS (List View) --- */
+.full-inv-list .item {
+  display: flex; align-items: center;
+  padding: 4px; border-bottom: 1px solid #ccc;
+  font-family: 'Patrick Hand'; font-size: 1.1em;
+}
+.full-inv-list .item img { width: 24px; height: 24px; border: 1px solid #000; margin-right: 8px; }
+
+/* Dead State Overlay */
+.dead-stamp {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  border: 5px solid #d32f2f;
+  color: #d32f2f;
+  font-size: 4em; font-weight: bold; font-family: 'Courier Prime';
+  padding: 10px 20px;
+  opacity: 0.8; pointer-events: none; z-index: 100;
+  text-transform: uppercase;
+}
+
+/* Harvest/Container Specifics (Keep Light Theme) */
+.zsystem.sheet.harvest, .zsystem.sheet.container {
+    background: #e3decb; color: #1a1a1a;
+    border: 2px solid #5d4037;
+}
+.gm-panel { background: #e8f5e9; border: 1px dashed #2e7d32; padding: 8px; margin-bottom: 10px; }
+
+/* --- HARVEST & CONTAINER (Updated) --- */
+.zsystem.sheet.harvest, .zsystem.sheet.container {
+  background: #e3decb;
+}
+.gm-panel {
+  background: #e8f5e9;
+  border: 1px dashed #2e7d32;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.gm-tabs {
+  display: flex;
+  border-bottom: 2px solid #2e7d32;
+  margin-bottom: 8px;
+}
+.gm-tab {
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #1b5e20;
+  border-radius: 4px 4px 0 0;
+}
+.gm-tab.active {
+  background: #2e7d32;
+  color: #fff;
+}
+
+/* Action Rows (Harvest) */
+.action-config {
+  background: rgba(255,255,255,0.5);
+  border: 1px solid #aaa;
+  padding: 5px;
+  margin-bottom: 5px;
+  border-radius: 3px;
+}
+.action-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #333;
+}
+.tool-drop-zone {
+  border: 1px dashed #777;
+  background: rgba(0,0,0,0.05);
+  padding: 2px 5px;
+  display: inline-block;
+  min-width: 100px;
+  text-align: center;
+  font-size: 0.8em;
+  color: #555;
+  cursor: copy;
+}
+.tool-drop-zone.filled {
+  background: #e0f2f1;
+  border-style: solid;
+  color: #00695c;
+  font-weight: bold;
+}
+
+/* --- CHAT CARD & SLOT MACHINE --- */
 .z-chat-card {
   background: #222;
-  border: 1px solid #555;
-  border-radius: 6px;
+  border: 1px solid #000;
+  border-radius: 5px;
   padding: 10px;
   color: #eee;
   font-family: "Roboto", sans-serif;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-  text-align: center;
   margin-bottom: 5px;
 }
 
 .z-card-header {
+  color: #ffab91;
   font-weight: bold;
-  font-size: 1.2em;
-  text-transform: uppercase;
+  font-size: 1.1em;
   border-bottom: 1px solid #555;
-  padding-bottom: 5px;
+  padding-bottom: 4px;
   margin-bottom: 5px;
-  color: #ffb74d; /* Orange */
 }
 
 .z-card-sub { font-size: 0.85em; color: #aaa; margin-bottom: 10px; }
 
-/* Окно слотов */
+/* SLOT MACHINE FIXED */
 .z-slot-machine {
   background: #000;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 15px;
+  border-radius: 4px;
   border: 2px solid #444;
   box-shadow: inset 0 0 10px #000;
   display: flex;
   justify-content: center;
-  margin-bottom: 10px;
+  margin: 10px auto;
+  width: 100%; /* Фикс ширины */
 }
 
 .z-reel-window {
-  width: 80px;
-  height: 60px;
+  width: 60px;
+  height: 50px; /* Фикс высоты */
   background: linear-gradient(to bottom, #000 0%, #333 50%, #000 100%);
-  border: 2px solid #666;
-  border-radius: 4px;
+  border: 1px solid #666;
+  border-radius: 2px;
+  overflow: hidden; /* ВАЖНО: Скрывает прокрутку */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  position: relative;
 }
 
-/* Анимация цифры */
 .z-reel-spin {
   font-family: "Courier New", monospace;
-  font-size: 2.5em;
+  font-size: 2.2em;
   font-weight: bold;
   color: #fff;
-  text-shadow: 0 0 5px rgba(255,255,255,0.5);
-  
-  /* Время вращения: 1s */
-  animation: slot-spin 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-  transform: translateY(-100px);
+  line-height: 50px;
+  /* Анимация */
+  animation: slot-spin 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transform: translateY(-150%); /* Старт сверху */
   filter: blur(5px);
 }
 
-.z-result-label, .z-damage-box {
-  opacity: 0; /* Скрыто */
-  /* Анимация появления: Fade In */
-  animation: fade-in-result 0.2s ease forwards;
-  /* Задержка: 1s (кручение) + 0.5s (пауза) = 1.5s */
-  animation-delay: 0.5s;
-}
-@keyframes fade-in-result {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.z-reel-spin.success { color: #66bb6a; text-shadow: 0 0 10px #66bb6a; }
-.z-reel-spin.failure { color: #ef5350; text-shadow: 0 0 10px #ef5350; }
-.z-result-label.success { color: #66bb6a; }
-.z-result-label.failure { color: #ef5350; }
-
 @keyframes slot-spin {
-  0% { transform: translateY(-150px); filter: blur(10px); }
-  60% { transform: translateY(20px); filter: blur(2px); }
+  0% { transform: translateY(-150%); filter: blur(5px); }
+  60% { transform: translateY(10%); filter: blur(2px); }
   100% { transform: translateY(0); filter: blur(0); }
 }
 
-.z-result-label { font-weight: bold; font-size: 1.2em; letter-spacing: 1px; text-transform: uppercase; margin-top: 5px; }
+.z-reel-spin.success { color: #66bb6a; text-shadow: 0 0 8px #66bb6a; }
+.z-reel-spin.failure { color: #ef5350; text-shadow: 0 0 8px #ef5350; }
 
-/* Урон */
-.z-damage-box { margin-top: 10px; border-top: 1px dashed #555; padding-top: 5px; }
-.dmg-label { font-size: 0.8em; color: #888; }
-.dmg-val { font-size: 1.6em; color: #ff5252; font-weight: bold; margin-top: 2px; }
-
-.z-ap-spent { font-size: 0.75em; color: #888; margin-top: 8px; text-align: right; }
-
-.effect-controls .effect-control {
-  color: #444;
-  cursor: pointer;
-  transition: color 0.2s;
+.z-result-label { 
+    text-align: center; 
+    font-weight: bold; 
+    font-size: 1.2em; 
+    text-transform: uppercase; 
+    margin-top: 5px; 
+    opacity: 0;
+    animation: fade-in 0.3s forwards 0.6s;
 }
-.effect-controls .effect-control:hover {
-  color: #d32f2f; /* Red highlight on hover */
-}
-.effect-item img {
-  border: 1px solid #999;
-  border-radius: 4px;
-}
+.z-result-label.success { color: #66bb6a; }
+.z-result-label.failure { color: #ef5350; }
 
-/* Стили для схемы тела */
-.body-chart-container {
-  position: relative;
-  width: 200px;
-  height: 300px;
-  margin: 0 auto; /* Центрируем */
-  background: rgba(0,0,0,0.1);
-  border-radius: 8px;
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- HARVEST ACTIONS STYLES --- */
+.action-config {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid #8d6e63;
+    padding: 5px;
+    margin-bottom: 8px;
+    border-radius: 4px;
 }
 
-.limb-shape {
-  fill: #333;
-  stroke: #666;
-  stroke-width: 2;
-  transition: fill 0.3s;
-}
-
-.limb-zone:hover .limb-shape {
-  fill: #555;
-  stroke: #ffb74d;
-  cursor: pointer;
-}
-
-.limb-label {
-  font-size: 10px;
-  fill: #fff;
-  pointer-events: none;
-  opacity: 0.3; /* Делаем надписи HEAD/TORSO тусклыми, чтобы не мешали цифрам */
-}
-
-.limb-input {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 50px;
-  pointer-events: auto;
-  z-index: 10; /* Поверх SVG */
-}
-
-.limb-input input {
-  width: 30px;
-  height: 18px;
-  font-size: 13px; /* Оптимальный размер */
-  font-weight: bold;
-  text-align: right;
-  padding: 0;
-  margin: 0;
-  background: transparent; 
-  border: none;
-  color: #fff;
-}
-
-.limb-input input:focus {
-  box-shadow: none;
-  border-bottom: 1px solid #ffb74d;
-}
-.limb-input input::-webkit-outer-spin-button,
-.limb-input input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.limb-input span {
-  font-size: 11px;
-  color: #ddd;
-  margin-left: 2px;
-  white-space: nowrap; /* Запрет переноса строки */
-  font-weight: bold;
-}
-
-/* Стили для таблицы атак в предмете */
-.attacks-table .attack-header {
-    font-weight: bold;
-    font-size: 0.8em;
-    text-transform: uppercase;
-    color: #555;
-    border-bottom: 1px solid #ccc;
+.action-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    border-bottom: 1px dotted #8d6e63;
     padding-bottom: 2px;
 }
 
-.attacks-table input {
-    height: 24px;
-    font-size: 0.9em;
-    border: 1px solid rgba(0,0,0,0.1);
-    background: rgba(255,255,255,0.5);
+.tool-drop {
+    background: rgba(255,255,255,0.8) !important;
+    border: 1px dashed #555 !important;
+    font-size: 0.85em !important;
+    color: #333 !important;
 }
+.tool-drop::placeholder { color: #777; font-style: italic; }
 
-.attacks-table input:focus {
-    background: #fff;
-    border-color: #ffb74d;
-}
-
-.attack-delete {
-    color: #aaa;
-    cursor: pointer;
-}
-.attack-delete:hover { color: red; }
-
-.checkbox-sub {
-    font-size: 0.8em;
-    margin-right: 10px;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-}
-
-/* --- ДИАЛОГ ВЫБОРА АТАКИ --- */
-.z-attack-dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.z-attack-btn {
-  background: #333;
-  border: 1px solid #555;
-  color: #fff;
-  padding: 8px;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.z-attack-btn:hover {
-  background: #444;
-  border-color: #ffb74d;
-}
-
-.z-attack-btn .atk-name {
-  font-weight: bold;
-  font-size: 1.1em;
-  color: #ffb74d;
-}
-
-.z-attack-btn .atk-info {
-  font-size: 0.85em;
-  color: #ccc;
-}
-
-/* --- ИНДИКАТОР ШУМА В ЧАТЕ --- */
-.z-noise-alert {
-  margin-top: 8px;
-  background: rgba(255, 0, 0, 0.1);
-  border: 1px solid #d32f2f;
-  color: #ff5252;
-  padding: 4px;
-  border-radius: 4px;
-  font-weight: bold;
-  text-align: center;
-  font-size: 0.9em;
-  animation: pulse-noise 2s infinite;
-}
-
-@keyframes pulse-noise {
-  0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(211, 47, 47, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
-}
-/* NOISE METER HUD */
-#z-noise-meter {
-  position: fixed;
-  top: 100px;
-  left: 130px; /* Сдвиг, чтобы не перекрывать стандартные контролы */
-  width: 100px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 2px solid #555;
-  border-radius: 6px;
-  padding: 5px;
-  z-index: 60; /* Поверх канваса */
-  pointer-events: none; /* Чтобы клики проходили сквозь */
-  box-shadow: 0 0 10px #000;
-}
-
-#z-noise-meter.danger {
-  border-color: #ff5252;
-  box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
-}
-
-#z-noise-meter .noise-label {
-  color: #aaa;
-  font-size: 10px;
-  text-align: center;
-  letter-spacing: 2px;
-  font-weight: bold;
-}
-
-#z-noise-meter .noise-value {
-  color: #fff;
-  font-size: 24px;
-  text-align: center;
-  font-family: "Courier New", monospace;
-  font-weight: bold;
-  text-shadow: 0 0 5px #fff;
-}
-
-#z-noise-meter.danger .noise-value {
-  color: #ff5252;
-  text-shadow: 0 0 5px #ff5252;
-}
-
-#z-noise-meter .noise-bar-bg {
-  height: 4px;
-  background: #333;
-  margin-top: 2px;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-#z-noise-meter .noise-bar-fill {
-  height: 100%;
-  width: 0%;
-  background: #4caf50;
-  transition: width 0.5s, background 0.5s;
-}
-
-#z-noise-meter.danger .noise-bar-fill {
-  background: #ff5252;
-}
-
-.z-apply-damage {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 6px;
-  background: #d32f2f; /* Красный */
-  color: white;
-  border: 1px solid #b71c1c;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  text-transform: uppercase;
-  transition: background 0.2s;
-}
-
-.z-apply-damage:hover {
-  background: #f44336;
-  box-shadow: 0 0 5px #f44336;
-}
-
-.z-apply-damage i {
-  margin-right: 5px;
-}
-
-.z-damage-result {
-    background: #eee;
-    color: #333;
-    padding: 5px;
-    border: 1px solid #ccc;
-    font-size: 0.9em;
-    margin-top: 5px;
-}
-.input-percent {
-    align-items: center;
-    gap: 5px;
-}
-.input-percent input {
-    text-align: right;
-}
-/* Основная сетка атрибутов: 1fr (Статы) 200px (Тело) 1fr (Навыки) */
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 210px 1fr;
-  gap: 10px;
-  align-items: start;
-}
-
-/* Стиль для списка навыков */
-.skill-row {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 2px 0;
-}
-.skill-name {
-  flex: 2;
-  font-size: 0.9em;
-  font-weight: 600;
-}
-.skill-base {
-  flex: 0.5;
-  text-align: center;
-  color: #888;
-  font-size: 0.8em;
-}
-.skill-points {
-  flex: 0.5;
-  width: 30px;
-  text-align: center;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-}
-.skill-total {
-  flex: 0.5;
-  text-align: center;
-  font-weight: bold;
-  color: #333;
-}
-.skill-roll {
-  flex: 0.3;
-  text-align: right;
-  color: #444;
-  cursor: pointer;
-}
-.skill-roll:hover {
-  color: #d32f2f;
-}
-/* Стили для схемы тела */
-.body-chart-container {
-  position: relative;
-  width: 200px;
-  height: 300px;
-  margin: 0 auto 10px auto;
-  background: rgba(0,0,0,0.1);
-  border-radius: 8px;
-  border: 1px solid #444;
-}
-
-.limb-label {
-  font-size: 10px;
-  fill: #fff;
-  pointer-events: none;
-  opacity: 0.4;
-}
-
-/* Контейнер для цифр ХП */
-.limb-input {
-  position: absolute;
-  display: flex;
-  flex-direction: row; /* В одну строку */
-  align-items: center;
-  justify-content: center;
-  width: 60px; /* Чуть шире */
-  pointer-events: auto;
-  z-index: 10;
-  text-shadow: 0 0 4px #000; /* Черная обводка для читаемости */
-}
-
-.limb-input input {
-  width: 30px;
-  height: 20px;
-  font-size: 14px; /* Чуть меньше */
-  font-weight: bold;
-  text-align: right;
-  padding-right: 2px;
-  
-  background: transparent; 
-  border: none;
-  color: #fff;
-}
-
-
-/* Спан для слэша и макс. значения */
-.limb-input span {
-  font-size: 12px;
-  color: #ccc;
-  font-weight: normal;
-  margin-left: 2px;
-}
-
-/* Скрываем стрелочки input number */
-.limb-input input::-webkit-outer-spin-button,
-.limb-input input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-/* --- Header Layout --- */
-.zsystem-actor-sheet .sheet-header {
-  display: flex;
-  align-items: flex-start; /* Выравнивание по верху */
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.zsystem-actor-sheet .profile-img {
-  flex: 0 0 100px;
-  height: 100px;
-  border: 1px solid #333;
-}
-
-.zsystem-actor-sheet .header-fields {
-  flex: 1; /* Занимает все свободное место */
-}
-
-/* Место под куклу */
-.header-doll {
-  flex: 0 0 200px; /* Фиксированная ширина */
-}
-
-/* --- Resources (White Text + Shadow) --- */
-.resource-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.4); /* Затемненный фон */
-  border-radius: 4px;
-  padding: 2px;
-  border: 1px solid #555;
-}
-
-.resource-content input {
-  width: 40px;
-  text-align: center;
-  border: none;
-  background: transparent;
-  
-  /* СТИЛИ ТЕКСТА */
-  color: #fff !important; /* Белый */
-  text-shadow: 0 0 3px #000; /* Тень */
-  font-weight: bold;
-}
-
-.resource-content span {
-  color: #ccc;
-  text-shadow: 0 0 3px #000;
-}
-
-/* --- Body Chart (Tweaks) --- */
-.body-chart-container {
-  /* Убираем margin auto, так как теперь она в flex контейнере */
-  margin: 0; 
-  height: 250px; /* Чуть меньше высота для шапки */
-  width: 100%;
-  background: rgba(0,0,0,0.1);
-}
-.body-chart {
-    height: 100%; /* SVG на всю высоту */
-}
-/* Скорректируем положение инпутов, так как высота контейнера изменилась */
-/* (Координаты top/left в HTML могут требовать микро-подгонки) */
-
-.z-injury-alert {
-    margin-top: 8px;
-    background: #d32f2f;
-    color: #fff;
-    padding: 5px;
-    text-align: center;
-    font-weight: bold;
-    text-transform: uppercase;
-    border-radius: 4px;
-    animation: pulse-injury 1s infinite alternate;
-}
-
-@keyframes pulse-injury {
-    from { transform: scale(1); }
-    to { transform: scale(1.05); }
-}
-
-/* Стиль для метки бонуса */
-.ap-bonus-label {
-  text-align: center;
-  font-size: 10px;
-  color: #ccc;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-/* Стиль для инпута бонуса */
-.ap-bonus-input {
-  width: 26px;
-  height: 16px;
-  background: rgba(0, 0, 0, 0.3); /* Темный полупрозрачный фон */
-  border: 1px solid #555;
-  border-radius: 3px;
-  color: #fff;
-  text-align: center;
-  font-size: 11px;
-  font-weight: bold;
-}
-
-.ap-bonus-input:focus {
-  border-color: #ffb74d;
-  box-shadow: 0 0 3px #ffb74d;
-  outline: none;
-}
-
-/* Скрываем стрелочки в хроме */
-.ap-bonus-input::-webkit-outer-spin-button,
-.ap-bonus-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-/* --- СТИЛИ КОНТЕЙНЕРА (Container Sheet) --- */
-
-.zsystem.sheet.container {
-    min-height: 400px;
-    background: #1a1a1a; /* Темный фон */
-    color: #eee;
-    border: 2px solid #444;
-    box-shadow: 0 0 20px rgba(0,0,0,0.8);
-}
-
-/* Шапка контейнера */
-.zsystem.sheet.container .sheet-header {
-    background: #2b2b2b;
-    padding: 10px;
-    border-bottom: 2px solid #8b0000; /* Кроваво-красная линия */
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.zsystem.sheet.container .profile-img {
-    border: 1px solid #666;
-    background: #000;
-}
-
-.zsystem.sheet.container .charname input {
-    color: #fff;
-    background: rgba(0,0,0,0.3);
-    border: none;
-    border-bottom: 1px solid #555;
-    font-family: "Courier New", monospace; /* Шрифтовая стилизация */
-}
-
-/* Список предметов в контейнере */
-.zsystem.sheet.container .inventory-section {
-    margin-bottom: 15px;
-    padding: 0 5px;
-}
-
-.zsystem.sheet.container .item-group-header {
-    background: linear-gradient(to right, #333, #222);
-    border-bottom: 1px solid #555;
-    color: #ccc;
-    font-size: 0.9em;
-    padding: 2px 5px;
-    margin: 0 0 5px 0;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.zsystem.sheet.container .item-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.zsystem.sheet.container .item {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid transparent;
-    border-bottom: 1px solid #333;
-    padding: 4px;
-    margin-bottom: 2px;
-    transition: background 0.2s;
-}
-
-.zsystem.sheet.container .item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: #555;
-}
-
-.zsystem.sheet.container .item-name {
-    color: black;
-    font-weight: bold;
-}
-
-.zsystem.sheet.container .item-qty {
-    color: black;
-    font-family: monospace;
-    font-size: 1.1em;
-}
-
-/* Кнопки управления */
-.zsystem.sheet.container .item-controls a {
-    color: #666;
-    margin-left: 5px;
-}
-.zsystem.sheet.container .item-controls a:hover {
-    color: #ff5252; /* Красный при наведении */
-    text-shadow: 0 0 5px red;
-}
-
-/* Placeholder при пустом списке */
-.zsystem.sheet.container .inventory-placeholder {
-    text-align: center;
-    color: #555;
-    font-style: italic;
-    padding: 20px;
-}
-
-/* --- UNIVERSAL LIGHT SHEET (Harvest & Container) --- */
-.zsystem.sheet.harvest,
-.zsystem.sheet.container {
-    background: #e3decb; /* Старая бумага */
-    color: #1a1a1a;
-    border: 2px solid #5d4037;
-    box-shadow: 0 0 15px rgba(0,0,0,0.5);
-    font-family: "Helvetica Neue", Arial, sans-serif;
-}
-
-/* Общая шапка */
-.zsystem.sheet.harvest .sheet-header,
-.zsystem.sheet.container .sheet-header {
-    background: #d7ccc8;
-    padding: 10px;
-    border-bottom: 2px solid #8d6e63;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.profile-img-box {
-    flex: 0 0 64px;
-    height: 64px;
-    background: #fff;
-    border: 1px solid #555;
-    box-shadow: 0 0 4px rgba(0,0,0,0.3);
-}
-
-.charname-input {
+.harvest-action-btn {
+    display: block;
     width: 100%;
-    font-size: 1.5em;
-    font-weight: bold;
-    background: transparent !important;
-    border: none !important;
-    border-bottom: 1px solid #555 !important;
-    color: #222 !important;
-    border-radius: 0 !important;
-}
-
-/* Заголовки секций */
-.section-header {
-    background: rgba(0,0,0,0.05);
-    border-bottom: 2px solid #a1887f;
-    padding: 5px;
-    margin: 5px 0;
-    color: #3e2723;
-    font-weight: bold;
-    text-transform: uppercase;
-    font-size: 0.9em;
-    display: flex;
-    justify-content: space-between;
-}
-
-/* Список предметов */
-.light-item-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.light-item {
-    background: #f5f5f5;
-    border: 1px solid #ccc;
-    margin-bottom: 3px;
-    padding: 4px 8px;
-    display: flex;
-    align-items: center;
-    border-radius: 3px;
-}
-
-.light-item:hover {
-    background: #fff;
-    border-color: #8d6e63;
-}
-
-.light-item img {
-    border: 1px solid #999;
-    margin-right: 8px;
-    background: #ccc;
-}
-
-.item-name { font-weight: bold; color: #222; flex: 1; }
-.item-qty { font-weight: bold; color: #555; margin-right: 10px; }
-.item-controls a { color: #777; margin-left: 5px; cursor: pointer; }
-.item-controls a:hover { color: #d32f2f; }
-
-/* --- HARVEST SPECIFIC --- */
-
-/* Панель GM */
-.gm-panel {
-    background: #dcedc8; /* Светло-зеленый */
-    border: 1px dashed #689f38;
-    padding: 8px;
-    margin-bottom: 10px;
-    border-radius: 4px;
-}
-
-.gm-panel label { font-weight: bold; color: #33691e; }
-.gm-panel input, .gm-panel select { background: rgba(255,255,255,0.8); border: 1px solid #888; }
-
-/* Замок */
-.harvest-lock-screen {
-    text-align: center;
-    padding: 20px;
-    background: rgba(0,0,0,0.03);
-    border-radius: 6px;
-    border: 1px solid #ccc;
-}
-
-.harvest-btn {
+    margin-bottom: 5px;
+    padding: 10px;
     background: #ff7043;
     color: #fff;
     font-weight: bold;
-    text-transform: uppercase;
-    padding: 12px;
-    width: 100%;
     border: 1px solid #d84315;
     border-radius: 4px;
     cursor: pointer;
-    margin-top: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    text-align: left;
+    transition: background 0.2s;
 }
-.harvest-btn:hover { background: #ff5722; }
-.harvest-btn:disabled { background: #9e9e9e; border-color: #757575; cursor: not-allowed; }
+.harvest-action-btn:hover { background: #ff5722; }
+.harvest-action-btn i { width: 20px; text-align: center; margin-right: 5px; }
 
-.status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9em; text-transform: uppercase; }
-.status-msg.error { color: #d32f2f; }
-
-.gm-panel {
-    background: #dcedc8;
-    border: 1px dashed #689f38;
-    padding: 8px;
-    margin-bottom: 10px;
-    border-radius: 4px;
+.action-input {
+  padding: 5px;
 }
+
+/* --- SKILL INPUT STYLES --- */
+.skill-input {
+    width: 30px !important;
+    text-align: center;
+    border: 1px solid #777 !important;
+    background: rgba(255,255,255,0.5) !important;
+    border-radius: 3px !important;
+    padding: 0 !important;
+    margin: 0 5px;
+    font-size: 0.9em !important;
+    font-family: 'Courier Prime', monospace;
+}
+
+.skill-base-text {
+    font-size: 0.8em;
+    color: #666;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Secondary Stats under Doll */
+.secondary-stats-box {
+    margin-top: 15px;
+    width: 100%;
+    border-top: 2px dashed #555;
+    padding-top: 10px;
+}
+.sec-stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    border-bottom: 1px dotted #ccc;
+    padding: 2px 0;
+}
+.sec-stat-label { font-weight: bold; color: #4e342e; }
+.sec-stat-val { font-family: 'Patrick Hand'; font-weight: bold; font-size: 1.1em; }
+
+/* --- INTERACTIVE INVENTORY GRID --- */
+.inv-slot.item {
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.inv-slot.item:hover {
+    border-color: #d84315;
+    background: rgba(216, 67, 21, 0.1);
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
+.inv-slot.item:active {
+    transform: scale(0.95);
+}
+
+/* Статус экипировки в полном списке */
+.item-toggle {
+    cursor: pointer;
+    margin-right: 5px;
+}
+.item-toggle:hover {
+    text-shadow: 0 0 3px currentColor;
+}
+
+/* --- NOISE METER FIXED --- */
+#z-noise-meter {
+  position: fixed; 
+  top: 140px; /* Чуть ниже, чтобы не перекрывать */
+  left: 120px; 
+  width: 110px;
+  background: rgba(20, 20, 20, 0.95); 
+  border: 2px solid #5d4037;
+  border-radius: 6px; 
+  padding: 8px; 
+  z-index: 90; /* Поверх всего */
+  box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+  color: #eee;
+  pointer-events: auto;
+}
+#z-noise-meter .noise-label { font-size: 10px; text-align: center; letter-spacing: 2px; color: #aaa; margin-bottom: 2px; }
+#z-noise-meter .noise-controls { display: flex; justify-content: space-between; align-items: center; }
+#z-noise-meter .noise-value { font-size: 20px; font-weight: bold; font-family: "Courier New"; color: #fff; }
+#z-noise-meter .noise-btn { cursor: pointer; color: #777; transition: color 0.2s; }
+#z-noise-meter .noise-btn:hover { color: #ff7043; }
+#z-noise-meter .noise-bar-bg { height: 4px; background: #444; margin-top: 4px; border-radius: 2px; overflow: hidden; }
+#z-noise-meter .noise-bar-fill { height: 100%; width: 0%; background: #66bb6a; transition: width 0.3s; }
+#z-noise-meter.danger .noise-bar-fill { background: #ef5350; }

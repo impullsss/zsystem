@@ -2,7 +2,7 @@ export class NoiseManager {
   static ID = "z-noise-meter";
 
   static init() {
-    // Регистрируем настройку для хранения текущего шума
+    // Настройка мира для хранения
     game.settings.register("zsystem", "currentNoise", {
       scope: "world",
       config: false,
@@ -11,34 +11,24 @@ export class NoiseManager {
       onChange: (val) => NoiseManager.updateHUD(val)
     });
 
-    // Создаем HUD при готовности
     Hooks.once("ready", () => NoiseManager.renderHUD());
-    
-    // Хук на смену раунда для уменьшения шума
     Hooks.on("updateCombat", (combat, changed) => {
-      if (changed.round) {
-        NoiseManager.decay();
-      }
+      if (changed.round) NoiseManager.decay();
     });
   }
 
-  static get value() {
-    return game.settings.get("zsystem", "currentNoise");
-  }
+  static get value() { return game.settings.get("zsystem", "currentNoise"); }
 
   static async add(amount) {
-    if (!amount) return;
     const current = NoiseManager.value;
-    const newVal = current + amount;
+    const newVal = Math.max(0, current + amount);
     await game.settings.set("zsystem", "currentNoise", newVal);
-    ui.notifications.info(`Шум повысился: +${amount} (Всего: ${newVal})`);
+    if(amount > 0) ui.notifications.info(`Шум: +${amount} (Всего: ${newVal})`);
   }
 
   static async decay() {
     const current = NoiseManager.value;
     if (current <= 0) return;
-    
-    // Noise decreases by half its value per combat round
     const newVal = Math.floor(current / 2);
     await game.settings.set("zsystem", "currentNoise", newVal);
     ui.notifications.info(`Шум снизился до ${newVal}`);
@@ -47,27 +37,38 @@ export class NoiseManager {
   static renderHUD() {
     if ($(`#${this.ID}`).length) return;
 
+    // Только ГМ может кликать кнопки, но видеть могут все
+    const controls = game.user.isGM ? `
+      <div class="noise-controls">
+        <i class="fas fa-minus noise-btn" data-action="sub"></i>
+        <div class="noise-value">0</div>
+        <i class="fas fa-plus noise-btn" data-action="add"></i>
+      </div>` : `<div class="noise-value">0</div>`;
+
     const html = `
       <div id="${this.ID}">
         <div class="noise-label">NOISE</div>
-        <div class="noise-value">0</div>
+        ${controls}
         <div class="noise-bar-bg"><div class="noise-bar-fill"></div></div>
       </div>
     `;
     $('body').append(html);
+    
+    // Активация слушателей
+    $(`#${this.ID} .noise-btn`).click(ev => {
+        const action = ev.target.dataset.action;
+        if(action === "add") NoiseManager.add(5); // Шаг 5
+        if(action === "sub") NoiseManager.add(-5);
+    });
+
     NoiseManager.updateHUD(NoiseManager.value);
   }
 
   static updateHUD(val) {
     const hud = $(`#${this.ID}`);
     hud.find('.noise-value').text(val);
-    
-    // Визуализация: допустим, 50 - это "очень громко" (полная шкала)
     const percent = Math.min(100, (val / 50) * 100);
     hud.find('.noise-bar-fill').css('width', `${percent}%`);
-    
-    // Цвет меняется от желтого к красному
-    if (val > 20) hud.addClass('danger');
-    else hud.removeClass('danger');
+    if (val > 20) hud.addClass('danger'); else hud.removeClass('danger');
   }
 }

@@ -22,6 +22,11 @@ Hooks.once("init", () => {
   Handlebars.registerHelper('ne', (a, b) => a != b); 
   Handlebars.registerHelper('and', (a, b) => a && b);
   Handlebars.registerHelper('or', (a, b) => a || b);
+  Handlebars.registerHelper('calculatePercentage', (value, max) => {
+      value = Number(value) || 0;
+      max = Number(max) || 1;
+      return Math.min(100, Math.max(0, (value / max) * 100));
+  });
   
   // Классы
   CONFIG.Actor.documentClass = ZActor;

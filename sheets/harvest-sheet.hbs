@@ -1,71 +1,105 @@
 <form class="{{cssClass}}" autocomplete="off">
-    <!-- HEADER -->
     <header class="sheet-header">
         <img class="profile-img-box" src="{{actor.img}}" data-edit="img" title="{{actor.name}}"/>
         <div style="flex:1;">
-            <!-- Если не ГМ, поле заблокировано -->
-            <input class="charname-input" name="name" type="text" value="{{actor.name}}" placeholder="Название точки" {{#unless isGM}}disabled style="cursor: default;"{{/unless}}/>
+            <input class="charname-input" name="name" type="text" value="{{actor.name}}" placeholder="Название" {{#unless isGM}}disabled style="cursor:default; border:none;"{{/unless}}/>
         </div>
     </header>
 
-    <!-- === ПАНЕЛЬ МАСТЕРА (Фиксированная) === -->
+    <!-- GM CONFIG -->
     {{#if isGM}}
-    <div class="gm-panel" style="margin: 5px; background: #e8f5e9; border: 1px dashed #4caf50; padding: 5px;">
-        <div style="font-weight: bold; color: #2e7d32; border-bottom: 1px solid #a5d6a7; margin-bottom: 5px; display:flex; justify-content:space-between;">
-            <span><i class="fas fa-tools"></i> Настройки GM</span>
-            <a class="reset-btn" title="Сбросить состояние" style="cursor:pointer; color:#d84315;"><i class="fas fa-undo"></i> Сброс</a>
-        </div>
-        
-        <div class="grid grid-2col" style="gap: 5px; align-items: center;">
-            <div class="form-group">
-                <label style="font-size: 0.8em; font-weight:bold;">Навык:</label>
-                <select name="flags.zsystem.reqSkill" style="width: 100%; font-size: 0.9em;">
-                    {{selectOptions skillsList selected=actor.flags.zsystem.reqSkill localize=false}}
-                </select>
-            </div>
-            <div class="form-group">
-                <label style="font-size: 0.8em; font-weight:bold;">Сложность (DC):</label>
-                <input type="number" name="flags.zsystem.difficulty" value="{{actor.flags.zsystem.difficulty}}" placeholder="10" style="text-align:center;"/>
-            </div>
-        </div>
-
-        <div style="margin-top: 5px;">
-             <textarea class="harvest-desc-input" rows="2" placeholder="Скрытое описание для игроков..." style="width: 100%; font-size: 0.8em;">{{description}}</textarea>
-        </div>
-    </div>
+    <nav class="gm-tabs tabs" data-group="primary">
+        <a class="item gm-tab" data-tab="actions">⚙️ Действия</a>
+        <a class="item gm-tab" data-tab="outcomes">📝 Итоги</a>
+        <a class="item gm-tab" data-tab="loot">📦 Лут</a>
+        <a class="reset-btn" style="margin-left:auto;color:#d84315; font-size:0.9em; align-self:center; cursor:pointer;"><i class="fas fa-undo"></i> Сброс</a>
+    </nav>
     {{/if}}
 
-    <div class="sheet-body" style="padding: 10px; overflow-y: auto; height: 100%;">
-
-        <!-- ОПИСАНИЕ (Видят все, кроме GM, у GM оно в поле ввода) -->
-        {{#if (and description (not isGM))}}
-        <div class="harvest-description-box">
-            "{{description}}"
-        </div>
-        {{/if}}
-
-        <!-- === ЛОГИКА ОТОБРАЖЕНИЯ === -->
+    <div class="sheet-body">
         
-        {{#if isBroken}}
-            <!-- 1. СЛОМАНО -->
-            <div class="harvest-locked-view" style="border-color: #ef5350; background: #ffebee;">
-                <i class="fas fa-times-circle" style="font-size: 48px; color: #c62828;"></i>
-                <h2 style="color: #c62828;">СЛОМАНО / ПУСТО</h2>
+        {{#if isGM}}
+        <!-- TAB 1: ACTIONS -->
+        <div class="tab" data-tab="actions">
+            <div style="text-align:right; margin-bottom:5px;">
+                <a class="add-action" style="color:#2e7d32; font-weight:bold; cursor:pointer;"><i class="fas fa-plus-circle"></i> Добавить действие</a>
             </div>
-
-        {{else}}
-            {{#if isHarvested}}
-                <!-- 2. ОТКРЫТО (Успех) -->
-                <div class="section-header">
-                    <span><i class="fas fa-box-open"></i> Содержимое</span>
-                    <!-- Кнопка добавления доступна GM даже здесь -->
-                    {{#if isGM}}<a class="item-create" title="Добавить"><i class="fas fa-plus-circle"></i></a>{{/if}}
+            
+            {{#each actions as |act idx|}}
+            <div class="action-config" data-idx="{{idx}}">
+                <div class="action-header">
+                    <input type="text" class="action-input" data-field="name" value="{{act.name}}" placeholder="Название действия" style="font-weight:bold; width:70%;"/>
+                    <a class="delete-action" data-idx="{{idx}}" style="color:red; cursor:pointer;"><i class="fas fa-trash"></i></a>
                 </div>
                 
-                <ol class="light-item-list">
-                    {{#each inventory.items as |item|}}
+                <div class="grid grid-2col" style="gap:5px;">
+                    <select class="action-input" data-field="skill">
+                        {{selectOptions ../skillsList selected=act.skill localize=false}}
+                    </select>
+                    <input type="number" class="action-input" data-field="dc" value="{{act.dc}}" placeholder="DC (Сложность)"/>
+                </div>
+                
+                <!-- TOOLS CONFIG -->
+                <div style="margin-top: 8px; border-top: 1px dotted #8d6e63; padding-top: 5px;">
+                    
+                    <!-- 1. Верхний инпут: Предмет (Drag Zone) -->
+                    <div style="margin-bottom: 5px;">
+                        <label style="font-size: 0.8em; font-weight: bold; color: #5d4037;">Необходимый инструмент:</label>
+                        <input type="text" class="action-input tool-drop" data-field="reqTool" value="{{act.reqTool}}" 
+                               placeholder="Перетащите предмет сюда..." 
+                               style="width: 100%; height: 35px; background: rgba(255,255,255,0.9); border: 2px dashed #795548; text-align: center;"/>
+                        
+                        <div style="text-align: right;">
+                            <label style="font-size: 0.8em;">
+                                <input type="checkbox" class="action-input" data-field="toolRequired" {{checked act.toolRequired}}/> Обязателен?
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 2. Нижний инпут: Модификатор -->
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <label style="font-size: 0.8em; font-weight: bold; color: #5d4037;">Бонус к шансу (%):</label>
+                        <input type="number" class="action-input" data-field="bonusMod" value="{{act.bonusMod}}" placeholder="0" 
+                               style="width: 60px; text-align: center; border-bottom: 2px solid #5d4037; background: transparent; font-weight: bold;"/>
+                    </div>
+                </div>
+            {{/each}}
+            
+            <div style="margin-top:10px;">
+                <label>Скрытое описание:</label>
+                <textarea class="harvest-desc-input" rows="2">{{description}}</textarea>
+            </div>
+        </div>
+
+        <!-- TAB 2: OUTCOMES -->
+        <div class="tab" data-tab="outcomes">
+            <div class="outcome-box">
+                <label class="outcome-label success">Успех (Текст)</label>
+                <input type="text" class="outcome-input" data-field="outcomes.success.text" value="{{outcomes.success.text}}"/>
+            </div>
+            <div class="outcome-box">
+                <label class="outcome-label fail">Провал (Текст / Шум)</label>
+                <div class="flexrow">
+                    <input type="text" class="outcome-input" data-field="outcomes.fail.text" value="{{outcomes.fail.text}}"/>
+                    <input type="number" class="outcome-input" data-field="outcomes.fail.noise" value="{{outcomes.fail.noise}}" placeholder="Noise" style="width:50px;"/>
+                </div>
+            </div>
+            <div class="outcome-box">
+                <label class="outcome-label crit-fail">Крит. Провал (Текст / Шум)</label>
+                <div class="flexrow">
+                    <input type="text" class="outcome-input" data-field="outcomes.critFail.text" value="{{outcomes.critFail.text}}"/>
+                    <input type="number" class="outcome-input" data-field="outcomes.critFail.noise" value="{{outcomes.critFail.noise}}" placeholder="Noise" style="width:50px;"/>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: LOOT PREVIEW -->
+        <div class="tab" data-tab="loot">
+            <div class="section-header">GM Preview <a class="item-create" style="cursor:pointer;"><i class="fas fa-plus"></i></a></div>
+            <ol class="light-item-list">
+                {{#each inventory as |item|}}
                     <li class="light-item" data-item-id="{{item.id}}">
-                        <img src="{{item.img}}" width="24" height="24"/>
+                        <img src="{{item.img}}" width="20" height="20"/>
                         <span class="item-name">{{item.name}}</span>
                         <span class="item-qty">x{{item.system.quantity}}</span>
                         <div class="item-controls">
@@ -73,66 +107,65 @@
                             <a class="item-delete"><i class="fas fa-trash"></i></a>
                         </div>
                     </li>
-                    {{/each}}
-                    {{#unless inventory.items}}
-                        <li style="text-align: center; color: #777; padding: 10px;">Пусто...</li>
-                    {{/unless}}
-                </ol>
+                {{/each}}
+            </ol>
+        </div>
+        {{/if}}
 
-            {{else}}
-                <!-- 3. ЗАКРЫТО (Требуется проверка) -->
-                <div class="harvest-locked-view">
-                    <i class="fas fa-lock" style="font-size: 48px; color: #555;"></i>
-                    
-                    <div class="requirement-box">
-                        <div style="font-size: 0.8em; color: #666;">ТРЕБУЕТСЯ НАВЫК</div>
-                        <div style="font-size: 1.2em; font-weight: bold; text-transform: uppercase; color: #222;">
-                            {{actor.flags.zsystem.reqSkill}}
-                        </div>
-                    </div>
+        <!-- PLAYER VIEW -->
+        {{#unless isGM}}
+            <!-- ОПИСАНИЕ -->
+            {{#if description}}
+                <div class="harvest-description-box">"{{description}}"</div>
+            {{/if}}
 
-                    <button type="button" class="harvest-btn" {{#unless canHarvest}}disabled{{/unless}}>
-                        {{#if canHarvest}}
-                            <i class="fas fa-tools"></i> ПОПРОБОВАТЬ СОБРАТЬ
-                        {{else}}
-                            <i class="fas fa-ban"></i> {{distanceMsg}}
-                        {{/if}}
-                    </button>
-                    
-                    {{#unless canHarvest}}
-                    <div class="status-msg error">
-                        ВЫБЕРИТЕ ТОКЕН И ПОДОЙДИТЕ БЛИЖЕ!
-                    </div>
-                    {{/unless}}
+            {{#if isBroken}}
+                <div class="harvest-lock-screen" style="border-color:#ef5350; background:#ffebee;">
+                    <i class="fas fa-times-circle" style="font-size:48px; color:#c62828;"></i>
+                    <h2 style="color:#c62828;">СЛОМАНО</h2>
                 </div>
-                
-                <!-- GM PREVIEW (ГМ видит лут и кнопку добавления СНИЗУ) -->
-                {{#if isGM}}
-                <div style="margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; background: rgba(0,0,0,0.02);">
-                    <div style="font-weight: bold; color: #555; text-align: center; margin-bottom: 5px;">
-                        [GM: Лут внутри]
-                        <a class="item-create" title="Добавить" style="margin-left:5px; color:#2e7d32; cursor:pointer;"><i class="fas fa-plus-circle"></i></a>
-                    </div>
+            {{else}}
+                {{#if isHarvested}}
+                    <!-- LOOT VIEW -->
+                    <div class="section-header"><span><i class="fas fa-box-open"></i> Содержимое</span></div>
                     <ol class="light-item-list">
-                        {{#each inventory.items as |item|}}
+                        {{#each inventory as |item|}}
                         <li class="light-item" data-item-id="{{item.id}}">
-                            <img src="{{item.img}}" width="20" height="20"/>
+                            <img src="{{item.img}}" width="24" height="24"/>
                             <span class="item-name">{{item.name}}</span>
                             <span class="item-qty">x{{item.system.quantity}}</span>
                             <div class="item-controls">
-                                <a class="item-edit"><i class="fas fa-edit"></i></a>
-                                <a class="item-delete"><i class="fas fa-trash"></i></a>
+                                <a class="item-take" title="Взять" style="cursor:pointer; color:#2e7d32;"><i class="fas fa-hand-paper"></i></a>
                             </div>
                         </li>
                         {{/each}}
-                         {{#unless inventory.items}}
-                            <li style="text-align: center; color: #aaa; font-size:0.9em;">(Пусто)</li>
-                        {{/unless}}
+                        {{#unless inventory}}<li style="text-align:center;color:#777;padding:10px;">Пусто...</li>{{/unless}}
                     </ol>
-                </div>
+                {{else}}
+                    <!-- ACTIONS VIEW -->
+                    <div class="harvest-lock-screen">
+                        <i class="fas fa-lock" style="font-size:48px; color:#555; margin-bottom:15px;"></i>
+                        
+                        {{#if canHarvest}}
+                            {{#each actions as |act idx|}}
+                                <button class="harvest-action-btn" data-idx="{{idx}}">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <span><i class="fas fa-tools"></i> {{act.name}}</span>
+                                        <span style="font-size:0.8em; font-weight:normal;">({{act.skill}})</span>
+                                    </div>
+                                    {{#if act.reqTool}}
+                                        <div style="font-size:0.7em; color:#ffebee; margin-top:2px;">
+                                            <i class="fas fa-key"></i> Требуется: {{act.reqTool}}
+                                        </div>
+                                    {{/if}}
+                                </button>
+                            {{/each}}
+                        {{else}}
+                            <div class="status-msg error">{{distanceMsg}}</div>
+                        {{/if}}
+                    </div>
                 {{/if}}
-
             {{/if}}
-        {{/if}}
+        {{/unless}}
     </div>
 </form>

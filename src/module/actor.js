@@ -599,6 +599,32 @@ export class ZActor extends Actor {
     ui.notifications.notify(`${this.name} восстает из мертвых!`);
   }
 
+  async standUp() {
+      // 1. Проверяем, лежит ли он
+      const proneEffect = this.effects.find(e => e.statuses.has("prone"));
+      if (!proneEffect) return ui.notifications.info("Персонаж уже стоит.");
+
+      // 2. Стоимость (например, 2 AP или половина)
+      // Давай сделаем 3 AP для примера
+      const cost = 3;
+      const curAP = this.system.resources.ap.value;
+
+      if (curAP < cost) {
+          return ui.notifications.warn(`Недостаточно AP, чтобы встать. Нужно ${cost}.`);
+      }
+
+      // 3. Снимаем эффект и тратим AP
+      await proneEffect.delete();
+      await this.update({"system.resources.ap.value": curAP - cost});
+      
+      ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({actor: this}),
+          content: `<b>${this.name}</b> встает на ноги (-${cost} AP).`
+      });
+  }
+
+  
+
   async _applyInjury(limb) {
     // ... (без изменений)
     let effectData = null;
@@ -614,6 +640,58 @@ export class ZActor extends Actor {
         await this.createEmbeddedDocuments("ActiveEffect", [eff]);
       }
     }
+  }
+
+  async useMedicine(item) {
+      // 1. Проверка целей
+      const targets = Array.from(game.user.targets);
+      if (targets.length === 0) {
+          return ui.notifications.warn("Выберите цель (Target) для лечения!");
+      }
+      if (targets.length > 1) {
+          return ui.notifications.warn("Можно лечить только одну цель за раз.");
+      }
+
+      const targetToken = targets[0];
+      const targetActor = targetToken.actor;
+
+      // 2. Проверка дистанции (1.5 клетки ~ соседняя)
+      // Находим токен самого врача
+      const selfToken = this.getActiveTokens()[0]; 
+      if (!selfToken) return ui.notifications.warn("Ваш токен должен быть на сцене.");
+
+      const dist = canvas.grid.measureDistance(selfToken, targetToken);
+      if (dist > 1.5) {
+          return ui.notifications.warn(`Цель слишком далеко (${Math.round(dist)}м). Подойдите ближе.`);
+      }
+
+      // 3. Применение
+      const healAmount = Number(item.system.healAmount) || 0;
+      
+      // Лечим HP
+      const curHP = targetActor.system.resources.hp.value;
+      const maxHP = targetActor.system.resources.hp.max;
+      const newHP = Math.min(maxHP, curHP + healAmount);
+      
+      await targetActor.update({"system.resources.hp.value": newHP});
+
+      // Сообщение
+      ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({actor: this}),
+          content: `<div class="z-chat-card">
+                      <div class="z-card-header">МЕДИЦИНА</div>
+                      <div>${this.name} использует <b>${item.name}</b> на ${targetActor.name}.</div>
+                      <div style="color:green; font-weight:bold; margin-top:5px;">Восстановлено: ${healAmount} HP</div>
+                    </div>`
+      });
+
+      // 4. Расход предмета
+      const qty = item.system.quantity;
+      if (qty > 1) {
+          await item.update({"system.quantity": qty - 1});
+      } else {
+          await item.delete();
+      }
   }
 
   getRollData() {

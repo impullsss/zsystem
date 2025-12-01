@@ -29,6 +29,29 @@ export class ZActorSheet extends ActorSheet {
     const currentHP = this.actor.system.resources?.hp?.value ?? 0;
     context.isDead = currentHP <= 0;
 
+    context.labels = {
+        attributes: {
+            str: "СИЛА",
+            agi: "ЛОВКОСТЬ",
+            vig: "ЖИВУЧЕСТЬ",
+            per: "ВОСПРИЯТИЕ",
+            int: "ИНТЕЛЛЕКТ",
+            cha: "ХАРИЗМА"
+        },
+        skills: {
+            melee: "Ближний бой",
+            ranged: "Стрельба",
+            science: "Наука",
+            mechanical: "Механика",
+            medical: "Медицина",
+            diplomacy: "Дипломатия",
+            leadership: "Лидерство",
+            survival: "Выживание",
+            athletics: "Атлетика",
+            stealth: "Скрытность"
+        }
+    };
+
     this._prepareInventory(context);
     
     // Защита для эффектов
@@ -117,7 +140,6 @@ export class ZActorSheet extends ActorSheet {
     });
 
     // --- Inventory ---
-    html.find('.item-create').click(this._onItemCreate.bind(this));
     
     html.find('.item-edit').click(ev => {
       const li = $(ev.currentTarget).parents(".item");
@@ -161,6 +183,39 @@ export class ZActorSheet extends ActorSheet {
             yes: () => this.actor.fullHeal()
         });
     });
+    // ЛКМ: Использовать
+    html.find('.inv-slot.item').click(ev => {
+        ev.preventDefault();
+        const itemId = ev.currentTarget.dataset.itemId;
+        const item = this.actor.items.get(itemId);
+        if (!item) return;
+
+        if (item.type === "weapon") {
+            this.actor.performAttack(itemId);
+        } else if (item.type === "medicine") {
+            this.actor.useMedicine(item); // Вызов нового метода
+        } else {
+            item.sheet.render(true);
+        }
+    });
+
+    // ПКМ: Редактировать
+    html.find('.inv-slot.item').contextmenu(ev => {
+        ev.preventDefault();
+        const itemId = ev.currentTarget.dataset.itemId;
+        const item = this.actor.items.get(itemId);
+        if (item) item.sheet.render(true);
+    });
+
+    // --- СОЗДАНИЕ ПРЕДМЕТА (FULL INVENTORY) ---
+    html.find('.item-create').click(this._onItemCreate.bind(this));
+    
+    // Кнопка лечения в полном списке (если она там есть)
+    html.find('.item-use').click(ev => {
+        const li = $(ev.currentTarget).parents(".item");
+        const item = this.actor.items.get(li.data("itemId"));
+        this.actor.useMedicine(item);
+    });
 
     html.find('.effect-control').click(ev => this._onManageEffect(ev));
   }
@@ -168,23 +223,45 @@ export class ZActorSheet extends ActorSheet {
   async _onItemCreate(event) {
     event.preventDefault();
     const header = event.currentTarget;
-    const type = header.dataset.type;
-    
-    let cat = "misc";
-    if (type === "weapon") cat = "weapon";
-    if (type === "ammo") cat = "ammo";
-    if (type === "armor") cat = "armor";
-    if (type === "food") cat = "food";
+    const type = header.dataset.type; // "select" или конкретный тип
 
-    const typeNames = {
-        weapon: "Оружие", armor: "Броня", ammo: "Патроны",
-        medicine: "Медицина", food: "Еда", misc: "Предмет"
-    };
+    // ДИАЛОГ ВЫБОРА ТИПА
+    if (type === "select") {
+        const types = {
+            weapon: "Оружие", armor: "Броня", ammo: "Патроны",
+            medicine: "Медицина", food: "Еда", 
+            misc: "Разное", resource: "Ресурс"
+        };
+        let options = "";
+        for (let [k, v] of Object.entries(types)) options += `<option value="${k}">${v}</option>`;
 
+        new Dialog({
+            title: "Создать предмет",
+            content: `<form><div class="form-group"><label>Тип:</label><select id="type-select">${options}</select></div></form>`,
+            buttons: {
+                create: {
+                    label: "Создать",
+                    callback: async (html) => {
+                        const selectedType = html.find("#type-select").val();
+                        const itemData = { 
+                            name: `Новое ${types[selectedType]}`, 
+                            type: selectedType, 
+                            system: { category: selectedType } 
+                        };
+                        await Item.create(itemData, { parent: this.actor });
+                    }
+                }
+            },
+            default: "create"
+        }).render(true);
+        return;
+    }
+
+    // Если тип задан жестко (например data-type="weapon")
     const itemData = {
-      name: `Новое ${typeNames[type] || "Предмет"}`,
+      name: `Новый предмет`,
       type: type,
-      system: { category: cat }
+      system: { category: type === "misc" ? "misc" : type }
     };
     return await Item.create(itemData, {parent: this.actor});
   }
@@ -192,21 +269,28 @@ export class ZActorSheet extends ActorSheet {
   async _onManageEffect(event) {
     event.preventDefault();
     const a = event.currentTarget;
-    const li = a.closest(".effect-item");
-    const effectId = li?.dataset.effectId;
+    
+    // Ищем родительский элемент, у которого есть атрибут data-effect-id
+    const li = $(a).closest("[data-effect-id]");
+    const effectId = li.data("effectId");
 
     switch ( a.dataset.action ) {
       case "create":
         return this.actor.createEmbeddedDocuments("ActiveEffect", [{
-          name: "Новый эффект", img: "icons/svg/aura.svg", origin: this.actor.uuid, disabled: false
+          name: "Новый эффект",
+          img: "icons/svg/aura.svg",
+          origin: this.actor.uuid,
+          disabled: false
         }]);
       case "edit":
-        return this.actor.effects.get(effectId).sheet.render(true);
+        const effectToEdit = this.actor.effects.get(effectId);
+        return effectToEdit ? effectToEdit.sheet.render(true) : null;
       case "delete":
-        return this.actor.effects.get(effectId).delete();
+        const effectToDelete = this.actor.effects.get(effectId);
+        return effectToDelete ? effectToDelete.delete() : null;
       case "toggle":
-        const eff = this.actor.effects.get(effectId);
-        return eff.update({disabled: !eff.disabled});
+        const effect = this.actor.effects.get(effectId);
+        return effect ? effect.update({disabled: !effect.disabled}) : null;
     }
   }
 }
