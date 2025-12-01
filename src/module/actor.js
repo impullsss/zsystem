@@ -643,49 +643,95 @@ export class ZActor extends Actor {
   }
 
   async useMedicine(item) {
-      // 1. Проверка целей
       const targets = Array.from(game.user.targets);
-      if (targets.length === 0) {
-          return ui.notifications.warn("Выберите цель (Target) для лечения!");
-      }
-      if (targets.length > 1) {
-          return ui.notifications.warn("Можно лечить только одну цель за раз.");
-      }
+      if (targets.length === 0) return ui.notifications.warn("Выберите цель (Target)!");
+      if (targets.length > 1) return ui.notifications.warn("Только одна цель за раз.");
 
       const targetToken = targets[0];
       const targetActor = targetToken.actor;
 
-      // 2. Проверка дистанции (1.5 клетки ~ соседняя)
-      // Находим токен самого врача
       const selfToken = this.getActiveTokens()[0]; 
       if (!selfToken) return ui.notifications.warn("Ваш токен должен быть на сцене.");
-
       const dist = canvas.grid.measureDistance(selfToken, targetToken);
-      if (dist > 1.5) {
-          return ui.notifications.warn(`Цель слишком далеко (${Math.round(dist)}м). Подойдите ближе.`);
+      if (dist > 1.5) return ui.notifications.warn("Подойдите ближе к цели.");
+
+      const res = targetActor.system.resources.hp;
+      const currentHP = res.value;
+      const currentPenalty = res.penalty || 0;
+      
+      // Проверка переполнения
+      if (currentHP >= res.max) {
+          return ui.notifications.warn("Пациент полностью здоров (с учетом текущих травм).");
       }
 
-      // 3. Применение
-      const healAmount = Number(item.system.healAmount) || 0;
+      // 1. РАСЧЕТЫ
+      const medSkill = this.system.skills.medical.value || 0;
+      const skillBonus = Math.floor(medSkill / 5); // 50 навыка = +10
+      const baseHeal = Number(item.system.healAmount) || 0; // Например, 15
       
-      // Лечим HP
-      const curHP = targetActor.system.resources.hp.value;
-      const maxHP = targetActor.system.resources.hp.max;
-      const newHP = Math.min(maxHP, curHP + healAmount);
+      // Итоговое лечение (База + Бонус)
+      // Пример: 15 + 10 = 25
+      const totalHeal = baseHeal + skillBonus;
+
+      // Антибиотики (без изменений)
+      if (item.system.isAntibiotic) {
+          const inf = targetActor.system.resources.infection;
+          if (inf.active || inf.stage > 0) {
+               await targetActor.update({
+                  "system.resources.infection.active": false,
+                  "system.resources.infection.stage": Math.max(0, inf.stage - 1)
+              });
+              ChatMessage.create({
+                  speaker: ChatMessage.getSpeaker({actor: this}),
+                  content: `<div class="z-chat-card"><div class="z-card-header">ЛЕЧЕНИЕ</div>${this.name} применяет ${item.name}.<br><span style="color:green">Инфекция снижена.</span></div>`
+              });
+              await this._consumeItem(item);
+              return;
+          } else {
+              return ui.notifications.info("Цель не заражена.");
+          }
+      }
+
+      // 2. БИНТЫ (ТРАВМА)
+      // Новая формула: Штраф = БазаПредмета - БонусНавыка
+      // Пример: 15 (Бинт) - 10 (Скилл) = 5 Штрафа.
+      // Если Скилл 0: 15 - 0 = 15 Штрафа.
+      // Если Скилл 100 (+20): 15 - 20 = -5 -> 0 Штрафа (Идеальное лечение).
       
-      await targetActor.update({"system.resources.hp.value": newHP});
+      const penaltyIncrease = Math.max(0, baseHeal - skillBonus); 
+
+      // Применяем
+      const newHP = currentHP + totalHeal; 
+      const newPenalty = currentPenalty + penaltyIncrease;
+
+      await targetActor.update({
+          "system.resources.hp.value": newHP,
+          "system.resources.hp.penalty": newPenalty
+      });
 
       // Сообщение
       ChatMessage.create({
           speaker: ChatMessage.getSpeaker({actor: this}),
           content: `<div class="z-chat-card">
-                      <div class="z-card-header">МЕДИЦИНА</div>
-                      <div>${this.name} использует <b>${item.name}</b> на ${targetActor.name}.</div>
-                      <div style="color:green; font-weight:bold; margin-top:5px;">Восстановлено: ${healAmount} HP</div>
+                      <div class="z-card-header">ПЕРЕВЯЗКА</div>
+                      <div>${this.name} использует <b>${item.name}</b>.</div>
+                      <div style="font-size:0.8em; border-bottom:1px dashed #555; margin-bottom:5px;">
+                        Навык: ${medSkill} (Бонус ${skillBonus})
+                      </div>
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="color:green; font-weight:bold; font-size:1.1em;">+${totalHeal} HP</span>
+                        <span style="color:#b71c1c; font-weight:bold; font-size:0.9em;">-${penaltyIncrease} Max HP</span>
+                      </div>
+                      <div style="font-size:0.75em; color:#777; margin-top:5px; font-style:italic;">
+                        ${penaltyIncrease === 0 ? "Идеальная перевязка! Штрафов нет." : "Рана зашита, но ткань повреждена."}
+                      </div>
                     </div>`
       });
 
-      // 4. Расход предмета
+      await this._consumeItem(item);
+  }
+
+  async _consumeItem(item) {
       const qty = item.system.quantity;
       if (qty > 1) {
           await item.update({"system.quantity": qty - 1});
