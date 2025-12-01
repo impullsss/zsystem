@@ -63,13 +63,14 @@
                                style="width: 60px; text-align: center; border-bottom: 2px solid #5d4037; background: transparent; font-weight: bold;"/>
                     </div>
                 </div>
+             </div>
             {{/each}}
             
             <div style="margin-top:10px;">
                 <label>Скрытое описание:</label>
                 <textarea class="harvest-desc-input" rows="2">{{description}}</textarea>
             </div>
-        </div>
+        </div> <!-- <--- ВОТ ЭТОГО DIV НЕ ХВАТАЛО -->
 
         <!-- TAB 2: OUTCOMES -->
         <div class="tab" data-tab="outcomes">

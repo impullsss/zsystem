@@ -6,7 +6,15 @@
   "compatibility": { "minimum": 13, "verified": 13 },
   "authors": [{ "name": "ZSystem Dev", "url": "" }],
   "esmodules": ["dist/zsystem.js"],
-  "styles": ["styles/system-styles.css"],
+  "styles": [
+    "styles/base.css",
+    "styles/components/chat.css",
+    "styles/components/noise.css",
+    "styles/actors/actor-sheet.css",
+    "styles/actors/loot.css",
+    "styles/actors/shelter.css",
+    "styles/items/item-sheet.css"
+  ],
   
   "languages": [
     {

@@ -1,0 +1,26 @@
+#z-noise-meter {
+  position: fixed; 
+  top: 140px;
+  left: 120px; 
+  width: 110px;
+  background: rgba(20, 20, 20, 0.95); 
+  border: 2px solid #5d4037;
+  border-radius: 6px; 
+  padding: 8px; 
+  z-index: 90;
+  box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+  color: #eee;
+  pointer-events: auto;
+}
+#z-noise-meter .noise-label { font-size: 10px; text-align: center; letter-spacing: 2px; color: #aaa; margin-bottom: 2px; }
+#z-noise-meter .noise-controls { display: flex; justify-content: space-between; align-items: center; }
+#z-noise-meter .noise-value { font-size: 20px; font-weight: bold; font-family: "Courier New"; color: #fff; }
+#z-noise-meter .noise-btn { cursor: pointer; color: #777; transition: color 0.2s; }
+#z-noise-meter .noise-btn:hover { color: #ff7043; }
+#z-noise-meter .noise-bar-bg { height: 4px; background: #444; margin-top: 4px; border-radius: 2px; overflow: hidden; }
+#z-noise-meter .noise-bar-fill { height: 100%; width: 0%; background: #66bb6a; transition: width 0.3s; }
+#z-noise-meter.danger .noise-bar-fill { background: #ef5350; }
+
+.z-noise-alert {
+    color: #ffa726; font-weight: bold; border-top: 1px solid #555; margin-top: 5px; padding-top: 2px;
+}

@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Patrick+Hand&display=swap');
+
+.zsystem {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Typography Defaults */
+h1, h2, h3 {
+  font-family: 'Courier Prime', monospace;
+  text-transform: uppercase;
+  border-bottom: 2px solid #212121;
+  margin-bottom: 8px;
+  padding-bottom: 2px;
+  font-weight: bold;
+}
+
+/* Helper for Flexbox utility if needed, usually Foundry has .flexrow */
+.flexrow {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+/* По умолчанию скрываем содержимое всех вкладок */
+.tab {
+  display: none;
+  height: 100%;
+  overflow-y: auto; /* Добавляем скролл внутри вкладки, если контент длинный */
+  padding-right: 5px; /* Чтобы скроллбар не перекрывал контент */
+}
+
+/* Показываем только ту вкладку, у которой есть класс active */
+.tab.active {
+  display: block;
+}
+
+/* Убедимся, что тело листа занимает все доступное пространство */
+.sheet-body {
+  height: calc(100% - 100px); /* Вычитаем примерную высоту хедера и навигации */
+  overflow: hidden; /* Скролл будет внутри .tab */
+}

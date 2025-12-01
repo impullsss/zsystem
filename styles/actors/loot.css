@@ -1,0 +1,115 @@
+.zsystem.sheet.harvest, .zsystem.sheet.container {
+  background: #e3decb;
+  color: #1a1a1a;
+  border: 2px solid #5d4037;
+}
+
+/* Добавляем это, чтобы контент внутри табов растягивался */
+.zsystem.sheet.harvest .window-content,
+.zsystem.sheet.container .window-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0; /* Убираем стандартные отступы Foundry */
+}
+
+.zsystem.sheet.harvest form,
+.zsystem.sheet.container form {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 8px; /* Внутренние отступы самой формы */
+}
+
+/* Хедеры и табы не должны сжиматься */
+.sheet-header, .gm-tabs {
+    flex: 0 0 auto;
+}
+
+/* Тело с табами должно занимать всё оставшееся место */
+
+.sheet-body {
+    flex: 1;
+    overflow: hidden; /* Скролл управляется внутри .tab в base.css */
+    min-height: 0; /* Важно для Flexbox скролла */
+}
+
+/* Common Header */
+.profile-img-box {
+    flex: 0 0 64px; height: 64px; border: 1px solid #5d4037; margin-right: 10px; background: #fff;
+}
+.charname-input {
+    width: 100%; font-family: 'Courier Prime'; font-size: 1.5em; font-weight: bold;
+    background: transparent; border: none; border-bottom: 2px solid #5d4037;
+}
+
+/* GM Panels */
+.gm-panel { background: #e8f5e9; border: 1px dashed #2e7d32; padding: 8px; margin-bottom: 10px; }
+.gm-tabs { display: flex; border-bottom: 2px solid #2e7d32; margin-bottom: 8px; }
+.gm-tab {
+  padding: 4px 10px; cursor: pointer; font-weight: bold; color: #1b5e20; border-radius: 4px 4px 0 0;
+}
+.gm-tab.active { background: #2e7d32; color: #fff; }
+
+/* Harvest Actions */
+.action-config {
+    background: rgba(255,255,255,0.6); border: 1px solid #8d6e63;
+    padding: 5px; margin-bottom: 8px; border-radius: 4px;
+}
+.action-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; border-bottom: 1px dotted #8d6e63; padding-bottom: 2px; }
+.tool-drop {
+    background: rgba(255,255,255,0.8) !important; border: 1px dashed #555 !important;
+    font-size: 0.85em !important; color: #333 !important; text-align: center;
+}
+.harvest-action-btn {
+    display: block; width: 100%; margin-bottom: 5px; padding: 10px;
+    background: #ff7043; color: #fff; font-weight: bold;
+    border: 1px solid #d84315; border-radius: 4px; cursor: pointer;
+    text-align: left; transition: background 0.2s;
+}
+.harvest-action-btn:hover { background: #ff5722; }
+
+.harvest-lock-screen {
+    border: 2px dashed #aaa; background: rgba(0,0,0,0.05);
+    padding: 20px; text-align: center; border-radius: 10px; margin-top: 10px;
+}
+.harvest-description-box {
+    font-style: italic; font-family: 'Courier Prime'; padding: 10px; background: rgba(255,255,255,0.5); margin-bottom: 10px; border-left: 3px solid #5d4037;
+}
+
+.outcome-box {
+    background: rgba(255,255,255,0.5); padding: 5px; margin-bottom: 5px; border: 1px solid #ccc;
+}
+.outcome-label { font-size: 0.8em; font-weight: bold; text-transform: uppercase; display: block; }
+.outcome-label.success { color: green; }
+.outcome-label.fail { color: #d84315; }
+.outcome-label.crit-fail { color: red; }
+
+/* --- FIX: LOOT LIST STYLES (Missing in original) --- */
+.section-header {
+    font-weight: bold; border-bottom: 2px solid #5d4037; 
+    margin: 10px 0 5px 0; color: #3e2723; display: flex; justify-content: space-between;
+}
+
+.light-item-list {
+    list-style: none; padding: 0; margin: 0;
+    border: 1px solid #8d6e63; background: rgba(255,255,255,0.7);
+    border-radius: 3px;
+    min-height: 30px; /* Чтобы пустой список был виден */
+}
+
+.light-item {
+    display: flex; align-items: center; padding: 4px 8px;
+    border-bottom: 1px solid #d7ccc8; transition: background 0.2s;
+}
+.light-item:last-child { border-bottom: none; }
+.light-item:hover { background: rgba(255,255,255,0.9); }
+
+.light-item img {
+    border: 1px solid #5d4037; margin-right: 8px; background: #fff; flex: 0 0 24px;
+}
+.light-item .item-name { flex: 1; font-weight: bold; color: #3e2723; }
+.light-item .item-qty { margin-right: 10px; font-family: 'Courier Prime'; font-weight: bold; }
+.light-item .item-controls { display: flex; gap: 5px; }
+.light-item .item-controls a { color: #5d4037; cursor: pointer; }
+.light-item .item-controls a:hover { color: #d84315; }

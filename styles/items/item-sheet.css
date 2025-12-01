@@ -1,0 +1,7 @@
+.zsystem.sheet.item {
+    min-height: 400px;
+}
+.attacks-table {
+    border: 1px solid #777; padding: 5px; background: rgba(255,255,255,0.1);
+}
+.attack-row:nth-child(even) { background: rgba(0,0,0,0.1); }
