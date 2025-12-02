@@ -156,12 +156,47 @@
                 
                 <div class="body-chart-container">
                     <svg class="body-chart" viewBox="0 0 200 300">
-                        <g data-limb="head"><circle cx="100" cy="40" r="25" class="limb-shape"/></g>
-                        <g data-limb="torso"><rect x="70" y="70" width="60" height="100" class="limb-shape"/></g>
-                        <g data-limb="lArm"><rect x="35" y="70" width="30" height="90" class="limb-shape"/></g>
-                        <g data-limb="rArm"><rect x="135" y="70" width="30" height="90" class="limb-shape"/></g>
-                        <g data-limb="lLeg"><rect x="70" y="175" width="28" height="110" class="limb-shape"/></g>
-                        <g data-limb="rLeg"><rect x="102" y="175" width="28" height="110" class="limb-shape"/></g>
+                        <!-- ГОЛОВА -->
+                        <g data-limb="head" class="limb-zone">
+                            <title>Голова: {{system.limbs.head.value}} / {{system.limbs.head.max}}</title>
+                            <circle cx="100" cy="40" r="25" class="limb-shape" 
+                                    style="fill: {{getLimbColor system.limbs.head.value system.limbs.head.max}}"/>
+                        </g>
+                        
+                        <!-- ТОРС -->
+                        <g data-limb="torso" class="limb-zone">
+                            <title>Торс: {{system.limbs.torso.value}} / {{system.limbs.torso.max}}</title>
+                            <rect x="70" y="70" width="60" height="100" class="limb-shape"
+                                  style="fill: {{getLimbColor system.limbs.torso.value system.limbs.torso.max}}"/>
+                        </g>
+                        
+                        <!-- ЛЕВАЯ РУКА -->
+                        <g data-limb="lArm" class="limb-zone">
+                            <title>Л.Рука: {{system.limbs.lArm.value}} / {{system.limbs.lArm.max}}</title>
+                            <rect x="35" y="70" width="30" height="90" class="limb-shape"
+                                  style="fill: {{getLimbColor system.limbs.lArm.value system.limbs.lArm.max}}"/>
+                        </g>
+                        
+                        <!-- ПРАВАЯ РУКА -->
+                        <g data-limb="rArm" class="limb-zone">
+                            <title>П.Рука: {{system.limbs.rArm.value}} / {{system.limbs.rArm.max}}</title>
+                            <rect x="135" y="70" width="30" height="90" class="limb-shape"
+                                  style="fill: {{getLimbColor system.limbs.rArm.value system.limbs.rArm.max}}"/>
+                        </g>
+                        
+                        <!-- ЛЕВАЯ НОГА -->
+                        <g data-limb="lLeg" class="limb-zone">
+                            <title>Л.Нога: {{system.limbs.lLeg.value}} / {{system.limbs.lLeg.max}}</title>
+                            <rect x="70" y="175" width="28" height="110" class="limb-shape"
+                                  style="fill: {{getLimbColor system.limbs.lLeg.value system.limbs.lLeg.max}}"/>
+                        </g>
+                        
+                        <!-- ПРАВАЯ НОГА -->
+                        <g data-limb="rLeg" class="limb-zone">
+                            <title>П.Нога: {{system.limbs.rLeg.value}} / {{system.limbs.rLeg.max}}</title>
+                            <rect x="102" y="175" width="28" height="110" class="limb-shape"
+                                  style="fill: {{getLimbColor system.limbs.rLeg.value system.limbs.rLeg.max}}"/>
+                        </g>
                     </svg>
                     <!-- Inputs -->
                     <div class="limb-input" style="top:30px; left:85px;"><input type="number" name="system.limbs.head.value" value="{{system.limbs.head.value}}"></div>

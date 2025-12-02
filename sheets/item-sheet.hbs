@@ -176,10 +176,17 @@
             {{/if}}
 
             <!-- Секция Атак -->
-            <div class="attacks-section">
-                <div class="flexrow" style="align-items:center; margin-bottom:5px;">
+             <div class="attacks-section">
+                <div class="flexrow" style="align-items:center; margin-bottom:5px; gap: 5px;">
                     <h3>Варианты Атаки</h3>
-                    <a class="attack-create" title="Добавить атаку"><i class="fas fa-plus"></i></a>
+                    
+                    {{#if isHybrid}}
+                    <a class="generate-hybrid" title="Создать Удар/Бросок" style="font-size:0.8em; background:#333; color:#fff; padding:2px 5px; border-radius:3px;">
+                        <i class="fas fa-magic"></i> Авто
+                    </a>
+                    {{/if}}
+
+                    <a class="attack-create" title="Добавить атаку" style="margin-left:auto;"><i class="fas fa-plus"></i></a>
                 </div>
                 
                 <div class="attacks-table">
@@ -187,7 +194,7 @@
                     <div class="attack-header flexrow" style="border-bottom:1px solid #777; padding-bottom:2px; margin-bottom:5px; font-weight:bold; font-size: 0.9em;">
                         <div style="flex:1.5">Название</div>
                         <div style="flex:0.4; text-align:center;">AP</div>
-                        <div style="flex:0.4; text-align:center;">Шум</div> <!-- ВЕРНУЛ ШУМ -->
+                        <div style="flex:0.4; text-align:center;">Шум</div>
                         <div style="flex:0.8; text-align:center;">Урон</div>
                         <div style="flex:0.4; text-align:center;">Точн.</div>
                         <div style="flex:1; text-align:center;">Эффект</div>
@@ -197,10 +204,13 @@
                     
                     {{#each system.attacks as |attack key|}}
                     <div class="attack-row flexrow" style="margin-top: 5px; background: rgba(0,0,0,0.05); padding: 4px; border-radius: 4px; align-items:center;">
+                        
+                        <!-- ВАЖНО: СКРЫТОЕ ПОЛЕ MODE -->
+                        <input type="hidden" name="system.attacks.{{key}}.mode" value="{{attack.mode}}"/>
+
                         <div style="flex:1.5"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}" placeholder="Name"/></div>
                         <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
                         
-                        <!-- ПОЛЕ ШУМА -->
                         <div style="flex:0.4"><input type="number" name="system.attacks.{{key}}.noise" value="{{attack.noise}}" placeholder="0"/></div>
                         
                         <div style="flex:0.8"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>

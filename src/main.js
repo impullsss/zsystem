@@ -38,6 +38,21 @@ Hooks.once("init", () => {
       max = Number(max) || 1;
       return Math.min(100, Math.max(0, (value / max) * 100));
   });
+  Handlebars.registerHelper('getLimbColor', (value, max) => {
+      value = Number(value) || 0;
+      max = Number(max) || 1;
+      
+      if (value <= 0) return "#000000"; // Черный (мертв/отрублен)
+      
+      const pct = Math.min(1, Math.max(0, value / max));
+      
+      // HSL: 120 = Зеленый, 0 = Красный.
+      // Мы идем от 120 до 0.
+      const hue = Math.floor(120 * pct);
+      
+      // Насыщенность 60%, Темнота 40% (чтобы на бумаге смотрелось норм)
+      return `hsl(${hue}, 80%, 35%)`; 
+  });
   
   // --- CONFIG ---
   CONFIG.Actor.documentClass = ZActor;
