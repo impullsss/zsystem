@@ -23,7 +23,7 @@ export async function rollSkill(actor, skillId) {
     const resultType = _calcResult(roll.total, skill.value);
     const label = skillId.charAt(0).toUpperCase() + skillId.slice(1);
     const content = _getSlotMachineHTML(label, skill.value, roll.total, resultType);
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({actor: actor}), content: content });
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({actor}), content });
 }
 
 /**
@@ -31,100 +31,51 @@ export async function rollSkill(actor, skillId) {
  */
 export async function performAttack(actor, itemId) {
   const item = actor.items.get(itemId);
-  if (!item) return ui.notifications.error("Предмет не найден!");
-  if (actor.hasStatusEffect("panic")) return ui.notifications.error("Паника! Нельзя атаковать.");
+  if (!item) return;
+  if (actor.hasStatusEffect("panic")) return ui.notifications.error("Паника!");
 
-  let attacks = item.system.attacks || {};
-  let attackOptions = {};
-
-  const baseAP = item.system.apCost || 3;
-  const baseDmg = item.system.damage || "1d6";
-  const baseNoise = item.system.noise || 0;
-
-  // ЛОГИКА ГЕНЕРАЦИИ ОПЦИЙ
-  const isCustomConfigured = Object.keys(attacks).length > 0;
-  
-  if (isCustomConfigured) {
-      attackOptions = attacks;
-  } else {
-      // Если это ГИБРИД (Melee + Throwing)
-      if (item.system.weaponType === 'melee' && item.system.isThrowing) {
-          attackOptions["melee"] = { 
-              name: "Удар (Melee)", mode: "melee", 
-              ap: baseAP, dmg: baseDmg, mod: 0, noise: baseNoise 
-          };
-          attackOptions["throw"] = { 
-              name: "Бросок (Throw)", mode: "throw",
-              ap: baseAP, dmg: baseDmg, mod: 0, noise: baseNoise 
-          };
-      } 
-      // Обычное оружие
-      else {
-          attackOptions["default"] = { 
-              name: "Атака", 
-              ap: baseAP, dmg: baseDmg, mod: 0, noise: baseNoise 
-          };
-      }
+  let attackOptions = item.system.attacks || {};
+  if (Object.keys(attackOptions).length === 0) {
+      // Авто-генерация для простого оружия
+      attackOptions["default"] = { 
+          name: "Атака", 
+          ap: item.system.apCost || 3, 
+          dmg: item.system.damage || "1d6", 
+          noise: item.system.noise || 0 
+      };
   }
   
-  // Рендер кнопок
   let buttonsHTML = "";
   for (let [key, atk] of Object.entries(attackOptions)) {
-    let effectInfo = atk.effect ? `<span style="color:cyan; font-size:0.8em; display:block;">${GLOBAL_STATUSES[atk.effect]?.label || atk.effect}</span>` : "";
     const totalNoise = (Number(item.system.noise) || 0) + (Number(atk.noise) || 0);
-    
-    buttonsHTML += `
-      <button class="z-attack-btn" data-key="${key}">
-        <div class="atk-name">${atk.name}</div>
-        <div class="atk-info">AP: ${atk.ap} | Dmg: ${atk.dmg} | Noise: ${totalNoise}</div>
-        ${effectInfo}
-      </button>`;
+    buttonsHTML += `<button class="z-attack-btn" data-key="${key}"><div class="atk-name">${atk.name}</div><div class="atk-info">AP: ${atk.ap} | Noise: ${totalNoise}</div></button>`;
   }
   
-  const content = `
-    <form class="z-attack-dialog">
-      <div class="form-group">
-        <label>Цель:</label>
-        <select id="aim-location">
-          <option value="torso">Торс (0%)</option>
-          <option value="head">Голова (-40%)</option>
-          <option value="lArm">Л. Рука (-20%)</option>
-          <option value="rArm">П. Рука (-20%)</option>
-          <option value="lLeg">Л. Нога (-20%)</option>
-          <option value="rLeg">П. Нога (-20%)</option>
-        </select>
-      </div>
-      <hr><div class="attack-buttons">${buttonsHTML}</div>
-    </form>`;
-  
   new Dialog({
-    title: `Атака: ${item.name}`, content, buttons: {},
+    title: `Атака: ${item.name}`, 
+    content: `<form class="z-attack-dialog"><div class="form-group"><label>Цель:</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова</option><option value="lArm">Л.Рука</option><option value="rArm">П.Рука</option><option value="lLeg">Л.Нога</option><option value="rLeg">П.Нога</option></select></div><hr><div class="attack-buttons">${buttonsHTML}</div></form>`,
+    buttons: {},
     render: (html) => {
       html.find('.z-attack-btn').click(async (ev) => {
         ev.preventDefault();
         const key = ev.currentTarget.dataset.key;
-        const location = html.find('#aim-location').val(); 
-        const selectedAttack = attackOptions[key];
-        
-        // Сворачиваем лист только при БРОСКЕ
-        const isThrowAction = selectedAttack.mode === 'throw' || (item.system.isThrowing && item.system.weaponType !== 'melee');
-        if (isThrowAction) actor.sheet.minimize(); 
+        const loc = html.find('#aim-location').val();
         
         Object.values(ui.windows).forEach(w => { if (w.title === `Атака: ${item.name}`) w.close(); });
-        
-        await _executeAttack(actor, item, selectedAttack, location);
+        await _executeAttack(actor, item, attackOptions[key], loc);
       });
     }
   }).render(true);
 }
 
 // ЛОГИКА АТАКИ
+// === ВАЖНО: НОВАЯ ФУНКЦИЯ АТАКИ ЧЕРЕЗ ЧАТ-КОМАНДЫ ===
 async function _executeAttack(actor, item, attack, location = "torso") {
   const apCost = Number(attack.ap) || 0;
   const curAP = Number(actor.system.resources.ap.value);
-  if (curAP < apCost) return ui.notifications.warn(`Нужно ${apCost} AP.`);
+  if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP (нужно ${apCost})`);
 
-  // --- 1. ОПРЕДЕЛЕНИЕ ТИПА ---
+  // 1. Инициализация (метательное, гранаты, патроны)
   let isThrowingAction = false;
   if (attack.mode === 'throw') isThrowingAction = true;
   else if (item.system.isThrowing && item.system.weaponType !== 'melee') isThrowingAction = true;
@@ -132,179 +83,114 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
   const isThrownWeapon = isThrowingAction && !isGrenade; 
 
-  // --- 2. ПАТРОНЫ ---
+  // Трата патронов
   if (!isThrowingAction && item.system.ammoType) {
       const maxMag = Number(item.system.mag?.max) || 0;
       if (maxMag > 0) {
           const curMag = Number(item.system.mag.value) || 0;
           let cost = attack.name.match(/burst|очередь/i) ? 3 : 1;
-          if (curMag < cost) return ui.notifications.warn("Нет патронов!");
+          if (curMag < cost) return ui.notifications.warn("Щелк! Нет патронов.");
           await item.update({ "system.mag.value": curMag - cost });
       }
   }
 
-  // --- 3. ШАБЛОНЫ ---
+  // 2. Получение целей
   let targets = Array.from(game.user.targets);
   if (isGrenade) {
-      const t = await _placeTemplate(item);
-      if (t === null) { actor.sheet.maximize(); return; }
-      targets = t;
+      // Старый код шаблона работает, если не крашится. Если крашится - убери await _placeTemplate и поставь заглушку
+      // Для надежности я оставлю выбор целей игроком
+      if (targets.length === 0) ui.notifications.info("Гранату нужно кидать в кого-то (пока так).");
   }
 
-  // --- 4. СПИСАНИЕ AP ---
+  // 3. Списываем AP (У себя менять можно)
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
-  // --- 5. РАСЧЕТ ШАНСОВ ---
-  let skillType = 'melee';
-  if (item.system.weaponType === 'ranged') skillType = 'ranged';
-  if (isThrowingAction) skillType = 'athletics'; 
-
-  const skill = actor.system.skills[skillType];
-  const skillBase = skill ? skill.value : 0;
+  // 4. Математика Броска
+  let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((isThrowingAction) ? 'athletics' : 'melee');
+  const skillVal = actor.system.skills[skillType]?.value || 0;
   const atkMod = Number(attack.mod) || 0;
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
   
   // Уклонение
-  let evasionPenalty = 0;
+  let evasionMod = 0;
   let evasionMsg = "";
-  if (targets.length > 0 && !isGrenade) { 
-      const targetActor = targets[0].actor;
-      if (targetActor) {
-          const targetEvasion = targetActor.system.secondary?.evasion?.value || 0;
-          if (!targetActor.hasStatusEffect("prone") && !targetActor.hasStatusEffect("status-unconscious")) {
-              evasionPenalty = -(targetEvasion * 3); 
-              if (evasionPenalty !== 0) evasionMsg = ` [Eva ${evasionPenalty}%]`;
-          }
+  if (targets.length > 0 && targets[0].actor) {
+      const targ = targets[0].actor;
+      if (!targ.hasStatusEffect("prone")) {
+          const ev = targ.system.secondary?.evasion?.value || 0;
+          evasionMod = -(ev * 3);
+          if (evasionMod !== 0) evasionMsg = ` [Eva ${evasionMod}%]`;
       }
   }
 
-  // Дистанция
-  let rangeMod = 0;
-  let rangeMsg = "";
-  if (targets.length > 0 && !isGrenade) {
-      const token = actor.getActiveTokens()[0];
-      const targetToken = targets[0];
-      if (token) {
-          const dist = canvas.grid.measureDistance(token, targetToken, { gridSpaces: true });
-          
-          if (!isThrowingAction && skillType === 'melee' && dist > 2) {
-              return ui.notifications.warn(`Слишком далеко (${dist})!`);
-          }
-          
-          if (isThrowingAction || skillType === 'ranged') {
-              const range = Number(item.system.range) || 1;
-              if (dist > range * 4) return ui.notifications.error("Вне дальности!");
-              else if (dist > range * 2) { rangeMod = -40; rangeMsg=" [Экстр.]"; }
-              else if (dist > range) { rangeMod = -20; rangeMsg=" [Далеко]"; }
-              
-              if (skillType === 'ranged' && dist <= 1.5 && item.system.subtype !== 'pistol') {
-                  rangeMod = -20; rangeMsg=" [В упор]";
-              }
-          }
-      }
-  }
-
-  // --- ИТОГОВЫЙ БРОСОК ---
-  const targetChance = Math.max(0, skillBase + atkMod + aimMod + rangeMod + evasionPenalty);
+  const targetChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod);
   const roll = new Roll("1d100");
   await roll.evaluate();
-  const resultType = _calcResult(roll.total, targetChance);
-  const isHit = (resultType.includes("success"));
-  const isCrit = (resultType === "crit-success");
-
-  // ЛОГ ДЛЯ ОТЛАДКИ (Смотри в F12)
-  console.log(`ZSystem Attack | Roll: ${roll.total} vs Target: ${targetChance} | Result: ${resultType}`);
-
-  let dmgHTML = ""; 
-  let autoDamageMsg = "";
   
-  // --- 6. УРОН ---
+  // Результат
+  const resultType = _calcResult(roll.total, targetChance);
+  const isHit = resultType.includes("success");
+  const isCrit = resultType === "crit-success";
+
+  // 5. РАСЧЕТ УРОНА И ШУМА (Мы их просто считаем, но не наносим здесь)
+  let dmgAmount = 0;
+  let dmgDisplay = "";
+  const damageDataForGM = []; // Список команд для ГМа
+
   if (isHit || isGrenade) {
-      try {
-          let formula = attack.dmg || "0";
-          if (isGrenade && !isHit) {
-              formula = `ceil((${formula}) / 2)`;
-              autoDamageMsg += `<div style='color:orange; font-size:0.8em;'>Промах (½ Урона)</div>`;
-          }
-          if (isCrit) formula = `ceil((${formula}) * 1.5)`;
+      let formula = attack.dmg || "0";
+      // Логика формулы
+      if (isGrenade && !isHit) formula = `ceil((${formula}) / 2)`; // Взрыв рядом
+      if (isCrit) formula = `ceil((${formula}) * 1.5)`;
+      if (skillType === 'melee' || isThrownWeapon) {
+          const s = actor.system.attributes.str.value;
+          const req = item.system.strReq || 1;
+          if (s >= req) formula += ` + ${s - req}`; else formula = `ceil((${formula}) * 0.5)`;
+      }
 
-          if (skillType === 'melee' || (isThrownWeapon)) {
-              const str = actor.system.attributes.str.value;
-              const req = item.system.strReq || 1;
-              if (str >= req) formula += ` + ${str - req}`; 
-              else formula = `ceil((${formula}) * 0.5)`;
-          }
+      const rDmg = new Roll(formula, actor.getRollData());
+      await rDmg.evaluate();
+      dmgAmount = Math.max(1, rDmg.total);
+      
+      dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН ${isCrit?"(КРИТ!)":""}</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
-          const dmgRoll = new Roll(formula, actor.getRollData());
-          await dmgRoll.evaluate();
-          const finalDamage = Math.max(1, dmgRoll.total);
-          
-          if (targets.length > 0) {
-              for (let t of targets) {
-                  const tActor = t.actor;
-                  if (!tActor) continue;
-
-                  // === FIX: ЗАЩИТА ОТ КОНТЕЙНЕРОВ (У них нет HP) ===
-                  if (!tActor.system.resources?.hp) {
-                      console.log("ZSystem | Skipping damage for non-living target:", t.name);
-                      continue; 
-                  }
-                  // ==================================================
-                  
-                  if (isGrenade) {
-                      const oldHP = tActor.system.resources.hp.value;
-                      await tActor.applyDamage(finalDamage, "fire", "torso"); 
-                      
-                      // Расчет для конечностей (только если есть ресурсы)
-                      if (tActor.system.resources?.hp) {
-                          const realDmg = oldHP - tActor.system.resources.hp.value;
-                          if (realDmg > 0) {
-                              const updates = {};
-                              ["head", "lArm", "rArm", "lLeg", "rLeg"].forEach(l => {
-                                  if (tActor.system.limbs && tActor.system.limbs[l]) {
-                                      const v = tActor.system.limbs[l].value;
-                                      updates[`system.limbs.${l}.value`] = Math.max(0, v - realDmg);
-                                  }
-                              });
-                              if(Object.keys(updates).length) await tActor.update(updates);
-                              autoDamageMsg += `<div style="color:red; font-size:0.8em;">💥 ${t.name}: -${realDmg}</div>`;
-                          }
-                      }
-                  } else {
-                      // Обычная атака
-                      await tActor.applyDamage(finalDamage, item.system.damageType || "blunt", location);
-                      autoDamageMsg += `<div style="color:red; font-size:0.8em;">🩸 ${t.name}: -${finalDamage} HP</div>`;
-                      
-                      if (isThrownWeapon && isHit) {
-                          const itemData = item.toObject();
-                          itemData.system.quantity = 1;
-                          itemData.system.equipped = false; 
-                          await tActor.createEmbeddedDocuments("Item", [itemData]);
-                          autoDamageMsg += `<div style="color:#d84315; font-size:0.7em;">🗡️ Застряло!</div>`;
-                      }
-                  }
-              }
+      // ЗАПИСЫВАЕМ ЗАПИСКУ ГМУ: Кому и сколько нанести
+      targets.forEach(t => {
+          if (t.document?.uuid) { // Работает для токенов
+              damageDataForGM.push({
+                  uuid: t.document.uuid,
+                  amount: dmgAmount,
+                  type: item.system.damageType || "blunt",
+                  limb: location
+              });
           }
-          dmgHTML = `<div class="z-damage-box"><div class="dmg-label">УРОН ${isCrit ? "(КРИТ!)" : ""}</div><div class="dmg-val">${finalDamage}</div>${autoDamageMsg}</div>`;
-      } catch(e) { console.error("ZSystem Attack Error:", e); }
+      });
   }
 
+  const noise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
+  const noiseHtml = noise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${noise}</div>` : "";
+
+  // 6. ОТПРАВЛЯЕМ ЧАТ СООБЩЕНИЕ (В нем флаги!)
+  // Вот это главная строка. Она создает карту, и она же триггерит хук в main.js
+  const cardHtml = _getSlotMachineHTML(item.name + evasionMsg, targetChance, roll.total, resultType);
+  
+  await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({actor}),
+      content: `${cardHtml}${dmgDisplay}${noiseHtml}<div class="z-ap-spent">-${apCost} AP</div>`,
+      type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+      flags: {
+          zsystem: {
+              noiseAdd: noise,          // Сколько добавить шума
+              damageData: damageDataForGM // Список целей для урона
+          }
+      }
+  });
+
+  // Если это метательное оружие, тратим его у себя
   if (isThrowingAction) {
-      const qty = item.system.quantity;
-      if (qty > 1) await item.update({"system.quantity": qty - 1});
+      if (item.system.quantity > 1) await item.update({"system.quantity": item.system.quantity - 1});
       else await item.delete();
   }
-
-  // ШУМ
-  const itemNoise = Number(item.system.noise) || 0;
-  const attackNoise = Number(attack.noise) || 0;
-  const totalNoise = itemNoise + attackNoise;
-  if (totalNoise > 0) NoiseManager.add(totalNoise);
-  const noiseHTML = totalNoise ? `<div class="z-noise-alert">🔊 Шум: ${totalNoise}</div>` : "";
-
-  const cardHTML = _getSlotMachineHTML(item.name + rangeMsg + evasionMsg, targetChance, roll.total, resultType);
-  const content = `${cardHTML}${dmgHTML}${noiseHTML}<div class="z-ap-spent">-${apCost} AP</div>`;
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor}), content, type: CONST.CHAT_MESSAGE_TYPES.OTHER });
 }
 
 async function _placeTemplate(item) { /* Код без изменений из прошлого ответа */ 

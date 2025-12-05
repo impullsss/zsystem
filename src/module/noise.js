@@ -8,30 +8,34 @@ export class NoiseManager {
     });
     window.NoiseManager = NoiseManager;
     Hooks.once("ready", () => NoiseManager.renderHUD());
-    
     Hooks.on("updateCombat", (combat, changed) => { if (game.user.isGM && changed.round) NoiseManager.decay(); });
   }
 
   static get value() { return game.settings.get("zsystem", "currentNoise"); }
 
-  // === ИСПРАВЛЕННЫЙ МЕТОД ADD ===
-  static async add(amount) {
-      if (game.zsystemSocket) {
-          await game.zsystemSocket.executeAsGM("addNoiseGM", amount);
+   static async add(amount) {
+      if (game.user.isGM) {
+          // Если ГМ, применяем сразу
+          await NoiseManager.addGM(amount);
       } else {
-          // Фолбек для ГМа, если вдруг сокет еще не готов (хотя должен быть)
-          if(game.user.isGM) NoiseManager.addGM(amount);
+          // Если Игрок, создаем техническое сообщение
+          // ГМ его увидит, прочитает флаг и добавит шум.
+          ChatMessage.create({
+              content: `<i style="color:gray; font-size:0.8em;">(Системный шум +${amount})</i>`,
+              flags: { zsystem: { noiseAdd: amount } }, // ФЛАГ ДЛЯ ХУКА
+              whisper: ChatMessage.getWhisperRecipients("GM") // Чтобы не спамить в чат игрокам
+          });
       }
   }
 
+  // Этот метод регистрируется в сокетах для ГМа
   static async addGM(amount) {
       const current = NoiseManager.value;
       const newVal = Math.max(0, current + amount);
       await game.settings.set("zsystem", "currentNoise", newVal);
       
       if(amount > 0) {
-          // Уведомление увидит только ГМ, так как функция выполняется у него
-          ui.notifications.info(`Шум: +${amount} (Всего: ${newVal})`);
+          ui.notifications.info(`Шум (GM): +${amount}`);
       }
   }
 

@@ -486,27 +486,20 @@ export class ZActor extends Actor {
   }
 
   // --- APPLY DAMAGE (С GM LOG И ПАНИКОЙ) ---
-  async applyDamage(amount, type = "blunt", limb = "torso", options = {}) {
-    // 1. ЕСЛИ ЭТО ИГРОК -> SOCKETLIB
-   if (!game.user.isGM && !options.fromSocket) {
-        if (game.zsystemSocket) {
-            console.log(`ZSystem (Player) | Socket executing applyDamageGM for ${this.name}`);
-            await game.zsystemSocket.executeAsGM("applyDamageGM", this.uuid, amount, type, limb);
-        } else {
-            ui.notifications.error("Связь с ГМом потеряна (Socketlib error).");
-        }
-        return; 
-    }
+  async applyDamage(amount, type = "blunt", limb = "torso") {
+    console.log(`ZActor | Calculating Damage: ${amount} to ${this.name} (${limb})`);
 
-    // 2. ДАЛЕЕ КОД ВЫПОЛНЯЕТСЯ ТОЛЬКО У ГМа (или если fromSocket=true)
+    // 1. Уязвимость Зомби к огню
     if (this.type === "zombie" && type === "fire") amount *= 2;
 
+    // 2. Расчет Брони (Total Resistance)
     let totalResist = 0;
     let totalAC = 0;
 
     if (type !== "true") {
       const naturalAC = this.system.secondary?.naturalAC?.value || 0;
       totalAC += naturalAC;
+      // Ищем броню, покрывающую эту зону
       const armors = this.items.filter(
         (i) => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]
       );
@@ -514,57 +507,54 @@ export class ZActor extends Actor {
         totalResist += Number(armor.system.dr[type]) || 0;
         totalAC += Number(armor.system.ac) || 0;
       }
-      totalResist = Math.min(100, totalResist);
+      totalResist = Math.min(100, totalResist); // Не более 100% резиста
     }
 
+    // 3. Формула
     const dmg = Math.max(0, Math.floor(amount * (1 - totalResist / 100) - totalAC));
 
+    // 4. Нанесение
     if (dmg > 0) {
-      const newHP = this.system.resources.hp.value - dmg;
+      const currentHP = this.system.resources.hp.value;
+      const newHP = currentHP - dmg;
       const updateData = { "system.resources.hp.value": newHP };
 
+      // Урон конечности
       if (this.system.limbs && this.system.limbs[limb]) {
         const currentLimbVal = this.system.limbs[limb].value;
-        const newLimbHP = currentLimbVal - dmg;
+        const newLimbHP = Math.max(0, currentLimbVal - dmg);
         updateData[`system.limbs.${limb}.value`] = newLimbHP;
 
+        // Если сломали
         if (currentLimbVal > 0 && newLimbHP <= 0) {
           await this._applyInjury(limb);
-          // Уведомления лучше слать только если это не массовая операция, но тут ок
         }
       }
 
+      // Применение обновлений
+      await this.update(updateData);
+
+      // Проверка Смерти / KO
       const vig = this.system.attributes?.vig?.value || 1;
       const deathThreshold = -(vig * 5);
 
-      if (newHP <= deathThreshold) {
-        if (!this.hasStatusEffect("dead")) {
-          await this.createEmbeddedDocuments("ActiveEffect", [{
-              id: "dead", name: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
-          }]);
-        }
-      } else if (this.system.resources.hp.value > 0 && newHP <= 0) {
-        if (!this.hasStatusEffect("status-unconscious")) {
+      if (newHP <= deathThreshold && !this.hasStatusEffect("dead")) {
+          await this.createEmbeddedDocuments("ActiveEffect", [{id:"dead", name:"Мертв", icon:"icons/svg/skull.svg", statuses:["dead"]}]);
+      } 
+      else if (currentHP > 0 && newHP <= 0 && !this.hasStatusEffect("status-unconscious")) {
           await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
-        }
       }
 
-      await this.update(updateData);
-
+      // Паника (кроме зомби)
       if (this.type !== "zombie" && this.type !== "shelter" && newHP > deathThreshold) {
         await this.checkPanic(dmg);
       }
-    }
 
-    // GM LOG (только ГМ видит детали)
-    if (game.user.isGM) {
-        const _getLimbName = (k) => ({ head: "Голова", torso: "Торс", lArm: "Л.Рука", rArm: "П.Рука", lLeg: "Л.Нога", rLeg: "П.Нога" }[k] || k);
-        ChatMessage.create({
-          content: `<div style="border-left: 3px solid darkred; padding-left:5px; font-size:0.8em; background:#eee;">
-                        <b>Damage Report:</b> ${amount} (${type}) -> <b>-${dmg} HP</b> (${_getLimbName(limb)})
-                      </div>`,
-          whisper: ChatMessage.getWhisperRecipients("GM")
-        });
+      // Лог для ГМа (Чтобы ты видел что урон прошел)
+      const _limbNames = {head:"Голова", torso:"Торс", lArm:"Л.Рука", rArm:"П.Рука", lLeg:"Л.Нога", rLeg:"П.Нога"};
+      ui.notifications.info(`${this.name}: -${dmg} HP (${_limbNames[limb] || limb})`);
+    } else {
+        ui.notifications.info(`${this.name}: Урон полностью поглощен броней!`);
     }
   }
 
