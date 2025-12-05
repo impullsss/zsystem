@@ -96,43 +96,71 @@
         <div class="tab facilities" data-group="primary" data-tab="facilities">
             <div class="shelter-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                 
-                <!-- COLUMN 1: UPGRADES -->
+                <!-- COLUMN 1: COMPLETED UPGRADES (Постройки) -->
                 <div class="panel">
-                    <h3 style="border-bottom:1px solid #ccc; margin-bottom:5px;">Постройки (Готово)</h3>
+                    <h3 style="border-bottom:1px solid #ccc; margin-bottom:5px;">Постройки (Функционируют)</h3>
                     <ol class="item-list">
                         {{#each completedUpgrades as |item|}}
-                        <li class="item flexrow" data-item-id="{{item._id}}" style="padding:5px; border-bottom:1px solid #ccc; background:rgba(0,128,0,0.1);">
-                            <img src="{{item.img}}" width="30" height="80" style="margin-right:10px;"/>
-                            <div style="flex:1;">
-                                <h4 style="margin:0;">{{item.name}}</h4>
-                                <div style="font-size:0.8em; color:darkgreen;">
-                                    Бонус: {{item.system.bonusType}} +{{item.system.bonusValue}}
+                        <li class="item" data-item-id="{{item._id}}" style="padding:5px; border-bottom:1px solid #ccc; background:rgba(0,128,0,0.05); margin-bottom: 5px; border: 1px solid #a5d6a7;">
+                            
+                            <!-- Header -->
+                            <div class="flexrow" style="align-items:center;">
+                                <img src="{{item.img}}" width="36" height="36" style="margin-right:10px; border:1px solid #333;"/>
+                                <div style="flex:1;">
+                                    <h4 style="margin:0;">{{item.name}}</h4>
+                                    <div style="font-size:0.8em; color:darkgreen;">
+                                        Бонус: {{item.system.bonusType}} +{{item.system.bonusValue}}
+                                    </div>
+                                </div>
+                                <div class="item-controls">
+                                    <a class="item-edit"><i class="fas fa-edit"></i></a>
+                                    <a class="item-delete"><i class="fas fa-trash"></i></a>
                                 </div>
                             </div>
-                            <div class="item-controls">
-                                <a class="item-edit"><i class="fas fa-edit"></i></a>
-                                <a class="item-delete"><i class="fas fa-trash"></i></a>
+
+                            <!-- Workers Section (COPIED FROM PROJECT CARD) -->
+                            <div style="margin-top:5px; border-top:1px dashed #999; padding-top:2px;">
+                                <div class="flexrow" style="justify-content: space-between; align-items: center; font-size: 0.85em;">
+                                    <strong>Персонал ({{item.workersList.length}}/{{item.system.minPeople}}):</strong>
+                                    <a class="add-worker-btn" title="Назначить сотрудника" style="color:green; cursor:pointer;"><i class="fas fa-user-plus"></i></a>
+                                </div>
+                                
+                                <div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">
+                                    {{#each item.workersList as |worker|}}
+                                    <span style="background:#fff; border:1px solid #aaa; padding:1px 4px; font-size:0.8em; border-radius:3px; display:flex; align-items:center;">
+                                        <a class="open-resident" data-id="{{worker.id}}" style="color:black; margin-right:4px; font-weight:bold;">{{worker.name}}</a>
+                                        <a class="remove-worker" data-id="{{worker.id}}" style="color:red; cursor:pointer;" title="Снять с должности">×</a>
+                                    </span>
+                                    {{/each}}
+                                    {{#unless item.workersList.length}}
+                                    <span style="color:#d32f2f; font-style:italic; font-size:0.8em;">
+                                        <i class="fas fa-exclamation-triangle"></i> Нет персонала! Не работает.
+                                    </span>
+                                    {{/unless}}
+                                </div>
                             </div>
+
                         </li>
                         {{/each}}
                         {{#unless completedUpgrades}}
-                            <li style="text-align:center; color:gray; font-style:italic; padding:10px;">Нет построек</li>
+                            <li style="text-align:center; color:gray; font-style:italic; padding:10px;">Нет завершенных построек</li>
                         {{/unless}}
                     </ol>
                 </div>
 
-                <!-- COLUMN 2: PROJECTS -->
+                <!-- COLUMN 2: COMPLETED PROJECTS (Архив) -->
+                <!-- Проекты (крафт) обычно одноразовые или не требуют постоянного персонала ПОСЛЕ завершения, 
+                     но если нужно повторяемое производство, логика та же. Пока оставим архивом. -->
                 <div class="panel">
-                    <h3 style="border-bottom:1px solid #ccc; margin-bottom:5px;">Проекты (Архив)</h3>
+                    <h3 style="border-bottom:1px solid #ccc; margin-bottom:5px;">Архив Проектов</h3>
                     <ol class="item-list">
                         {{#each completedProjects as |item|}}
-                        <li class="item flexrow" data-item-id="{{item._id}}" style="padding:5px; border-bottom:1px solid #ccc; background:rgba(0,0,255,0.05);">
-                            <img src="{{item.img}}" width="30" height="80" style="margin-right:10px;"/>
+                        <li class="item flexrow" data-item-id="{{item._id}}" style="padding:5px; border-bottom:1px solid #ccc; background:rgba(0,0,255,0.05); align-items:center;">
+                            <img src="{{item.img}}" width="30" height="30" style="margin-right:10px;"/>
                             <div style="flex:1;">
                                 <h4 style="margin:0;">{{item.name}}</h4>
                                 <div style="font-size:0.8em; color:darkblue;">
-                                    Эффект: {{item.system.bonusType}} +{{item.system.bonusValue}}
-                                    {{#if item.system.outputItem}}({{item.system.outputItem}}){{/if}}
+                                    {{item.system.bonusType}} +{{item.system.bonusValue}}
                                 </div>
                             </div>
                             <div class="item-controls">
@@ -141,9 +169,6 @@
                             </div>
                         </li>
                         {{/each}}
-                        {{#unless completedProjects}}
-                            <li style="text-align:center; color:gray; font-style:italic; padding:10px;">Нет завершенных проектов</li>
-                        {{/unless}}
                     </ol>
                 </div>
             </div>
@@ -157,10 +182,17 @@
             <ol class="item-list">
                 {{#each residentActors as |actor|}}
                 <li class="item flexrow resident-card" draggable="true" data-document-id="{{actor.id}}" style="padding:5px; border-bottom:1px solid #ccc; align-items:center;">
-                    <img src="{{actor.img}}" width="30" height="80" style="margin-right:10px;"/>
-                    <h4 style="margin:0; flex:1;">{{actor.name}}</h4>
-                    <div style="margin-right:10px;">HP: {{actor.system.resources.hp.value}}</div>
-                    <a class="remove-resident" data-id="{{actor.id}}" title="Выгнать"><i class="fas fa-sign-out-alt"></i></a>
+                    <img src="{{actor.img}}" width="30" height="30" style="margin-right:10px; border:1px solid #333;"/>
+                    
+                    <!-- ИЗМЕНЕНИЕ: ССЫЛКА НА ОТКРЫТИЕ -->
+                    <a class="open-resident" data-id="{{actor.id}}" style="flex:1; font-weight:bold; color:#0d47a1; cursor:pointer;">
+                        {{actor.name}}
+                    </a>
+                    
+                    <div style="margin-right:10px; font-size:0.9em;">
+                        <i class="fas fa-heart" style="color:#b71c1c;"></i> {{actor.system.resources.hp.value}}
+                    </div>
+                    <a class="remove-resident" data-id="{{actor.id}}" title="Выгнать" style="color:#d32f2f;"><i class="fas fa-sign-out-alt"></i></a>
                 </li>
                 {{/each}}
             </ol>

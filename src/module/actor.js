@@ -1,5 +1,5 @@
 import * as Dice from "./dice.js";
-import { INJURY_EFFECTS, GLOBAL_STATUSES } from "./constants.js";
+import { INJURY_EFFECTS, GLOBAL_STATUSES, INFECTION_STAGES } from "./constants.js";
 
 export class ZActor extends Actor {
   async _onCreate(data, options, userId) {
@@ -51,6 +51,136 @@ export class ZActor extends Actor {
       });
     }
   }
+  /**
+   * Ежедневное обновление состояния актора (вызывается из Убежища)
+   * @param {Object} options
+   * @param {boolean} options.hasFood - Хватило ли еды в убежище
+   * @param {boolean} options.isSheltered - Находится ли в безопасности (для бонуса отхила)
+   * @param {boolean} antibioticGiven - Выдал ли ГМ таблетку этому жителю
+   */
+  async applyDailyUpdate({ hasFood = true, isSheltered = true, antibioticGiven = false } = {}) {
+      if (this.type === 'zombie' || this.type === 'container' || this.type === 'harvest_spot') return null;
+
+      const report = {
+          name: this.name,
+          healed: 0,
+          infectionChange: null,
+          died: false,
+          msg: []
+      };
+
+      // 1. ПРОВЕРКА ИНФЕКЦИИ
+      const inf = this.system.resources.infection;
+      
+      // Логика работает, если стадия > 0 или флаг active (на всякий случай)
+      if (inf.active || inf.stage > 0) {
+          
+          if (antibioticGiven) {
+              // Антибиотик: снижаем стадию, НО НЕ НИЖЕ 1
+              // Если была 1, останется 1 (сдерживание). Если 2 -> 1.
+              const currentStage = Number(inf.stage) || 1;
+              const newStage = Math.max(1, currentStage - 1);
+              
+              report.infectionChange = newStage;
+              
+              await this.update({ 
+                  "system.resources.infection.stage": newStage,
+                  "system.resources.infection.active": true // Вирус всегда активен, если он есть
+              });
+              await this._updateInfectionStatus(newStage);
+              
+              if (currentStage === newStage) {
+                   report.msg.push(`<span style="color:#1e88e5; font-weight:bold;">💊 Вирус сдержан (Ст. ${newStage})</span>`);
+              } else {
+                   report.msg.push(`<span style="color:#1e88e5; font-weight:bold;">💊 Состояние улучшилось (Ст. ${newStage})</span>`);
+              }
+          
+          } else {
+              // Без лекарств: проверка VIG
+              const vig = this.system.attributes.vig.value;
+              const dc = 10 + (inf.stage * 2);
+              
+              const roll = new Roll("1d10 + @vig", { vig });
+              await roll.evaluate();
+              
+              if (roll.total >= dc) {
+                  report.msg.push(`<span style="color:green">Иммунитет сдержал вирус (Roll ${roll.total} vs ${dc})</span>`);
+              } else {
+                  const newStage = inf.stage + 1;
+                  report.infectionChange = newStage;
+                  
+                  if (newStage >= 4) {
+                      report.died = true;
+                      report.msg.push(`<span style="color:red; font-weight:bold;">УМЕР ОТ ИНФЕКЦИИ!</span>`);
+                      await this.update({
+                          "system.resources.infection.stage": 4,
+                          "system.resources.hp.value": -100
+                      });
+                      await this.riseAsZombie(); 
+                  } else {
+                      await this.update({ "system.resources.infection.stage": newStage });
+                      await this._updateInfectionStatus(newStage);
+                      report.msg.push(`<span style="color:orange">Инфекция прогрессирует! Стадия ${newStage} (Roll ${roll.total} vs ${dc})</span>`);
+                  }
+              }
+          }
+      }
+
+      if (report.died) return report;
+
+      // 2. ЛЕЧЕНИЕ (Только если есть еда)
+      if (hasFood) {
+          const vig = this.system.attributes.vig.value;
+          let healAmount = vig + 5; 
+          if (isSheltered) healAmount += 5;
+          
+          const curHP = this.system.resources.hp.value;
+          const maxHP = this.system.resources.hp.max;
+          const healed = Math.min(maxHP - curHP, healAmount);
+          
+          if (healed > 0) {
+              await this.update({ "system.resources.hp.value": curHP + healed });
+              report.healed = healed;
+          }
+          
+          const curPenalty = this.system.resources.hp.penalty || 0;
+          if (curPenalty > 0) {
+              await this.update({ "system.resources.hp.penalty": Math.max(0, curPenalty - 2) });
+          }
+          
+          const limbUpdates = {};
+          let hasLimbHeal = false;
+          for(const [key, limb] of Object.entries(this.system.limbs)) {
+              if (limb.value < limb.max) {
+                  limbUpdates[`system.limbs.${key}.value`] = Math.min(limb.max, limb.value + Math.ceil(healAmount / 2));
+                  hasLimbHeal = true;
+              }
+          }
+          if(hasLimbHeal) await this.update(limbUpdates);
+
+      } else {
+          report.msg.push(`<span style="color:red">ГОЛОДАЕТ (-5 Морали)</span>`);
+          if (!this.hasStatusEffect("fatigued")) {
+              await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.fatigued]);
+          }
+      }
+
+      return report;
+  }
+
+  // Вспомогательный метод для обновления иконки эффекта инфекции
+  async _updateInfectionStatus(stage) {
+      const existing = this.effects.filter(e => e.flags?.zsystem?.isInfection);
+      if (existing.length) await this.deleteEmbeddedDocuments("ActiveEffect", existing.map(e => e.id));
+      if (stage > 0) {
+          const stageData = INFECTION_STAGES[stage];
+          if (stageData) {
+              const effectData = foundry.utils.deepClone(stageData);
+              effectData.flags = { zsystem: { isInfection: true } };
+              await this.createEmbeddedDocuments("ActiveEffect", [effectData]);
+          }
+      }
+  }
 
   _getZombieNaturalWeapons() {
     return [
@@ -69,7 +199,7 @@ export class ZActor extends Actor {
               name: "Укус",
               ap: 5,
               dmg: "4d6 + 11",
-              mod: 10,
+              mod: 28,
               effect: "infected",
               chance: 40,
             },
@@ -91,7 +221,7 @@ export class ZActor extends Actor {
               name: "Раздирание",
               ap: 4,
               dmg: "3d4 + 7",
-              mod: 0,
+              mod: 38,
               effect: "bleeding",
               chance: 25,
             },

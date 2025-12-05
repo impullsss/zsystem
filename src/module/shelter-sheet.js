@@ -138,7 +138,9 @@ export class ZShelterSheet extends ActorSheet {
         const li = $(ev.currentTarget).closest(".item");
         const workerId = ev.currentTarget.dataset.id;
         const item = this.actor.items.get(li.data("itemId"));
-        const newWorkers = item.system.workers.filter(id => id !== workerId);
+        // Безопасная фильтрация
+        const current = item.system.workers || [];
+        const newWorkers = current.filter(id => id !== workerId);
         await item.update({"system.workers": newWorkers});
     });
     
@@ -148,12 +150,20 @@ export class ZShelterSheet extends ActorSheet {
         await this.actor.update({"system.residents": newResidents});
     });
 
+    html.find('.open-resident').click(ev => {
+        const id = ev.currentTarget.dataset.id;
+        const actor = game.actors.get(id);
+        if (actor) actor.sheet.render(true);
+    });
+
     html.find('.progress-control').click(async ev => {
         const action = ev.currentTarget.dataset.action;
         const li = $(ev.currentTarget).closest(".item");
         const item = this.actor.items.get(li.data("itemId"));
         
-        if (!item.system.workers || item.system.workers.length === 0) {
+        // Безопасная проверка
+        const workers = item.system.workers || [];
+        if (workers.length === 0) {
             return ui.notifications.warn(`На "${item.name}" нет работников! Работа стоит.`);
         }
 
@@ -202,40 +212,77 @@ export class ZShelterSheet extends ActorSheet {
   }
 
   async _onAddWorker(projectItem) {
-      const residents = this.actor.system.residents || [];
+      const residentIds = this.actor.system.residents || [];
+      if (residentIds.length === 0) {
+          return ui.notifications.warn("В убежище нет жителей!");
+      }
+
+      // 1. Собираем карту занятости СО ВСЕХ ПРОЕКТОВ (и активных, и готовых)
       const busyMap = {}; 
-      this.actor.items.filter(i => (i.type === 'upgrade' || i.type === 'project') && !i.system.isCompleted).forEach(p => {
-          (p.system.workers || []).forEach(wid => {
-              busyMap[wid] = p.name;
+      
+      // Фильтруем все предметы типа upgrade/project, у которых есть рабочие
+      const allJobs = this.actor.items.filter(i => 
+          (i.type === 'upgrade' || i.type === 'project') && i.system.workers && i.system.workers.length > 0
+      );
+
+      allJobs.forEach(p => {
+          // Если это ТОТ ЖЕ проект, в который мы добавляем, не считаем его "занятым в другом месте"
+          if (p.id === projectItem.id) return;
+
+          p.system.workers.forEach(wid => {
+              busyMap[wid] = p.name; // Запоминаем, где работает житель
           });
       });
 
+      // 2. Формируем список опций
       let optionsHtml = "";
-      for (let rid of residents) {
+      let availableCount = 0;
+
+      for (let rid of residentIds) {
           const actor = game.actors.get(rid);
           if (!actor) continue;
-          const isBusy = busyMap[rid];
-          const disabled = isBusy ? "disabled" : "";
-          const label = actor.name + (isBusy ? ` (Занят: ${isBusy})` : "");
+
+          // Если уже работает над ЭТИМ проектом - не показываем в списке (он уже там)
           const currentWorkers = projectItem.system.workers || [];
           if (currentWorkers.includes(rid)) continue;
-          optionsHtml += `<option value="${rid}" ${disabled}>${label}</option>`;
+
+          const isBusy = busyMap[rid];
+          const disabled = isBusy ? "disabled" : "";
+          const busyText = isBusy ? ` (Занят: ${isBusy})` : "";
+          const style = isBusy ? "color:gray;" : "color:black; font-weight:bold;";
+
+          optionsHtml += `<option value="${rid}" ${disabled} style="${style}">
+                            ${actor.name}${busyText}
+                          </option>`;
+          
+          if (!isBusy) availableCount++;
       }
 
-      if (!optionsHtml) return ui.notifications.warn("Нет свободных жителей.");
-
+      if (!optionsHtml) {
+          return ui.notifications.warn("Все жители уже работают здесь или список пуст.");
+      }
+      
       new Dialog({
           title: `Назначить на: ${projectItem.name}`,
-          content: `<form><div class="form-group"><label>Житель:</label><select id="worker-select">${optionsHtml}</select></div></form>`,
+          content: `
+            <form>
+                <div class="form-group">
+                    <label>Выберите жителя:</label>
+                    <select id="worker-select" style="width:100%;">${optionsHtml}</select>
+                </div>
+                ${availableCount === 0 ? '<p style="color:red; font-size:0.8em;">Все жители заняты на других объектах!</p>' : ''}
+            </form>
+          `,
           buttons: {
               assign: {
                   label: "Назначить",
+                  icon: '<i class="fas fa-check"></i>',
                   callback: async (html) => {
                       const workerId = html.find("#worker-select").val();
                       if (workerId) {
                           const currentWorkers = projectItem.system.workers || [];
-                          currentWorkers.push(workerId);
-                          await projectItem.update({"system.workers": currentWorkers});
+                          const newWorkers = [...currentWorkers, workerId];
+                          await projectItem.update({"system.workers": newWorkers});
                           ui.notifications.info("Работник назначен.");
                       }
                   }
@@ -297,92 +344,234 @@ export class ZShelterSheet extends ActorSheet {
   }
 
   async _onEndDay() {
+      if (!game.user.isGM) return ui.notifications.warn("Только ГМ может завершить день.");
+      Dialog.confirm({
+          title: "Завершить день?",
+          content: "<p>Будут списаны ресурсы и обновлены жители. Запустить?</p>",
+          yes: async () => this._processEndDay()
+      });
+  }
+
+  async _processEndDay() {
       const system = this.actor.system;
       const residentIds = system.residents || [];
       const pop = residentIds.length;
       
-      // Защита при чтении
+      // ЧТЕНИЕ РЕСУРСОВ
       const res = system.resources || {};
       let food = res.food?.value || 0;
       let fuel = res.fuel?.value || 0;
       let parts = res.parts?.value || 0;
-      let antibiotics = res.antibiotics?.value || 0;
+      let antibiotics = res.antibiotics ? res.antibiotics.value : 0;
       
       let morale = system.morale?.value || 50;
       let trend = system.morale?.trend || 0;
 
-      const foodNeed = pop;
+      const foodNeed = pop * 3; 
       const fuelNeed = res.fuel?.daily || 5;
 
-      let msg = "<h3>Отчет за день</h3><ul>";
+      // ====================================================
+      // 1. ТРИПУНКТ (TRIAGE) - ДИАЛОГ
+      // ====================================================
+      const infectedResidents = [];
+      for (let rid of residentIds) {
+          const a = game.actors.get(rid);
+          if (a && a.system.resources.infection.stage > 0) infectedResidents.push(a);
+      }
+
+      let distributionMap = {}; // ID -> Boolean
+      let usedPills = 0;
+
+      if (infectedResidents.length > 0) {
+           await new Promise(resolve => {
+               let html = `
+               <div style="margin-bottom:10px;">
+                   <p><b>На складе:</b> ${antibiotics} антибиотиков.</p>
+                   <p>Выберите получателей (Вирус не уйдет ниже 1 стадии):</p>
+                   <hr>
+                   <div style="display:grid; grid-template-columns: 1fr 50px; gap:5px; max-height:200px; overflow-y:auto;">
+               `;
+               
+               infectedResidents.forEach(res => {
+                   const stage = res.system.resources.infection.stage;
+                   const color = stage >= 3 ? "red" : (stage === 2 ? "orange" : "black");
+                   const label = stage === 1 ? "Инкубация" : (stage === 2 ? "Симптомы" : "КРИЗИС");
+                   
+                   html += `
+                       <div style="display:flex; align-items:center;">
+                           <img src="${res.img}" width="24" height="24" style="margin-right:5px; border:1px solid #333;">
+                           <span style="font-weight:bold; color:${color};">${res.name} (Ст. ${stage} - ${label})</span>
+                       </div>
+                       <input type="checkbox" name="pill_${res.id}" class="pill-check" ${antibiotics > 0 ? "" : "disabled"}>
+                   `;
+               });
+               html += `</div></div>`;
+
+               new Dialog({
+                   title: "Медицинский Трипункт",
+                   content: html,
+                   buttons: {
+                       ok: {
+                           label: "Распределить",
+                           icon: '<i class="fas fa-pills"></i>',
+                           callback: (dlg) => {
+                               dlg.find('.pill-check').each((i, el) => {
+                                   if (el.checked) {
+                                       const id = el.name.split('_')[1];
+                                       distributionMap[id] = true;
+                                       usedPills++;
+                                   }
+                               });
+                               resolve();
+                           }
+                       }
+                   },
+                   default: "ok",
+                   close: () => resolve()
+               }).render(true);
+           });
+      }
+
+      if (usedPills > 0) {
+          antibiotics = Math.max(0, antibiotics - usedPills);
+      }
+
+      // ====================================================
+      // 2. ПОДГОТОВКА СООБЩЕНИЙ (ПУБЛИЧНОЕ И ГМ)
+      // ====================================================
+      let publicHtml = `<div class="z-chat-card"><div class="z-card-header">📅 ДЕНЬ ЗАВЕРШЕН</div>`;
+      publicHtml += `<div style="font-size:0.9em; margin-bottom:10px;">Население: ${pop}</div>`;
+
+      let gmHtml = `<div class="z-chat-card" style="border:1px solid red;"><div class="z-card-header" style="color:red;">👮 GM REPORT (Секретно)</div>`;
+      gmHtml += `<div>Антибиотиков выдано: ${usedPills}</div>`;
+
+      // --- СПИСАНИЕ ЕДЫ И ТОПЛИВА ---
+      let hasFood = true;
+      let hasFuel = true;
 
       if (food >= foodNeed) {
           food -= foodNeed;
-          msg += `<li>Потреблено еды: ${foodNeed} (Жителей: ${pop})</li>`;
+          publicHtml += `<div style="color:green">🍴 Еда: -${foodNeed} (Ост: ${food})</div>`;
       } else {
           food = 0;
-          msg += `<li style="color:red">ГОЛОД! (-5 Морали)</li>`;
-          morale -= 5;
-          trend -= 5;
+          hasFood = false;
+          trend -= 10; 
+          publicHtml += `<div style="color:red; font-weight:bold;">🍴 ГОЛОД! Еды не хватило! (-10 Морали)</div>`;
       }
 
       if (fuel >= fuelNeed) {
           fuel -= fuelNeed;
-          msg += `<li>Потреблено топлива: ${fuelNeed}</li>`;
+          publicHtml += `<div style="color:green">⛽ Топливо: -${fuelNeed} (Ост: ${fuel})</div>`;
       } else {
           fuel = 0;
-          msg += `<li style="color:red">Нет топлива! (-5 Морали)</li>`;
-          morale -= 5;
-          trend -= 5;
+          hasFuel = false;
+          trend -= 5; 
+          publicHtml += `<div style="color:red;">⚠️ Нет топлива! (-5 Морали)</div>`;
       }
 
+      // --- ПОСТРОЙКИ (С ПРОВЕРКОЙ РАБОЧИХ) ---
       const completedItems = this.actor.items.filter(i => (i.type === 'upgrade' || i.type === 'project') && i.system.isCompleted);
-      let totalDefense = 0;
-
+      
       if (completedItems.length > 0) {
-          msg += "<li><b>Бонусы:</b></li><ul>";
+          publicHtml += `<hr><div style="font-weight:bold;">Инфраструктура:</div><ul>`;
+          
           for (let item of completedItems) {
               const bVal = Number(item.system.bonusValue) || 0;
               const bType = item.system.bonusType;
 
-              if (bType === 'food') { food += bVal; msg += `<li>${item.name}: +${bVal} Еды</li>`; }
-              if (bType === 'fuel') { fuel += bVal; msg += `<li>${item.name}: +${bVal} Топлива</li>`; }
-              if (bType === 'parts') { parts += bVal; msg += `<li>${item.name}: +${bVal} Деталей</li>`; }
-              if (bType === 'defense') { totalDefense += bVal; } 
+              // ПРОВЕРКА РАБОЧИХ
+              const minWorkers = Number(item.system.minPeople) || 0;
+              const currentWorkers = item.system.workers ? item.system.workers.length : 0;
               
-              if (bType === 'morale') { 
-                  morale += bVal; 
-                  msg += `<li>${item.name}: +${bVal} Морали</li>`; 
+              if (minWorkers > 0 && currentWorkers < minWorkers) {
+                  publicHtml += `<li style="color:#777; text-decoration:line-through;">${item.name}: Не работает (нужно ${minWorkers} чел.)</li>`;
+                  continue; // Пропускаем начисление бонуса
               }
 
-              if (bType === 'medicine' && item.system.outputItem) {
-                  const newItemData = {
-                      name: item.system.outputItem,
-                      type: "medicine",
-                      system: { quantity: bVal, category: "medicine" }
-                  };
-                  await Item.create(newItemData, { parent: this.actor });
-                  msg += `<li>${item.name}: Создано ${bVal} шт. "${item.system.outputItem}"</li>`;
+              // Начисление бонусов
+              let bonusText = "";
+              if (bType === 'food') { food += bVal; bonusText = `+${bVal} Еды`; }
+              else if (bType === 'fuel') { fuel += bVal; bonusText = `+${bVal} Топлива`; }
+              else if (bType === 'parts') { parts += bVal; bonusText = `+${bVal} Деталей`; }
+              else if (bType === 'morale') { morale += bVal; bonusText = `+${bVal} Морали`; }
+              
+              if (item.system.outputItem) {
+                   const newItemType = bType === 'medicine' ? 'medicine' : 'misc';
+                   const exist = this.actor.items.find(i => i.name === item.system.outputItem && i.type === newItemType);
+                   if (exist) {
+                       await exist.update({"system.quantity": exist.system.quantity + bVal});
+                   } else {
+                       await Item.create({
+                          name: item.system.outputItem,
+                          type: newItemType,
+                          system: { quantity: bVal, category: newItemType }
+                       }, { parent: this.actor });
+                   }
+                   bonusText = `+${bVal} ${item.system.outputItem}`;
               }
+
+              if (!bonusText && bType === 'defense') bonusText = "Активно (Защита)";
+              
+              publicHtml += `<li>${item.name}: ${bonusText || "Активно"}</li>`;
           }
-          msg += "</ul>";
+          publicHtml += `</ul>`;
       }
 
+      // --- СОСТОЯНИЕ ЖИТЕЛЕЙ (ТОЛЬКО В GM REPORT) ---
+      gmHtml += `<hr><div style="font-weight:bold;">Состояние выживших:</div><ul style="font-size:0.85em;">`;
+      
+      for (let rid of residentIds) {
+          const actor = game.actors.get(rid);
+          if (!actor) continue;
+
+          const gotPill = distributionMap[actor.id] || false;
+
+          const report = await actor.applyDailyUpdate({ 
+              hasFood: hasFood, 
+              isSheltered: true, 
+              antibioticGiven: gotPill 
+          });
+          
+          if (report) {
+              let statuses = [];
+              if (report.healed > 0) statuses.push(`<span style="color:green">+${report.healed} HP</span>`);
+              if (report.msg.length > 0) statuses.push(report.msg.join(", "));
+              
+              gmHtml += `<li><b>${actor.name}</b>: ${statuses.length ? statuses.join(" | ") : "ОК"}</li>`;
+          }
+      }
+      gmHtml += `</ul></div>`;
+
+      // --- ФИНАЛИЗАЦИЯ ---
       morale = morale + trend;
       morale = Math.max(0, Math.min(100, morale));
       
-      msg += `<li><b>Тренд:</b> ${trend > 0 ? '+' : ''}${trend}</li>`;
-      msg += `<li><b>Итог Морали:</b> ${morale}</li></ul>`;
+      publicHtml += `<hr><div style="text-align:right; font-weight:bold;">Мораль: ${morale} (Тренд: ${trend})</div></div>`;
 
       await this.actor.update({
           "system.resources.food.value": food,
           "system.resources.fuel.value": fuel,
           "system.resources.parts.value": parts,
-          "system.resources.defense.value": totalDefense,
+          "system.resources.antibiotics.value": antibiotics,
           "system.morale.value": morale
       });
 
-      ChatMessage.create({ content: msg });
+      // ОТПРАВКА ДВУХ СООБЩЕНИЙ
+      
+      // 1. Публичное
+      ChatMessage.create({
+          user: game.user.id,
+          content: publicHtml,
+          speaker: ChatMessage.getSpeaker({ actor: this.actor })
+      });
+
+      // 2. ГМ (Whisper)
+      ChatMessage.create({
+          user: game.user.id,
+          content: gmHtml,
+          whisper: ChatMessage.getWhisperRecipients("GM"),
+          speaker: { alias: "System" }
+      });
   }
 
   async _onItemCreate(event) {

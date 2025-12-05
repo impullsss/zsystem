@@ -126,14 +126,13 @@ async function _executeAttack(actor, item, attack, location = "torso") {
 
   // ОПРЕДЕЛЕНИЕ РЕЖИМА
   let isThrowingAction = false;
-  // Если атака создана автоматически (hybrid), у неё есть поле mode
   if (attack.mode === 'throw') isThrowingAction = true;
-  // Если это чисто метательное (граната или лук), то всегда throw
   else if (item.system.isThrowing && item.system.weaponType !== 'melee') isThrowingAction = true;
   
   const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
-  const isThrownWeapon = isThrowingAction && !isGrenade; // Нож, брошенный
+  const isThrownWeapon = isThrowingAction && !isGrenade; 
 
+  // ТРАТА ПАТРОНОВ
   if (!isThrowingAction && item.system.ammoType) {
       const maxMag = Number(item.system.mag?.max) || 0;
       if (maxMag > 0) {
@@ -144,6 +143,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       }
   }
 
+  // ОПРЕДЕЛЕНИЕ ЦЕЛЕЙ (или постановка шаблона)
   let targets = Array.from(game.user.targets);
   if (isGrenade) {
       const t = await _placeTemplate(item);
@@ -151,8 +151,10 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       targets = t;
   }
 
+  // СПИСАНИЕ AP
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
+  // ПОДГОТОВКА МОДИФИКАТОРОВ
   let skillType = 'melee';
   if (item.system.weaponType === 'ranged') skillType = 'ranged';
   if (isThrowingAction) skillType = 'athletics'; 
@@ -162,6 +164,24 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const atkMod = Number(attack.mod) || 0;
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
   
+  // --- РАСЧЕТ УКЛОНЕНИЯ (EVASION * 3) ---
+  let evasionPenalty = 0;
+  let evasionMsg = "";
+
+  if (targets.length > 0 && !isGrenade) { 
+      const targetActor = targets[0].actor;
+      if (targetActor) {
+          const targetEvasion = targetActor.system.secondary?.evasion?.value || 0;
+          
+          // Если цель не сбита с ног и в сознании
+          if (!targetActor.hasStatusEffect("prone") && !targetActor.hasStatusEffect("status-unconscious")) {
+              evasionPenalty = -(targetEvasion * 3); // ИЗМЕНЕНО НА 3
+              if (evasionPenalty !== 0) evasionMsg = ` [Eva ${evasionPenalty}%]`;
+          }
+      }
+  }
+  // -------------------------------------
+
   let rangeMod = 0;
   let rangeMsg = "";
   if (targets.length > 0 && !isGrenade) {
@@ -173,16 +193,19 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           if (isThrowingAction || skillType === 'ranged') {
               const range = Number(item.system.range) || 1;
               if (dist > range * 4) return ui.notifications.error("Вне дальности!");
-              else if (dist > range * 2) { rangeMod = -40; rangeMsg="[Экстр.]"; }
-              else if (dist > range) { rangeMod = -20; rangeMsg="[Далеко]"; }
+              else if (dist > range * 2) { rangeMod = -40; rangeMsg=" [Экстр.]"; }
+              else if (dist > range) { rangeMod = -20; rangeMsg=" [Далеко]"; }
+              
               if (skillType === 'ranged' && dist <= 1.5 && item.system.subtype !== 'pistol') {
-                  rangeMod = -20; rangeMsg="[В упор]";
+                  rangeMod = -20; rangeMsg=" [В упор]";
               }
           }
       }
   }
 
-  const targetChance = Math.max(0, skillBase + atkMod + aimMod + rangeMod);
+  // ИТОГОВЫЙ ШАНС
+  const targetChance = Math.max(0, skillBase + atkMod + aimMod + rangeMod + evasionPenalty);
+  
   const roll = new Roll("1d100");
   await roll.evaluate();
   const resultType = _calcResult(roll.total, targetChance);
@@ -192,6 +215,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   let dmgHTML = ""; 
   let autoDamageMsg = "";
   
+  // РАСЧЕТ УРОНА
   if (isHit || isGrenade) {
       try {
           let formula = attack.dmg || "0";
@@ -201,8 +225,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           }
           if (isCrit) formula = `ceil((${formula}) * 1.5)`;
 
-          // Бонус силы (Для Melee или Броска ножа/топора)
-          // Не работает для огнестрела или гранат
+          // Бонус силы только для Melee/Throwing Weapon (не гранат)
           if (skillType === 'melee' || (isThrownWeapon)) {
               const str = actor.system.attributes.str.value;
               const req = item.system.strReq || 1;
@@ -224,13 +247,8 @@ async function _executeAttack(actor, item, attack, location = "torso") {
                       await tActor.applyDamage(finalDamage, "fire", "torso"); 
                       const realDmg = oldHP - tActor.system.resources.hp.value;
                       if (realDmg > 0) {
-                          const updates = {};
-                          ["head", "lArm", "rArm", "lLeg", "rLeg"].forEach(l => {
-                              const v = tActor.system.limbs[l]?.value;
-                              if (v !== undefined) updates[`system.limbs.${l}.value`] = Math.max(0, v - realDmg);
-                          });
-                          if(Object.keys(updates).length) await tActor.update(updates);
-                          autoDamageMsg += `<div style="color:red; font-size:0.8em;">💥 ${t.name}: -${realDmg} (AoE)</div>`;
+                           // Тут можно добавить доп. эффекты гранаты
+                           autoDamageMsg += `<div style="color:red; font-size:0.8em;">💥 ${t.name}: -${realDmg} (AoE)</div>`;
                       }
                   } else {
                       await tActor.applyDamage(finalDamage, item.system.damageType || "blunt", location);
@@ -250,19 +268,21 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       } catch(e) { console.error(e); }
   }
 
+  // РАСХОД МЕТАТЕЛЬНОГО
   if (isThrowingAction) {
       const qty = item.system.quantity;
       if (qty > 1) await item.update({"system.quantity": qty - 1});
       else await item.delete();
   }
 
+  // ШУМ
   const itemNoise = Number(item.system.noise) || 0;
   const attackNoise = Number(attack.noise) || 0;
   const totalNoise = itemNoise + attackNoise;
   if (totalNoise > 0) NoiseManager.add(totalNoise);
   const noiseHTML = totalNoise ? `<div class="z-noise-alert">🔊 Шум: ${totalNoise}</div>` : "";
 
-  const cardHTML = _getSlotMachineHTML(item.name + rangeMsg, targetChance, roll.total, resultType);
+  const cardHTML = _getSlotMachineHTML(item.name + rangeMsg + evasionMsg, targetChance, roll.total, resultType);
   const content = `${cardHTML}${dmgHTML}${noiseHTML}<div class="z-ap-spent">-${apCost} AP</div>`;
   await ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor}), content, type: CONST.CHAT_MESSAGE_TYPES.OTHER });
 }

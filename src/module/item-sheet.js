@@ -21,31 +21,43 @@ export class ZItemSheet extends ItemSheet {
     const context = super.getData();
     context.system = this.item.system;
 
-    // Флаг для отображения кнопки генерации
-    // Показываем, если это Гибрид (Melee + Throwing)
     context.isHybrid =
       this.item.type === "weapon" &&
       this.item.system.weaponType === "melee" &&
       this.item.system.isThrowing;
 
-    // ... (остальные списки без изменений) ...
     context.isCategoryEditable = !["weapon", "armor"].includes(this.item.type);
+    
+    // СТАНДАРТНЫЕ СПИСКИ
     context.weaponTypes = { melee: "Ближнее", ranged: "Дальнее" };
     context.handsOptions = { "1h": "Одноручное", "2h": "Двуручное" };
     context.damageTypes = {
-      blunt: "Дробящий",
-      slashing: "Режущий",
-      piercing: "Колющий",
-      ballistic: "Пулевой",
-      fire: "Огонь",
+      blunt: "Дробящий", slashing: "Режущий", piercing: "Колющий",
+      ballistic: "Пулевой", fire: "Огонь"
     };
     context.categoryOptions = {
-      medicine: "Медицина",
-      food: "Еда",
-      materials: "Материалы",
-      luxury: "Роскошь",
-      misc: "Разное",
+      medicine: "Медицина", food: "Еда", materials: "Материалы",
+      luxury: "Роскошь", misc: "Разное"
     };
+
+    // --- ИСПРАВЛЕНИЕ ОШИБКИ: ДОБАВЛЯЕМ СПИСКИ ДЛЯ ПОСТРОЕК ---
+    context.skillsList = { 
+        melee: "Ближний бой", ranged: "Стрельба", science: "Наука", 
+        mechanical: "Механика", medical: "Медицина", diplomacy: "Дипломатия",
+        leadership: "Лидерство", survival: "Выживание", athletics: "Атлетика",
+        stealth: "Скрытность"
+    };
+
+    context.bonusTypes = {
+        food: "Еда",
+        fuel: "Топливо",
+        parts: "Детали",
+        morale: "Мораль",
+        defense: "Защита",
+        medicine: "Медицина (Крафт)"
+    };
+    // ---------------------------------------------------------
+
     context.statusOptions = { "": "Нет" };
     for (let [key, val] of Object.entries(GLOBAL_STATUSES))
       context.statusOptions[key] = val.label;
@@ -73,7 +85,6 @@ export class ZItemSheet extends ItemSheet {
     if (!this.isEditable) return;
     const $html = target;
 
-    // --- КНОПКА ГЕНЕРАЦИИ ГИБРИДНЫХ АТАК ---
     $html.find(".generate-hybrid").click(async (ev) => {
       ev.preventDefault();
       const baseAP = this.item.system.apCost || 3;
@@ -82,39 +93,23 @@ export class ZItemSheet extends ItemSheet {
 
       const attacks = {
         [foundry.utils.randomID()]: {
-          name: "Удар",
-          mode: "melee",
-          ap: baseAP,
-          dmg: baseDmg,
-          mod: 0,
-          noise: baseNoise,
-          chance: 0,
+          name: "Удар", mode: "melee", ap: baseAP, dmg: baseDmg,
+          mod: 0, noise: baseNoise, chance: 0,
         },
         [foundry.utils.randomID()]: {
-          name: "Бросок",
-          mode: "throw",
-          ap: baseAP,
-          dmg: baseDmg,
-          mod: 0,
-          noise: baseNoise,
-          chance: 0,
+          name: "Бросок", mode: "throw", ap: baseAP, dmg: baseDmg,
+          mod: 0, noise: baseNoise, chance: 0,
         },
       };
       await this.item.update({ "system.attacks": attacks });
     });
-    // ----------------------------------------
 
     $html.find(".attack-create").click(async (ev) => {
       ev.preventDefault();
       const newKey = foundry.utils.randomID();
       const newAttack = {
-        name: "Новая атака",
-        ap: 4,
-        dmg: "1d6",
-        noise: 5,
-        mod: 0,
-        effect: "",
-        chance: 0,
+        name: "Новая атака", ap: 4, dmg: "1d6", noise: 5,
+        mod: 0, effect: "", chance: 0,
       };
       await this.item.update({ [`system.attacks.${newKey}`]: newAttack });
     });

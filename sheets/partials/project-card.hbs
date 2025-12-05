@@ -38,8 +38,10 @@
             
             <div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">
                 {{#each item.workersList as |worker|}}
-                <span style="background:#eee; border:1px solid #aaa; padding:1px 4px; font-size:0.8em; border-radius:3px;">
-                    {{worker.name}} <a class="remove-worker" data-id="{{worker.id}}" style="color:red; margin-left:2px; cursor:pointer;">×</a>
+                <span style="background:#eee; border:1px solid #aaa; padding:1px 4px; font-size:0.8em; border-radius:3px; display:flex; align-items:center;">
+                    <!-- Кликабельное имя -->
+                    <a class="open-resident" data-id="{{worker.id}}" style="color:black; margin-right:4px;">{{worker.name}}</a> 
+                    <a class="remove-worker" data-id="{{worker.id}}" style="color:red; cursor:pointer;" title="Снять с работы">×</a>
                 </span>
                 {{/each}}
                 {{#unless item.workersList.length}}

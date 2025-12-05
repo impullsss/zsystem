@@ -56,14 +56,23 @@ export class ZActorSheet extends ActorSheet {
 
     this._prepareInventory(context);
 
-    context.effects = (this.actor.effects || []).map((e) => ({
-      id: e.id,
-      name: e.name,
-      img: e.img,
-      disabled: e.disabled,
-      duration: e.duration?.label || "",
-      isTemporary: e.isTemporary,
-    }));
+    context.effects = (this.actor.effects || []).reduce((arr, e) => {
+        // Если это инфекция И пользователь не ГМ -> пропускаем
+        if (e.flags?.zsystem?.isInfection && !game.user.isGM) {
+            return arr;
+        }
+
+        arr.push({
+            id: e.id,
+            name: e.name,
+            img: e.img,
+            disabled: e.disabled,
+            duration: e.duration?.label || "",
+            isTemporary: e.isTemporary,
+            isHidden: e.flags?.zsystem?.isInfection // Флаг для шаблона, если захочешь подсветить ГМу
+        });
+        return arr;
+    }, []);
 
     return context;
   }

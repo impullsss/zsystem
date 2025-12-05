@@ -322,6 +322,10 @@
                             {{#if (eq item.type "medicine")}}
                                 <a class="item-use" title="Лечить"><i class="fas fa-heartbeat" style="color:#c62828;"></i></a>
                             {{/if}}
+                            <!-- Кнопка Перезарядки (ЕСЛИ ЕСТЬ AMMO TYPE) -->
+                            {{#if (and (eq item.type "weapon") item.system.ammoType)}}
+                                <a class="item-reload" title="Перезарядка"><i class="fas fa-sync" style="color:#1565c0;"></i></a>
+                            {{/if}}
 
                             {{#if (eq item.type "weapon")}}<a class="item-roll" title="Атака"><i class="fas fa-crosshairs" style="color:#333;"></i></a>{{/if}}
                             <a class="item-edit" title="Редактировать"><i class="fas fa-edit" style="color:#333;"></i></a>
