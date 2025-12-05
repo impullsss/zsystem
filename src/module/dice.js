@@ -124,7 +124,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const curAP = Number(actor.system.resources.ap.value);
   if (curAP < apCost) return ui.notifications.warn(`Нужно ${apCost} AP.`);
 
-  // ОПРЕДЕЛЕНИЕ РЕЖИМА
+  // --- 1. ОПРЕДЕЛЕНИЕ ТИПА ---
   let isThrowingAction = false;
   if (attack.mode === 'throw') isThrowingAction = true;
   else if (item.system.isThrowing && item.system.weaponType !== 'melee') isThrowingAction = true;
@@ -132,7 +132,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
   const isThrownWeapon = isThrowingAction && !isGrenade; 
 
-  // ТРАТА ПАТРОНОВ
+  // --- 2. ПАТРОНЫ ---
   if (!isThrowingAction && item.system.ammoType) {
       const maxMag = Number(item.system.mag?.max) || 0;
       if (maxMag > 0) {
@@ -143,7 +143,7 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       }
   }
 
-  // ОПРЕДЕЛЕНИЕ ЦЕЛЕЙ (или постановка шаблона)
+  // --- 3. ШАБЛОНЫ ---
   let targets = Array.from(game.user.targets);
   if (isGrenade) {
       const t = await _placeTemplate(item);
@@ -151,10 +151,10 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       targets = t;
   }
 
-  // СПИСАНИЕ AP
+  // --- 4. СПИСАНИЕ AP ---
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
-  // ПОДГОТОВКА МОДИФИКАТОРОВ
+  // --- 5. РАСЧЕТ ШАНСОВ ---
   let skillType = 'melee';
   if (item.system.weaponType === 'ranged') skillType = 'ranged';
   if (isThrowingAction) skillType = 'athletics'; 
@@ -164,32 +164,33 @@ async function _executeAttack(actor, item, attack, location = "torso") {
   const atkMod = Number(attack.mod) || 0;
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
   
-  // --- РАСЧЕТ УКЛОНЕНИЯ (EVASION * 3) ---
+  // Уклонение
   let evasionPenalty = 0;
   let evasionMsg = "";
-
   if (targets.length > 0 && !isGrenade) { 
       const targetActor = targets[0].actor;
       if (targetActor) {
           const targetEvasion = targetActor.system.secondary?.evasion?.value || 0;
-          
-          // Если цель не сбита с ног и в сознании
           if (!targetActor.hasStatusEffect("prone") && !targetActor.hasStatusEffect("status-unconscious")) {
-              evasionPenalty = -(targetEvasion * 3); // ИЗМЕНЕНО НА 3
+              evasionPenalty = -(targetEvasion * 3); 
               if (evasionPenalty !== 0) evasionMsg = ` [Eva ${evasionPenalty}%]`;
           }
       }
   }
-  // -------------------------------------
 
+  // Дистанция
   let rangeMod = 0;
   let rangeMsg = "";
   if (targets.length > 0 && !isGrenade) {
       const token = actor.getActiveTokens()[0];
       const targetToken = targets[0];
       if (token) {
-          const dist = canvas.grid.measureDistance(token, targetToken);
-          if (!isThrowingAction && dist > 2) return ui.notifications.warn("Слишком далеко для удара!");
+          const dist = canvas.grid.measureDistance(token, targetToken, { gridSpaces: true });
+          
+          if (!isThrowingAction && skillType === 'melee' && dist > 2) {
+              return ui.notifications.warn(`Слишком далеко (${dist})!`);
+          }
+          
           if (isThrowingAction || skillType === 'ranged') {
               const range = Number(item.system.range) || 1;
               if (dist > range * 4) return ui.notifications.error("Вне дальности!");
@@ -203,19 +204,21 @@ async function _executeAttack(actor, item, attack, location = "torso") {
       }
   }
 
-  // ИТОГОВЫЙ ШАНС
+  // --- ИТОГОВЫЙ БРОСОК ---
   const targetChance = Math.max(0, skillBase + atkMod + aimMod + rangeMod + evasionPenalty);
-  
   const roll = new Roll("1d100");
   await roll.evaluate();
   const resultType = _calcResult(roll.total, targetChance);
   const isHit = (resultType.includes("success"));
   const isCrit = (resultType === "crit-success");
 
+  // ЛОГ ДЛЯ ОТЛАДКИ (Смотри в F12)
+  console.log(`ZSystem Attack | Roll: ${roll.total} vs Target: ${targetChance} | Result: ${resultType}`);
+
   let dmgHTML = ""; 
   let autoDamageMsg = "";
   
-  // РАСЧЕТ УРОНА
+  // --- 6. УРОН ---
   if (isHit || isGrenade) {
       try {
           let formula = attack.dmg || "0";
@@ -225,7 +228,6 @@ async function _executeAttack(actor, item, attack, location = "torso") {
           }
           if (isCrit) formula = `ceil((${formula}) * 1.5)`;
 
-          // Бонус силы только для Melee/Throwing Weapon (не гранат)
           if (skillType === 'melee' || (isThrownWeapon)) {
               const str = actor.system.attributes.str.value;
               const req = item.system.strReq || 1;
@@ -241,16 +243,35 @@ async function _executeAttack(actor, item, attack, location = "torso") {
               for (let t of targets) {
                   const tActor = t.actor;
                   if (!tActor) continue;
+
+                  // === FIX: ЗАЩИТА ОТ КОНТЕЙНЕРОВ (У них нет HP) ===
+                  if (!tActor.system.resources?.hp) {
+                      console.log("ZSystem | Skipping damage for non-living target:", t.name);
+                      continue; 
+                  }
+                  // ==================================================
                   
                   if (isGrenade) {
                       const oldHP = tActor.system.resources.hp.value;
                       await tActor.applyDamage(finalDamage, "fire", "torso"); 
-                      const realDmg = oldHP - tActor.system.resources.hp.value;
-                      if (realDmg > 0) {
-                           // Тут можно добавить доп. эффекты гранаты
-                           autoDamageMsg += `<div style="color:red; font-size:0.8em;">💥 ${t.name}: -${realDmg} (AoE)</div>`;
+                      
+                      // Расчет для конечностей (только если есть ресурсы)
+                      if (tActor.system.resources?.hp) {
+                          const realDmg = oldHP - tActor.system.resources.hp.value;
+                          if (realDmg > 0) {
+                              const updates = {};
+                              ["head", "lArm", "rArm", "lLeg", "rLeg"].forEach(l => {
+                                  if (tActor.system.limbs && tActor.system.limbs[l]) {
+                                      const v = tActor.system.limbs[l].value;
+                                      updates[`system.limbs.${l}.value`] = Math.max(0, v - realDmg);
+                                  }
+                              });
+                              if(Object.keys(updates).length) await tActor.update(updates);
+                              autoDamageMsg += `<div style="color:red; font-size:0.8em;">💥 ${t.name}: -${realDmg}</div>`;
+                          }
                       }
                   } else {
+                      // Обычная атака
                       await tActor.applyDamage(finalDamage, item.system.damageType || "blunt", location);
                       autoDamageMsg += `<div style="color:red; font-size:0.8em;">🩸 ${t.name}: -${finalDamage} HP</div>`;
                       
@@ -265,10 +286,9 @@ async function _executeAttack(actor, item, attack, location = "torso") {
               }
           }
           dmgHTML = `<div class="z-damage-box"><div class="dmg-label">УРОН ${isCrit ? "(КРИТ!)" : ""}</div><div class="dmg-val">${finalDamage}</div>${autoDamageMsg}</div>`;
-      } catch(e) { console.error(e); }
+      } catch(e) { console.error("ZSystem Attack Error:", e); }
   }
 
-  // РАСХОД МЕТАТЕЛЬНОГО
   if (isThrowingAction) {
       const qty = item.system.quantity;
       if (qty > 1) await item.update({"system.quantity": qty - 1});

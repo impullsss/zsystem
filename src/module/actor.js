@@ -44,11 +44,21 @@ export class ZActor extends Actor {
 
     // Лут: отключение зрения
     if (["container", "harvest_spot"].includes(this.type)) {
-      await this.update({
+      const updates = {
         "prototypeToken.sight.enabled": false,
         "prototypeToken.actorLink": false,
-        "ownership.default": 0,
-      });
+        "ownership.default": 0
+      };
+
+      // Если в данных актора стоит флаг скрытности - прячем прототип токена
+      if (this.system.attributes?.isHidden?.value) {
+          updates["prototypeToken.hidden"] = true;
+          // Если токен уже создан на сцене (редкий кейс, но бывает), прячем и его
+          const tokens = this.getActiveTokens();
+          tokens.forEach(t => t.document.update({hidden: true}));
+      }
+
+      await this.update(updates);
     }
   }
   /**
@@ -233,8 +243,34 @@ export class ZActor extends Actor {
 
   prepareBaseData() {
     const system = this.system;
-    if (this.type === "shelter" || this.type === "container") return;
+    
 
+    // --- ЗАЩИТА ДЛЯ КОНТЕЙНЕРА ---
+    if (this.type === "container") {
+        if (!system.attributes) system.attributes = {};
+        const attr = system.attributes;
+        
+        // Дефолтные значения (если их нет в system.json)
+        if (!attr.isLocked) attr.isLocked = { value: false };
+        if (!attr.keyName) attr.keyName = { value: "" };
+        if (!attr.lockDC) attr.lockDC = { value: 15 };
+        if (!attr.bashDC) attr.bashDC = { value: 18 };
+        if (!attr.canPick) attr.canPick = { value: true }; // Можно ли взламывать?
+        if (!attr.canBash) attr.canBash = { value: true }; // Можно ли выбивать?
+        
+        if (!attr.isTrapped) attr.isTrapped = { value: false };
+        if (!attr.trapActive) attr.trapActive = { value: true };
+        if (!attr.trapDC) attr.trapDC = { value: 15 };
+        if (!attr.disarmDC) attr.disarmDC = { value: 15 };
+        if (!attr.trapSpotRadius) attr.trapSpotRadius = { value: 3 };
+        if (!attr.trapDmg) attr.trapDmg = { value: "2d6" };
+        
+        if (!attr.isHidden) attr.isHidden = { value: false };
+        if (!attr.spotDC) attr.spotDC = { value: 15 };
+        return; // Дальше логика живых существ, контейнеру она не нужна
+    }
+
+    if (this.type === "shelter" || this.type === "container") return;
     if (!system.attributes) system.attributes = {};
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};
@@ -450,7 +486,19 @@ export class ZActor extends Actor {
   }
 
   // --- APPLY DAMAGE (С GM LOG И ПАНИКОЙ) ---
-  async applyDamage(amount, type = "blunt", limb = "torso") {
+  async applyDamage(amount, type = "blunt", limb = "torso", options = {}) {
+    // 1. ЕСЛИ ЭТО ИГРОК -> SOCKETLIB
+   if (!game.user.isGM && !options.fromSocket) {
+        if (game.zsystemSocket) {
+            console.log(`ZSystem (Player) | Socket executing applyDamageGM for ${this.name}`);
+            await game.zsystemSocket.executeAsGM("applyDamageGM", this.uuid, amount, type, limb);
+        } else {
+            ui.notifications.error("Связь с ГМом потеряна (Socketlib error).");
+        }
+        return; 
+    }
+
+    // 2. ДАЛЕЕ КОД ВЫПОЛНЯЕТСЯ ТОЛЬКО У ГМа (или если fromSocket=true)
     if (this.type === "zombie" && type === "fire") amount *= 2;
 
     let totalResist = 0;
@@ -460,11 +508,7 @@ export class ZActor extends Actor {
       const naturalAC = this.system.secondary?.naturalAC?.value || 0;
       totalAC += naturalAC;
       const armors = this.items.filter(
-        (i) =>
-          i.type === "armor" &&
-          i.system.equipped &&
-          i.system.coverage &&
-          i.system.coverage[limb]
+        (i) => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]
       );
       for (let armor of armors) {
         totalResist += Number(armor.system.dr[type]) || 0;
@@ -473,10 +517,7 @@ export class ZActor extends Actor {
       totalResist = Math.min(100, totalResist);
     }
 
-    const dmg = Math.max(
-      0,
-      Math.floor(amount * (1 - totalResist / 100) - totalAC)
-    );
+    const dmg = Math.max(0, Math.floor(amount * (1 - totalResist / 100) - totalAC));
 
     if (dmg > 0) {
       const newHP = this.system.resources.hp.value - dmg;
@@ -487,12 +528,9 @@ export class ZActor extends Actor {
         const newLimbHP = currentLimbVal - dmg;
         updateData[`system.limbs.${limb}.value`] = newLimbHP;
 
-        // Авто-Травма
         if (currentLimbVal > 0 && newLimbHP <= 0) {
           await this._applyInjury(limb);
-          ui.notifications.error(
-            `${this.name}: ${limb.toUpperCase()} повреждена!`
-          );
+          // Уведомления лучше слать только если это не массовая операция, но тут ок
         }
       }
 
@@ -501,58 +539,33 @@ export class ZActor extends Actor {
 
       if (newHP <= deathThreshold) {
         if (!this.hasStatusEffect("dead")) {
-          await this.createEmbeddedDocuments("ActiveEffect", [
-            {
-              id: "dead",
-              name: "Мертв",
-              icon: "icons/svg/skull.svg",
-              statuses: ["dead"],
-            },
-          ]);
-          ui.notifications.error(`${this.name} ПОГИБАЕТ!`);
+          await this.createEmbeddedDocuments("ActiveEffect", [{
+              id: "dead", name: "Мертв", icon: "icons/svg/skull.svg", statuses: ["dead"]
+          }]);
         }
       } else if (this.system.resources.hp.value > 0 && newHP <= 0) {
         if (!this.hasStatusEffect("status-unconscious")) {
-          await this.createEmbeddedDocuments("ActiveEffect", [
-            INJURY_EFFECTS.unconscious,
-            GLOBAL_STATUSES.bleeding,
-          ]);
+          await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
         }
       }
 
       await this.update(updateData);
 
-      // ПАНИКА (Восстановлено)
-      if (
-        this.type !== "zombie" &&
-        this.type !== "shelter" &&
-        newHP > deathThreshold
-      ) {
+      if (this.type !== "zombie" && this.type !== "shelter" && newHP > deathThreshold) {
         await this.checkPanic(dmg);
       }
     }
 
-    // GM LOG
-    const _getLimbName = (k) =>
-      ({
-        head: "Голова",
-        torso: "Торс",
-        lArm: "Л.Рука",
-        rArm: "П.Рука",
-        lLeg: "Л.Нога",
-        rLeg: "П.Нога",
-      }[k] || k);
-    ChatMessage.create({
-      user: game.user.id,
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `<div class="z-damage-result" style="border-left: 5px solid darkred; padding-left:5px; font-size:0.8em; background:#eee; color:#000;">
-                    <b>(GM) Результат урона:</b><br>
-                    Входящий: ${amount} (${type})<br>
-                    Броня: -${totalAC} (Resist ${totalResist}%)<br>
-                    <b>Итог: -${dmg} HP</b> (${_getLimbName(limb)})
-                  </div>`,
-      whisper: ChatMessage.getWhisperRecipients("GM"),
-    });
+    // GM LOG (только ГМ видит детали)
+    if (game.user.isGM) {
+        const _getLimbName = (k) => ({ head: "Голова", torso: "Торс", lArm: "Л.Рука", rArm: "П.Рука", lLeg: "Л.Нога", rLeg: "П.Нога" }[k] || k);
+        ChatMessage.create({
+          content: `<div style="border-left: 3px solid darkred; padding-left:5px; font-size:0.8em; background:#eee;">
+                        <b>Damage Report:</b> ${amount} (${type}) -> <b>-${dmg} HP</b> (${_getLimbName(limb)})
+                      </div>`,
+          whisper: ChatMessage.getWhisperRecipients("GM")
+        });
+    }
   }
 
   // ПРОВЕРКА ПАНИКИ

@@ -30,7 +30,24 @@
         "npc": {}, 
         "zombie": {}, 
         "shelter": {}, 
-        "container": {},
+        "container": {
+        "attributes": {
+            "isLocked": { "value": false },
+            "keyName": { "value": "" },
+            "lockDC": { "value": 15 },
+            "bashDC": { "value": 18 },
+            "isTrapped": { "value": false },
+            "trapActive": { "value": true },
+            "trapDC": { "value": 15 },
+            "disarmDC": { "value": 15 },
+            "trapSpotRadius": { "value": 3 },
+            "trapDmg": { "value": "2d6" },
+            "isHidden": { "value": false },
+            "spotDC": { "value": 15 },
+            "canPick": { "value": true },
+            "canBash": { "value": true }
+        }
+    },
         "harvest_spot": {}
     },
     "Item": { 
@@ -203,5 +220,10 @@
   },
   "grid": { "distance": 1, "units": "m" },
   "primaryTokenAttribute": "resources.hp",
-  "secondaryTokenAttribute": "resources.ap"
+  "secondaryTokenAttribute": "resources.ap",
+  "relationships": {
+    "requires": [
+      { "id": "socketlib", "type": "module" }
+    ]
+  }
 }
