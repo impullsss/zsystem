@@ -3,7 +3,7 @@ import { INJURY_EFFECTS, GLOBAL_STATUSES, INFECTION_STAGES } from "./constants.j
 
 export class ZActor extends Actor {
   async _onCreate(data, options, userId) {
-    await super._onCreate(data, options, userId);
+     await super._onCreate(data, options, userId);
     if (userId !== game.user.id) return;
 
     // Зомби: авто-статы и оружие
@@ -42,32 +42,19 @@ export class ZActor extends Actor {
         );
     }
 
-    // Лут: отключение зрения
+    // Лут: отключение зрения и привязки
     if (["container", "harvest_spot"].includes(this.type)) {
-      const updates = {
+      await this.update({
         "prototypeToken.sight.enabled": false,
-        "prototypeToken.actorLink": false,
-        "ownership.default": 0
-      };
-
-      // Если в данных актора стоит флаг скрытности - прячем прототип токена
-      if (this.system.attributes?.isHidden?.value) {
-          updates["prototypeToken.hidden"] = true;
-          // Если токен уже создан на сцене (редкий кейс, но бывает), прячем и его
-          const tokens = this.getActiveTokens();
-          tokens.forEach(t => t.document.update({hidden: true}));
-      }
-
-      await this.update(updates);
+        "prototypeToken.actorLink": false, // ВАЖНО: false = Unlinked (уникальные копии)
+        "prototypeToken.disposition": 0,   // Neutral
+        "prototypeToken.displayBars": 0
+        // УБРАНО: "ownership.default": 0 - это ломало права на токены!
+      });
     }
   }
-  /**
-   * Ежедневное обновление состояния актора (вызывается из Убежища)
-   * @param {Object} options
-   * @param {boolean} options.hasFood - Хватило ли еды в убежище
-   * @param {boolean} options.isSheltered - Находится ли в безопасности (для бонуса отхила)
-   * @param {boolean} antibioticGiven - Выдал ли ГМ таблетку этому жителю
-   */
+
+  // Ежедневное обновление (Убежище)
   async applyDailyUpdate({ hasFood = true, isSheltered = true, antibioticGiven = false } = {}) {
       if (this.type === 'zombie' || this.type === 'container' || this.type === 'harvest_spot') return null;
 
@@ -81,21 +68,15 @@ export class ZActor extends Actor {
 
       // 1. ПРОВЕРКА ИНФЕКЦИИ
       const inf = this.system.resources.infection;
-      
-      // Логика работает, если стадия > 0 или флаг active (на всякий случай)
       if (inf.active || inf.stage > 0) {
-          
           if (antibioticGiven) {
-              // Антибиотик: снижаем стадию, НО НЕ НИЖЕ 1
-              // Если была 1, останется 1 (сдерживание). Если 2 -> 1.
               const currentStage = Number(inf.stage) || 1;
               const newStage = Math.max(1, currentStage - 1);
-              
               report.infectionChange = newStage;
               
               await this.update({ 
                   "system.resources.infection.stage": newStage,
-                  "system.resources.infection.active": true // Вирус всегда активен, если он есть
+                  "system.resources.infection.active": true 
               });
               await this._updateInfectionStatus(newStage);
               
@@ -104,12 +85,9 @@ export class ZActor extends Actor {
               } else {
                    report.msg.push(`<span style="color:#1e88e5; font-weight:bold;">💊 Состояние улучшилось (Ст. ${newStage})</span>`);
               }
-          
           } else {
-              // Без лекарств: проверка VIG
               const vig = this.system.attributes.vig.value;
               const dc = 10 + (inf.stage * 2);
-              
               const roll = new Roll("1d10 + @vig", { vig });
               await roll.evaluate();
               
@@ -138,7 +116,7 @@ export class ZActor extends Actor {
 
       if (report.died) return report;
 
-      // 2. ЛЕЧЕНИЕ (Только если есть еда)
+      // 2. ЛЕЧЕНИЕ
       if (hasFood) {
           const vig = this.system.attributes.vig.value;
           let healAmount = vig + 5; 
@@ -174,11 +152,9 @@ export class ZActor extends Actor {
               await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.fatigued]);
           }
       }
-
       return report;
   }
 
-  // Вспомогательный метод для обновления иконки эффекта инфекции
   async _updateInfectionStatus(stage) {
       const existing = this.effects.filter(e => e.flags?.zsystem?.isInfection);
       if (existing.length) await this.deleteEmbeddedDocuments("ActiveEffect", existing.map(e => e.id));
@@ -205,14 +181,7 @@ export class ZActor extends Actor {
           apCost: 5,
           equipped: true,
           attacks: {
-            default: {
-              name: "Укус",
-              ap: 5,
-              dmg: "4d6 + 11",
-              mod: 28,
-              effect: "infected",
-              chance: 40,
-            },
+            default: { name: "Укус", ap: 5, dmg: "4d6 + 11", mod: 28, effect: "infected", chance: 40 },
           },
         },
       },
@@ -227,14 +196,7 @@ export class ZActor extends Actor {
           apCost: 4,
           equipped: true,
           attacks: {
-            default: {
-              name: "Раздирание",
-              ap: 4,
-              dmg: "3d4 + 7",
-              mod: 38,
-              effect: "bleeding",
-              chance: 25,
-            },
+            default: { name: "Раздирание", ap: 4, dmg: "3d4 + 7", mod: 38, effect: "bleeding", chance: 25 },
           },
         },
       },
@@ -244,19 +206,16 @@ export class ZActor extends Actor {
   prepareBaseData() {
     const system = this.system;
     
-
     // --- ЗАЩИТА ДЛЯ КОНТЕЙНЕРА ---
     if (this.type === "container") {
         if (!system.attributes) system.attributes = {};
         const attr = system.attributes;
-        
-        // Дефолтные значения (если их нет в system.json)
         if (!attr.isLocked) attr.isLocked = { value: false };
         if (!attr.keyName) attr.keyName = { value: "" };
         if (!attr.lockDC) attr.lockDC = { value: 15 };
         if (!attr.bashDC) attr.bashDC = { value: 18 };
-        if (!attr.canPick) attr.canPick = { value: true }; // Можно ли взламывать?
-        if (!attr.canBash) attr.canBash = { value: true }; // Можно ли выбивать?
+        if (!attr.canPick) attr.canPick = { value: true };
+        if (!attr.canBash) attr.canBash = { value: true };
         
         if (!attr.isTrapped) attr.isTrapped = { value: false };
         if (!attr.trapActive) attr.trapActive = { value: true };
@@ -267,7 +226,7 @@ export class ZActor extends Actor {
         
         if (!attr.isHidden) attr.isHidden = { value: false };
         if (!attr.spotDC) attr.spotDC = { value: 15 };
-        return; // Дальше логика живых существ, контейнеру она не нужна
+        return; 
     }
 
     if (this.type === "shelter" || this.type === "container") return;
@@ -280,8 +239,6 @@ export class ZActor extends Actor {
     limbKeys.forEach((k) => {
       if (!system.limbs[k])
         system.limbs[k] = { value: 10, max: 10, penalty: 0 };
-      if (typeof system.limbs[k].penalty === "undefined")
-        system.limbs[k].penalty = 0;
     });
 
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
@@ -298,7 +255,6 @@ export class ZActor extends Actor {
       system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
     if (!system.resources.infection)
       system.resources.infection = { value: 0, stage: 0, active: false };
-    system.resources.ap.effect = 0;
     if (!system.secondary.xp) system.secondary.xp = { value: 0 };
   }
 
@@ -306,7 +262,6 @@ export class ZActor extends Actor {
     const system = this.system;
     if (this.type === "shelter" || this.type === "container") return;
     if (!system.attributes) return;
-
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};
     if (!system.skills) system.skills = {};
@@ -316,8 +271,8 @@ export class ZActor extends Actor {
       return isNaN(n) ? 0 : n;
     };
     const s = {};
-
     let spentStats = 0;
+
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     attrKeys.forEach((key) => {
       const attr = system.attributes[key];
@@ -328,8 +283,7 @@ export class ZActor extends Actor {
       s[key] = attr.value;
     });
 
-    if (!system.secondary.spentStats)
-      system.secondary.spentStats = { value: 0 };
+    if (!system.secondary.spentStats) system.secondary.spentStats = { value: 0 };
     system.secondary.spentStats.value = spentStats;
 
     system.secondary.bravery = { value: Math.floor((s.cha + s.per) / 2) };
@@ -357,11 +311,11 @@ export class ZActor extends Actor {
     if (!system.secondary.carryWeight)
       system.secondary.carryWeight = { value: 0, max: 0 };
     system.secondary.carryWeight.max = 40 + (s.str - 1) * 10;
+    
     let totalWeight = 0;
     if (this.items) {
       this.items.forEach((item) => {
-        totalWeight +=
-          getNum(item.system.weight) * getNum(item.system.quantity);
+        totalWeight += getNum(item.system.weight) * getNum(item.system.quantity);
       });
     }
     system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
@@ -392,37 +346,29 @@ export class ZActor extends Actor {
         system.skills[key] = { base: 0, value: 0, points: 0 };
       const skill = system.skills[key];
       if (this.type === "zombie" && skill.base > 0) {
+          // Zombies use manual base
       } else {
         if (key === "science") skill.base = s.int * 4;
-        else if (key === "mechanical")
-          skill.base = s.int + Math.max(s.str, s.agi);
-        else if (key === "survival")
-          skill.base = s.per + Math.max(s.vig, s.int);
+        else if (key === "mechanical") skill.base = s.int + Math.max(s.str, s.agi);
+        else if (key === "survival") skill.base = s.per + Math.max(s.vig, s.int);
         else skill.base = s[conf.a1] + s[conf.a2];
       }
       const invested = getNum(skill.points);
       spentSkills += invested;
       skill.value = Math.min(100, skill.base + invested);
     }
-    if (!system.secondary.spentSkills)
-      system.secondary.spentSkills = { value: 0 };
+    if (!system.secondary.spentSkills) system.secondary.spentSkills = { value: 0 };
     system.secondary.spentSkills.value = spentSkills;
 
-    // --- LIMBS CALCULATION (С учетом пенальти) ---
+    // --- LIMBS CALCULATION ---
     if (this.type !== "zombie") {
-      const totalHP = system.resources.hp.max; // Это уже макс с учетом общего штрафа
-
+      const totalHP = system.resources.hp.max;
       const setLimb = (part, percent) => {
         const limb = system.limbs[part];
-        // Базовый макс от текущего общего Макс ХП
         const baseMax = Math.floor(totalHP * percent);
-        // Вычитаем пенальти конечности
         limb.max = Math.max(1, baseMax - (limb.penalty || 0));
-
-        // Кап (чтобы текущее не было больше макса)
         if (limb.value > limb.max) limb.value = limb.max;
       };
-
       setLimb("head", 0.2);
       setLimb("torso", 0.45);
       setLimb("lArm", 0.15);
@@ -444,26 +390,15 @@ export class ZActor extends Actor {
       const fireRoll = new Roll("1d6");
       await fireRoll.evaluate();
       const fireDmg = fireRoll.total;
-      let newHP = this.system.resources.hp.value - fireDmg;
-      const updates = { "system.resources.hp.value": newHP };
-      const limbs = ["head", "torso", "lArm", "rArm", "lLeg", "rLeg"];
-      for (let limb of limbs) {
-        if (this.system.limbs && this.system.limbs[limb]) {
-          const currentLimbHP = this.system.limbs[limb].value;
-          updates[`system.limbs.${limb}.value`] = Math.max(
-            0,
-            currentLimbHP - fireDmg
-          );
-        }
-      }
-      await this.update(updates);
+      await this.applyDamage(fireDmg, "true", "torso"); 
       ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg} по всем частям тела.</div>`,
+        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg}</div>`,
       });
       if (this.type !== "zombie") maxAP = Math.max(0, maxAP - 4);
     }
     await this.update({ "system.resources.ap.value": maxAP });
+    
     if (this.hasStatusEffect("bleeding")) {
       const roll = new Roll("1d5");
       await roll.evaluate();
@@ -485,21 +420,16 @@ export class ZActor extends Actor {
     if (this.hasStatusEffect("panic")) await Dice.rollPanicTable(this);
   }
 
-  // --- APPLY DAMAGE (С GM LOG И ПАНИКОЙ) ---
+  // --- APPLY DAMAGE ---
   async applyDamage(amount, type = "blunt", limb = "torso") {
-    console.log(`ZActor | Calculating Damage: ${amount} to ${this.name} (${limb})`);
-
-    // 1. Уязвимость Зомби к огню
     if (this.type === "zombie" && type === "fire") amount *= 2;
 
-    // 2. Расчет Брони (Total Resistance)
     let totalResist = 0;
     let totalAC = 0;
 
     if (type !== "true") {
       const naturalAC = this.system.secondary?.naturalAC?.value || 0;
       totalAC += naturalAC;
-      // Ищем броню, покрывающую эту зону
       const armors = this.items.filter(
         (i) => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]
       );
@@ -507,34 +437,27 @@ export class ZActor extends Actor {
         totalResist += Number(armor.system.dr[type]) || 0;
         totalAC += Number(armor.system.ac) || 0;
       }
-      totalResist = Math.min(100, totalResist); // Не более 100% резиста
+      totalResist = Math.min(100, totalResist);
     }
 
-    // 3. Формула
     const dmg = Math.max(0, Math.floor(amount * (1 - totalResist / 100) - totalAC));
 
-    // 4. Нанесение
     if (dmg > 0) {
       const currentHP = this.system.resources.hp.value;
       const newHP = currentHP - dmg;
       const updateData = { "system.resources.hp.value": newHP };
 
-      // Урон конечности
       if (this.system.limbs && this.system.limbs[limb]) {
         const currentLimbVal = this.system.limbs[limb].value;
         const newLimbHP = Math.max(0, currentLimbVal - dmg);
         updateData[`system.limbs.${limb}.value`] = newLimbHP;
-
-        // Если сломали
         if (currentLimbVal > 0 && newLimbHP <= 0) {
           await this._applyInjury(limb);
         }
       }
 
-      // Применение обновлений
       await this.update(updateData);
 
-      // Проверка Смерти / KO
       const vig = this.system.attributes?.vig?.value || 1;
       const deathThreshold = -(vig * 5);
 
@@ -545,50 +468,38 @@ export class ZActor extends Actor {
           await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
       }
 
-      // Паника (кроме зомби)
       if (this.type !== "zombie" && this.type !== "shelter" && newHP > deathThreshold) {
         await this.checkPanic(dmg);
       }
-
-      // Лог для ГМа (Чтобы ты видел что урон прошел)
       const _limbNames = {head:"Голова", torso:"Торс", lArm:"Л.Рука", rArm:"П.Рука", lLeg:"Л.Нога", rLeg:"П.Нога"};
       ui.notifications.info(`${this.name}: -${dmg} HP (${_limbNames[limb] || limb})`);
     } else {
-        ui.notifications.info(`${this.name}: Урон полностью поглощен броней!`);
+        ui.notifications.info(`${this.name}: Урон поглощен броней!`);
     }
   }
 
-  // ПРОВЕРКА ПАНИКИ
   async checkPanic(damageAmount) {
     if (this.hasStatusEffect("panic")) return;
-
     const bravery = this.system.secondary.bravery.value || 0;
     const tenacity = this.system.secondary.tenacity.value || 0;
-
     if (damageAmount > tenacity) {
       const roll = new Roll("1d100");
       await roll.evaluate();
       const saveTarget = bravery * 5;
-
       if (roll.total > saveTarget) {
         await Dice.rollPanicTable(this);
       }
     }
   }
 
-  // --- ЛЕЧЕНИЕ (С GM LOG) ---
+  // --- ЛЕЧЕНИЕ ---
   async useMedicine(item) {
     const targets = Array.from(game.user.targets);
     if (targets.length === 0) return ui.notifications.warn("Выберите цель!");
     const targetActor = targets[0].actor;
 
     const limbs = {
-      torso: "Торс (ОБЩ)",
-      head: "Голова",
-      lArm: "Л.Рука",
-      rArm: "П.Рука",
-      lLeg: "Л.Нога",
-      rLeg: "П.Нога",
+      torso: "Торс (ОБЩ)", head: "Голова", lArm: "Л.Рука", rArm: "П.Рука", lLeg: "Л.Нога", rLeg: "П.Нога",
     };
     let options = "";
     for (let [k, v] of Object.entries(limbs)) {
@@ -628,12 +539,8 @@ export class ZActor extends Actor {
       const medSkill = this.system.skills.medical.value || 0;
       const skillBonus = Math.floor(medSkill / 5); 
       const baseHeal = Number(item.system.healAmount) || 0;
-      
       const totalHeal = baseHeal + skillBonus;
-      
-      // --- ИСПРАВЛЕНА ФОРМУЛА ШТРАФА (Минимум 5) ---
       const penaltyIncrease = Math.max(5, baseHeal - skillBonus); 
-      // --------------------------------------------------
 
       const updates = {};
       const res = targetActor.system.resources.hp;
@@ -662,30 +569,17 @@ export class ZActor extends Actor {
                       ${penaltyIncrease > 0 ? `<div style="color:red; font-size:0.8em;">-${penaltyIncrease} Max HP (Штраф)</div>` : ""}
                     </div>`
       });
-
-      ChatMessage.create({
-          content: `<div style="background:#eee; padding:5px; border:1px solid #999; font-size:0.8em;">
-            <b>(GM) Medicine Info:</b><br>
-            Skill: ${medSkill} (Bonus ${skillBonus})<br>
-            Item Base: ${baseHeal}<br>
-            <b>Penalty Added: ${penaltyIncrease}</b> (Limb: ${limbKey})
-          </div>`,
-          whisper: ChatMessage.getWhisperRecipients("GM")
-      });
   }
 
   // ОТДЫХ
   async longRest() {
     if (this.type === "zombie") return;
-
     const vig = this.system.attributes.vig.value;
     const hpRecovery = 10 + vig;
     const penRecovery = 10;
-
     const curHP = this.system.resources.hp.value;
     const curPenalty = this.system.resources.hp.penalty || 0;
     const newPenalty = Math.max(0, curPenalty - penRecovery);
-
     const baseMaxHP = 70 + (vig - 1) * 10;
     const newMaxHP = baseMaxHP - newPenalty;
     const newHP = Math.min(newMaxHP, curHP + hpRecovery);
@@ -701,13 +595,10 @@ export class ZActor extends Actor {
 
     for (const key of Object.keys(this.system.limbs)) {
       const l = this.system.limbs[key];
-      const lPenalty = l.penalty || 0;
-      const lNewPenalty = Math.max(0, lPenalty - limbPenRecovery);
-
+      const lNewPenalty = Math.max(0, (l.penalty || 0) - limbPenRecovery);
       updates[`system.limbs.${key}.penalty`] = lNewPenalty;
       updates[`system.limbs.${key}.value`] = l.value + limbRecovery;
     }
-
     await this.update(updates);
     ui.notifications.info(`${this.name}: Отдых завершен.`);
   }
@@ -750,8 +641,7 @@ export class ZActor extends Actor {
   async reloadWeapon(item) {
     if (item.type !== "weapon") return;
     const ammoType = item.system.ammoType;
-    if (!ammoType)
-      return ui.notifications.warn("Этому оружию не нужны патроны.");
+    if (!ammoType) return ui.notifications.warn("Этому оружию не нужны патроны.");
 
     const maxMag = Number(item.system.mag.max) || 0;
     const currentMag = Number(item.system.mag.value) || 0;
@@ -761,28 +651,19 @@ export class ZActor extends Actor {
     if (this.system.resources.ap.value < apCost)
       return ui.notifications.warn(`Нужно ${apCost} AP для перезарядки.`);
 
-    const ammoItem = this.items.find(
-      (i) => i.type === "ammo" && i.system.calibre === ammoType
-    );
-    if (!ammoItem)
-      return ui.notifications.warn(`Нет патронов калибра "${ammoType}".`);
+    const ammoItem = this.items.find((i) => i.type === "ammo" && i.system.calibre === ammoType);
+    if (!ammoItem) return ui.notifications.warn(`Нет патронов калибра "${ammoType}".`);
 
     const needed = maxMag - currentMag;
     const available = ammoItem.system.quantity;
     const toLoad = Math.min(needed, available);
 
-    await this.update({
-      "system.resources.ap.value": this.system.resources.ap.value - apCost,
-    });
+    await this.update({ "system.resources.ap.value": this.system.resources.ap.value - apCost });
     await item.update({ "system.mag.value": currentMag + toLoad });
 
     if (available - toLoad <= 0) await ammoItem.delete();
     else await ammoItem.update({ "system.quantity": available - toLoad });
-
-    ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `${this.name} перезаряжает ${item.name} (${toLoad} пт.).`,
-    });
+    ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: this }), content: `${this.name} перезаряжает ${item.name} (${toLoad} пт.).` });
   }
 
   async standUp() {
@@ -790,47 +671,26 @@ export class ZActor extends Actor {
     if (!proneEffect) return ui.notifications.info("Персонаж уже стоит.");
     const cost = 3;
     const curAP = this.system.resources.ap.value;
-    if (curAP < cost)
-      return ui.notifications.warn(`Недостаточно AP (${cost}).`);
+    if (curAP < cost) return ui.notifications.warn(`Недостаточно AP (${cost}).`);
     await proneEffect.delete();
     await this.update({ "system.resources.ap.value": curAP - cost });
-    ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `<b>${this.name}</b> встает (-${cost} AP).`,
-    });
+    ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: this }), content: `<b>${this.name}</b> встает (-${cost} AP).` });
   }
 
   async riseAsZombie() {
     if (this.type !== "survivor" && this.type !== "npc") return;
     const tokens = this.getActiveTokens();
-    const pos =
-      tokens.length > 0 ? { x: tokens[0].x, y: tokens[0].y } : { x: 0, y: 0 };
-    const zombieData = {
-      name: `Zombie (${this.name})`,
-      type: "zombie",
-      img: "icons/svg/skull.svg",
-    };
+    const pos = tokens.length > 0 ? { x: tokens[0].x, y: tokens[0].y } : { x: 0, y: 0 };
+    const zombieData = { name: `Zombie (${this.name})`, type: "zombie", img: "icons/svg/skull.svg" };
     const newZombie = await Actor.create(zombieData);
     const itemsToCopy = this.items.map((i) => i.toObject());
-    if (itemsToCopy.length > 0)
-      await newZombie.createEmbeddedDocuments("Item", itemsToCopy);
+    if (itemsToCopy.length > 0) await newZombie.createEmbeddedDocuments("Item", itemsToCopy);
     const allowedStatuses = ["immolated", "bleeding"];
-    const effectsToCopy = this.effects
-      .filter((e) => e.statuses.some((s) => allowedStatuses.includes(s)))
-      .map((e) => e.toObject());
-    if (effectsToCopy.length > 0)
-      await newZombie.createEmbeddedDocuments("ActiveEffect", effectsToCopy);
+    const effectsToCopy = this.effects.filter((e) => e.statuses.some((s) => allowedStatuses.includes(s))).map((e) => e.toObject());
+    if (effectsToCopy.length > 0) await newZombie.createEmbeddedDocuments("ActiveEffect", effectsToCopy);
     if (tokens.length > 0) {
       const scene = game.scenes.current;
-      await scene.createEmbeddedDocuments("Token", [
-        {
-          name: newZombie.name,
-          actorId: newZombie.id,
-          img: this.img,
-          x: pos.x,
-          y: pos.y,
-        },
-      ]);
+      await scene.createEmbeddedDocuments("Token", [{ name: newZombie.name, actorId: newZombie.id, img: this.img, x: pos.x, y: pos.y }]);
       await tokens[0].document.delete();
     }
     ui.notifications.notify(`${this.name} восстает из мертвых!`);
@@ -847,32 +707,12 @@ export class ZActor extends Actor {
         updates[`system.limbs.${key}.value`] = this.system.limbs[key].max;
       }
     }
-    const effectsToDelete = this.effects
-      .filter((e) => {
-        const isInjury = Object.values(INJURY_EFFECTS).some((ie) =>
-          e.statuses.has(ie.id)
-        );
-        const isGlobal = Object.values(GLOBAL_STATUSES).some((gs) =>
-          e.statuses.has(gs.id)
-        );
+    const effectsToDelete = this.effects.filter((e) => {
+        const isInjury = Object.values(INJURY_EFFECTS).some((ie) => e.statuses.has(ie.id));
+        const isGlobal = Object.values(GLOBAL_STATUSES).some((gs) => e.statuses.has(gs.id));
         return isInjury || isGlobal || e.statuses.has("dead");
-      })
-      .map((e) => e.id);
-    if (effectsToDelete.length > 0)
-      await this.deleteEmbeddedDocuments("ActiveEffect", effectsToDelete);
+    }).map((e) => e.id);
+    if (effectsToDelete.length > 0) await this.deleteEmbeddedDocuments("ActiveEffect", effectsToDelete);
     await this.update(updates);
   }
-}
-
-function _getLimbName(key) {
-  return (
-    {
-      head: "Голова",
-      torso: "Торс",
-      lArm: "Л.Рука",
-      rArm: "П.Рука",
-      lLeg: "Л.Нога",
-      rLeg: "П.Нога",
-    }[key] || key
-  );
 }
