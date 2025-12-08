@@ -221,101 +221,117 @@ export class ZHarvestSheet extends ActorSheet {
   }
 
   async _onHarvestAttempt(event) {
-    event.preventDefault();
-    const idx = event.currentTarget.dataset.idx;
-    const actions = this.actor.getFlag("zsystem", "actions");
-    const action = actions[idx];
+      event.preventDefault();
+      const idx = event.currentTarget.dataset.idx;
+      // Безопасное чтение действий
+      const actions = this.actor.getFlag("zsystem", "actions") || []; 
+      const action = actions[idx];
 
-    const tokens = canvas.tokens.controlled;
-    if (!tokens.length) return ui.notifications.warn("Выберите токен!");
-    const character = tokens[0].actor;
+      if (!action) return ui.notifications.error("Действие не найдено. Попробуйте обновить настройки.");
 
-    if (
-      character.id === this.actor.id ||
-      ["harvest_spot", "container"].includes(character.type)
-    ) {
-      return ui.notifications.warn("Этот объект не может действовать.");
-    }
-
-    if (action.toolRequired && action.reqTool) {
-      const hasTool = character.items.find((i) =>
-        i.name.toLowerCase().includes(action.reqTool.toLowerCase())
-      );
-      if (!hasTool)
-        return ui.notifications.error(`Требуется: ${action.reqTool}`);
-    }
-
-    const skillVal = character.system.skills[action.skill]?.value || 0;
-    let chance = skillVal - (Number(action.dc) || 0);
-    let bonusText = "";
-
-    if (action.bonusTool && action.bonusMod) {
-      const hasBonusItem = character.items.find((i) =>
-        i.name.toLowerCase().includes(action.bonusTool.toLowerCase())
-      );
-      if (hasBonusItem) {
-        const bVal = Number(action.bonusMod);
-        chance += bVal;
-        bonusText = ` (+${bVal}% ${action.bonusTool})`;
+      const tokens = canvas.tokens.controlled;
+      if (!tokens.length) return ui.notifications.warn("Выберите токен!");
+      const character = tokens[0].actor;
+      
+      if (character.id === this.actor.id || ["harvest_spot", "container"].includes(character.type)) {
+          return ui.notifications.warn("Этот объект не может действовать.");
       }
-    }
-    chance = Math.max(5, Math.min(95, chance));
 
-    const roll = new Roll("1d100");
-    await roll.evaluate();
+      // 1. Проверка Инструмента
+      if (action.toolRequired && action.reqTool) {
+          const hasTool = character.items.find(i => i.name.toLowerCase().includes(action.reqTool.toLowerCase()));
+          if (!hasTool) return ui.notifications.error(`Требуется: ${action.reqTool}`);
+      }
 
-    const outcomes = this.actor.flags.zsystem.outcomes || {};
+      // 2. Шанс
+      const skillVal = character.system.skills[action.skill]?.value || 0;
+      let chance = skillVal - (Number(action.dc) || 0);
+      let bonusText = "";
 
-    let resultKey = "";
-    if (roll.total <= 5) resultKey = "critSuccess";
-    else if (roll.total <= chance) resultKey = "success";
-    else if (roll.total >= 96) resultKey = "critFail";
-    else resultKey = "fail";
+      // Бонусный инструмент
+      if (action.bonusTool && action.bonusMod) {
+          const hasBonusItem = character.items.find(i => i.name.toLowerCase().includes(action.bonusTool.toLowerCase()));
+          if (hasBonusItem) {
+              const bVal = Number(action.bonusMod);
+              chance += bVal;
+              bonusText = ` (+${bVal}% ${action.bonusTool})`;
+          }
+      }
 
-    if (resultKey === "critSuccess" && !outcomes.critSuccess)
-      resultKey = "success";
-    const outcome = outcomes[resultKey] || {};
-    const flavor = outcome.text || "Результат...";
+      chance = Math.max(5, Math.min(95, chance));
 
-    let effectMsg = "";
-    const val = Number(outcome.value) || 0;
-    let noiseToAdd = 0;
+      // 3. Бросок
+      const roll = new Roll("1d100");
+      await roll.evaluate();
+      
+      // === ВАЖНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ===
+      // Мы задаем дефолтные значения прямо здесь, чтобы логика работала, даже если ГМ ничего не настраивал
+      const defaultOutcomes = {
+          critSuccess: { text: "Идеально!", type: "none", value: 0, limb: "torso" },
+          success: { text: "Успех!", type: "none", value: 0, limb: "torso" },
+          fail: { text: "Провал.", type: "noise", value: 5, limb: "torso" },
+          critFail: { text: "Катастрофа!", type: "damage", value: 5, limb: "torso" }
+      };
+      
+      // Сливаем сохраненные флаги поверх дефолтных
+      const savedOutcomes = this.actor.flags.zsystem?.outcomes || {};
+      const outcomes = foundry.utils.mergeObject(defaultOutcomes, savedOutcomes);
+      
+      let resultKey = "";
+      if (roll.total <= 5) resultKey = "critSuccess";
+      else if (roll.total <= chance) resultKey = "success";
+      else if (roll.total >= 96) resultKey = "critFail";
+      else resultKey = "fail";
 
-    if (val > 0) {
-      if (outcome.type === "noise") {
-        noiseToAdd = val;
-        effectMsg = `<div style="color:orange; font-weight:bold; margin-top:5px; border-top:1px dashed #555; padding-top:2px;">
+      // Фолбек для старых данных (на всякий случай)
+      if (resultKey === "critSuccess" && !outcomes.critSuccess) resultKey = "success";
+
+      const outcome = outcomes[resultKey] || {};
+      const flavor = outcome.text || "Результат...";
+
+      // --- ПРИМЕНЕНИЕ ЭФФЕКТОВ (ШУМ / УРОН) ---
+      let effectMsg = "";
+      const val = Number(outcome.value) || 0;
+      let noiseToAdd = 0; // Накопитель для флага
+
+      if (val > 0) {
+          // A) ШУМ
+          if (outcome.type === 'noise') {
+              noiseToAdd = val;
+              effectMsg = `<div style="color:orange; font-weight:bold; margin-top:5px; border-top:1px dashed #555; padding-top:2px;">
                              <i class="fas fa-volume-up"></i> Шум +${val}
                            </div>`;
-      } else if (outcome.type === "damage") {
-        const limb = outcome.limb || "torso";
-        const limbName = this.getData().limbOptions[limb] || limb;
-        await character.applyDamage(val, "blunt", limb);
-        effectMsg = `<div style="color:#d32f2f; font-weight:bold; margin-top:5px; border-top:1px dashed #555; padding-top:2px;">
+          } 
+          // B) УРОН
+          else if (outcome.type === 'damage') {
+              const limb = outcome.limb || "torso";
+              // Получаем название конечности (либо из опций листа, либо заглушку)
+              const limbNames = { torso: "Торс", head: "Голова", lArm: "Л.Рука", rArm: "П.Рука", lLeg: "Л.Нога", rLeg: "П.Нога" };
+              const limbName = limbNames[limb] || limb;
+              
+              await character.applyDamage(val, "blunt", limb);
+              
+              effectMsg = `<div style="color:#d32f2f; font-weight:bold; margin-top:5px; border-top:1px dashed #555; padding-top:2px;">
                              <i class="fas fa-tint"></i> Урон ${val} (${limbName})
                            </div>`;
+          }
       }
-    }
 
-    if (resultKey === "critSuccess" || resultKey === "success") {
-      await this._openContainer();
-    } else if (resultKey === "critFail") {
-      await this.actor.setFlag("zsystem", "isBroken", true);
-      await this.actor.update({ img: "icons/svg/hazard.svg" });
-    }
+      // Открытие / Поломка
+      if (resultKey === "critSuccess" || resultKey === "success") {
+          await this._openContainer();
+      } else if (resultKey === "critFail") {
+          await this.actor.setFlag("zsystem", "isBroken", true);
+          await this.actor.update({img: "icons/svg/hazard.svg"});
+      }
 
-    // CSS FIX: Ищем "success" в lowercase, чтобы поймать "critSuccess"
-    const statusClass = resultKey.toLowerCase().includes("success")
-      ? "success"
-      : "failure";
-    const labels = {
-      critSuccess: "КРИТ. УСПЕХ",
-      success: "УСПЕХ",
-      fail: "ПРОВАЛ",
-      critFail: "КРИТ. ПРОВАЛ",
-    };
+      // CSS FIX: Ищем "success" в lowercase
+      const statusClass = (resultKey.toLowerCase().includes("success")) ? "success" : "failure";
+      const labels = { 
+          critSuccess: "КРИТ. УСПЕХ", success: "УСПЕХ", fail: "ПРОВАЛ", critFail: "КРИТ. ПРОВАЛ" 
+      };
 
-    let content = `
+      let content = `
         <div class="z-chat-card">
           <div class="z-card-header">${character.name}: ${action.name}</div>
           <div class="z-card-sub">Навык: ${action.skill} (${skillVal}) ${bonusText} - DC ${action.dc} = <b>${chance}%</b></div>
@@ -328,12 +344,17 @@ export class ZHarvestSheet extends ActorSheet {
             ${effectMsg}
           </div>
         </div>`;
-
-    ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: character }),
-      content: content,
-      flags: { zsystem: { noiseAdd: noiseToAdd } },
-    });
+      
+      // Отправляем сообщение С ФЛАГАМИ для ГМа (Шум)
+      ChatMessage.create({ 
+          speaker: ChatMessage.getSpeaker({actor: character}), 
+          content: content,
+          flags: {
+              zsystem: {
+                  noiseAdd: noiseToAdd
+              }
+          }
+      });
   }
 
   async _openContainer() {
