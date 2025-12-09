@@ -11,38 +11,62 @@ import { ZHarvestSheet } from "./module/harvest-sheet.js";
 
 // Глобальный перехватчик: только ГМ исполняет команды
 Hooks.on("createChatMessage", async (message, options, userId) => {
-  if (!game.user.isGM) return;
+  if (!game.user.isGM) return; // Только ГМ обрабатывает логику
+  
   const flags = message.flags?.zsystem;
   if (!flags) return;
 
-  // 1. ШУМ
+  // 1. ШУМ (Без изменений)
   if (flags.noiseAdd > 0) {
     const current = game.settings.get("zsystem", "currentNoise");
-    await game.settings.set(
-      "zsystem",
-      "currentNoise",
-      Math.max(0, current + flags.noiseAdd)
-    );
-    console.log(`ZSystem (GM) | Шум увеличен на ${flags.noiseAdd}`);
+    await game.settings.set("zsystem", "currentNoise", Math.max(0, current + flags.noiseAdd));
   }
 
-  // 2. УРОН
+  // --- НОВОЕ: РАСПАКОВКА GM INFO ---
+  // ГМ видит сообщение с флагом gmInfo и создает для себя приватную копию
+  if (flags.gmInfo) {
+      // Создаем сообщение локально только для ГМа (себя)
+      // Важно: мы не используем Socket, мы просто создаем сообщение в чате ГМа от имени Системы
+      await ChatMessage.create({
+          user: game.user.id,
+          speaker: { alias: "System" },
+          content: flags.gmInfo,
+          whisper: [game.user.id],
+          type: CONST.CHAT_MESSAGE_TYPES.WHISPER,
+          sound: null // Без звука
+      });
+      
+      // Опционально: очистить флаг из оригинала, чтобы не дублировать при перезагрузке, 
+      // но это не обязательно для чата.
+  }
+  // --------------------------------
+
+  // 2. УРОН (Без изменений)
   if (flags.damageData && Array.isArray(flags.damageData)) {
-    for (let entry of flags.damageData) {
-      const doc = await fromUuid(entry.uuid);
-      const actor = doc?.actor || doc;
-      if (actor) await actor.applyDamage(entry.amount, entry.type, entry.limb);
-    }
+      // ... (твой старый код обработки урона и Undo) ...
+      const undoLog = [];
+      for (let entry of flags.damageData) {
+        // ...
+        // КОД УРОНА ОСТАВЛЯЕМ КАК БЫЛ В ПРОШЛОМ ШАГЕ
+        // ...
+        const doc = await fromUuid(entry.uuid);
+        const actor = doc?.actor || doc;
+        if (actor) {
+             const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb);
+             if (undoData) undoLog.push(undoData);
+        }
+      }
+      if (undoLog.length > 0) await message.setFlag("zsystem", "undoData", undoLog);
   }
 
-  // 3. ОБНОВЛЕНИЕ АКТОРОВ (Для Контейнеров и Точек сбора)
+  // 3. ОБНОВЛЕНИЕ АКТОРОВ (Без изменений)
   if (flags.actorUpdate) {
+     // ... код ...
     const doc = await fromUuid(flags.actorUpdate.uuid);
     const actor = doc?.actor || doc;
     if (actor) {
       const updates = flags.actorUpdate.updates;
       await actor.update(updates);
-      // Если меняется картинка, форсируем обновление текстуры токена
       if (updates.img && actor.isToken) {
         await actor.token.update({ texture: { src: updates.img } });
       }
@@ -50,11 +74,61 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   }
 });
 
+// === ИСПРАВЛЕННЫЙ ХУК: Контекстное меню (Отмена Урона) ===
+Hooks.on("getChatMessageContextOptions", (html, options) => {
+  options.push({
+    name: "Отменить Урон",
+    icon: '<i class="fas fa-undo"></i>',
+    condition: (li) => {
+      const messageId = $(li).data("messageId");
+      const message = game.messages.get(messageId);
+      return game.user.isGM && message?.getFlag("zsystem", "undoData");
+    },
+    callback: async (li) => {
+      const messageId = $(li).data("messageId");
+      const message = game.messages.get(messageId);
+      const undoLog = message?.getFlag("zsystem", "undoData");
+
+      if (!undoLog || !Array.isArray(undoLog)) return;
+
+      for (let entry of undoLog) {
+        // ФИКС: Используем fromUuid для поиска, поддерживая и токены, и акторов
+        const doc = await fromUuid(entry.uuid);
+        const actor = doc?.actor || doc; // Если doc это TokenDocument, берем .actor. Если Actor, то это он сам.
+
+        if (actor) {
+          // 1. Откат значений
+          if (!foundry.utils.isEmpty(entry.updates)) {
+            await actor.update(entry.updates);
+          }
+
+          // 2. Удаление созданных эффектов
+          if (entry.createdEffectIds && entry.createdEffectIds.length > 0) {
+            // Фильтруем ID: удаляем только те, что реально существуют на акторе сейчас
+            const idsToDelete = entry.createdEffectIds.filter((id) =>
+              actor.effects.has(id)
+            );
+
+            if (idsToDelete.length > 0) {
+              await actor.deleteEmbeddedDocuments("ActiveEffect", idsToDelete);
+            }
+          }
+          ui.notifications.info(`Откат для ${actor.name} выполнен.`);
+        } else {
+            ui.notifications.warn(`Не удалось найти актора для отката (UUID: ${entry.uuid})`);
+        }
+      }
+      // Удаляем флаг, чтобы нельзя было отменить дважды
+      await message.unsetFlag("zsystem", "undoData");
+    },
+  });
+});
+
 Hooks.once("init", () => {
+  // ... Init код без изменений ...
   console.log("ZSystem | Initializing...");
   loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
 
-  // Helpers
   Handlebars.registerHelper("capitalize", (str) =>
     typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : ""
   );
@@ -141,67 +215,54 @@ Hooks.on("updateCombat", async (combat, changed) => {
   }
 });
 
-// --- ВАЖНЫЙ ФИКС: ПРАВА НА ТОКЕНЫ ЛУТА ---
+// --- Права на токены ---
 Hooks.on("preCreateToken", (tokenDoc, data, options, userId) => {
-    const actor = tokenDoc.actor;
-    if (!actor) return;
-
-    // 1. ЛУТ И КОНТЕЙНЕРЫ (Только настройки, БЕЗ прав)
-    if (["container", "harvest_spot"].includes(actor.type)) {
-        tokenDoc.updateSource({
-            "actorLink": false,       // Всегда уникальные
-            "sight.enabled": false,   // Нет зрения
-            "disposition": 0,         // Нейтральные
-            "displayBars": 0          // Скрыть бары HP
-        });
-    }
-
-    // 2. ОСТАЛЬНАЯ ЛОГИКА (Скрытность)
-    if (actor.system.attributes?.isHidden?.value) {
-        tokenDoc.updateSource({ hidden: true });
-    }
+  const actor = tokenDoc.actor;
+  if (!actor) return;
+  if (["container", "harvest_spot"].includes(actor.type)) {
+    tokenDoc.updateSource({
+      actorLink: false,
+      "sight.enabled": false,
+      disposition: 0,
+      displayBars: 0,
+    });
+  }
+  if (actor.system.attributes?.isHidden?.value) {
+    tokenDoc.updateSource({ hidden: true });
+  }
 });
 
 Hooks.on("createToken", async (tokenDoc, options, userId) => {
-    // Выполняет только тот, кто создал токен (обычно ГМ), чтобы не было спама в БД
-    if (userId !== game.user.id) return;
-
-    // Работаем только с непривязанными токенами (лут)
-    if (!tokenDoc.actorLink) {
-        const actor = tokenDoc.actor;
-        if (!actor) return;
-
-        if (["harvest_spot", "container"].includes(actor.type)) {
-            // ownership.default = 3 (OWNER). Делаем актора доступным всем.
-            // Это меняет права именно на Синтетическом Акторе внутри сцены.
-            console.log(`ZSystem | Granting Ownership for: ${actor.name}`);
-            await actor.update({ "ownership.default": 3 });
-        }
+  if (userId !== game.user.id) return;
+  if (!tokenDoc.actorLink) {
+    const actor = tokenDoc.actor;
+    if (!actor) return;
+    if (["harvest_spot", "container"].includes(actor.type)) {
+      await actor.update({ "ownership.default": 3 });
     }
+  }
 });
 
 Hooks.on("preDeleteToken", (tokenDoc, context, userId) => {
-    // ГМу можно всё
-    if (game.user.isGM) return true;
-
-    const actor = tokenDoc.actor;
-    if (!actor) return true;
-
-    // Запрещаем игрокам удалять лут с карты (даже если они Owners)
-    if (["harvest_spot", "container"].includes(actor.type)) {
-        ui.notifications.warn("Вы не можете удалить этот объект!");
-        return false;
-    }
-    return true;
+  if (game.user.isGM) return true;
+  const actor = tokenDoc.actor;
+  if (!actor) return true;
+  if (["harvest_spot", "container"].includes(actor.type)) {
+    ui.notifications.warn("Вы не можете удалить этот объект!");
+    return false;
+  }
+  return true;
 });
 
+// --- ЛОГИКА ТРИГГЕРОВ (ОСТАВЛЯЕМ КАК БЫЛО В ПРОШЛОМ ШАГЕ) ---
 Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
   if (userId !== game.user.id) return;
   if (!changes.x && !changes.y) return;
-  
+
   const token = tokenDoc.object;
   const actor = token.actor;
-  if (!actor || ["container", "harvest_spot", "shelter"].includes(actor.type)) return;
+  if (!actor || ["container", "harvest_spot", "shelter"].includes(actor.type))
+    return;
   const isZombie = actor.type === "zombie";
 
   const interactiveObjs = canvas.tokens.placeables.filter(
@@ -213,98 +274,83 @@ Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
     const sys = cActor.system.attributes;
     if (!sys) continue;
 
-    const dist = canvas.grid.measureDistance(token, cToken, { gridSpaces: true });
-    
-    // --- 1. ОБНАРУЖЕНИЕ ТАЙНИКА (Hidden) ---
+    const dist = canvas.grid.measureDistance(token, cToken, {
+      gridSpaces: true,
+    });
+
+    // 1. ОБНАРУЖЕНИЕ ТАЙНИКА
     if (!isZombie && sys.isHidden?.value) {
-        // Используем новый атрибут spotRadius
-        const spotRadius = Number(sys.spotRadius?.value) || 2;
-        
-        if (dist <= spotRadius) {
-            const flagKey = `checked_spot_${cToken.id}`;
-            
-            if (!actor.getFlag("zsystem", flagKey)) {
-                await actor.setFlag("zsystem", flagKey, true);
-                
-                const per = actor.system.attributes.per.value;
-                const roll = new Roll("1d10 + @per", { per });
-                await roll.evaluate();
-                const dc = sys.spotDC?.value || 15;
-                
-                if (roll.total >= dc) {
-                    await cActor.update({ "system.attributes.isHidden.value": false });
-                    await cToken.document.update({ hidden: false });
-                    
-                    ChatMessage.create({ 
-                        content: `<div style="color:green">👁️ <b>${actor.name}</b> замечает скрытый тайник!</div>`, 
-                        speaker: ChatMessage.getSpeaker({ actor }) 
-                    });
-                } else {
-                    // ТЕПЕРЬ ЭТО WHISPER GM
-                    ChatMessage.create({ 
-                        content: `<i>${actor.name} проходит мимо тайника (PER ${roll.total} < ${dc})</i>`, 
-                        whisper: ChatMessage.getWhisperRecipients("GM") 
-                    });
-                }
-            }
+      const spotRadius = Number(sys.spotRadius?.value) || 2;
+      if (dist <= spotRadius) {
+        const flagKey = `checked_spot_${cToken.id}`;
+        if (!actor.getFlag("zsystem", flagKey)) {
+          await actor.setFlag("zsystem", flagKey, true);
+          const per = actor.system.attributes.per.value;
+          const roll = new Roll("1d10 + @per", { per });
+          await roll.evaluate();
+          const dc = sys.spotDC?.value || 15;
+          if (roll.total >= dc) {
+            await cActor.update({ "system.attributes.isHidden.value": false });
+            await cToken.document.update({ hidden: false });
+            ChatMessage.create({
+              content: `<div style="color:green">👁️ <b>${actor.name}</b> замечает скрытый тайник!</div>`,
+              speaker: ChatMessage.getSpeaker({ actor }),
+            });
+          } else {
+            ChatMessage.create({
+              content: `<i>${actor.name} проходит мимо тайника (PER ${roll.total} < ${dc})</i>`,
+              whisper: ChatMessage.getWhisperRecipients("GM"),
+            });
+          }
         }
+      }
     }
 
-    // --- 2. АКТИВАЦИЯ ЛОВУШКИ (Trigger + AoE) ---
+    // 2. АКТИВАЦИЯ ЛОВУШКИ
     if (sys.isTrapped?.value && sys.trapActive?.value) {
-        const triggerDist = Number(sys.trapTriggerRadius?.value) || 1;
-        
-        if (dist <= triggerDist) {
-              // 1. Деактивируем
-              await cActor.update({ "system.attributes.trapActive.value": false });
-              
-              // 2. Урон
-              const dmgFormula = sys.trapDmg?.value || "2d6";
-              const r = new Roll(dmgFormula);
-              await r.evaluate();
-              
-              // 3. Шум
-              const noiseAmount = r.total > 0 ? 20 : 10; 
-              NoiseManager.add(noiseAmount);
-              
-              // 4. Цели
-              let targets = [actor]; 
-              const blastRadius = Number(sys.trapDamageRadius?.value) || 0;
-              
-              if (blastRadius > 0) {
-                  const others = canvas.tokens.placeables.filter(t => 
-                      t.actor && t.id !== token.id && 
-                      t.actor.type !== "container" && t.actor.type !== "harvest_spot" &&
-                      canvas.grid.measureDistance(cToken, t, {gridSpaces:true}) <= blastRadius
-                  );
-                  others.forEach(t => targets.push(t.actor));
-              }
+      const triggerDist = Number(sys.trapTriggerRadius?.value) || 1;
+      if (dist <= triggerDist) {
+        await cActor.update({ "system.attributes.trapActive.value": false });
+        const dmgFormula = sys.trapDmg?.value || "2d6";
+        const r = new Roll(dmgFormula);
+        await r.evaluate();
+        const noiseAmount = r.total > 0 ? 20 : 10;
+        NoiseManager.add(noiseAmount);
 
-              // 5. Наносим урон (МНОЖЕСТВЕННЫЙ)
-              const limbs = sys.trapLimbs || { torso: true };
-              const activeLimbs = Object.keys(limbs).filter(k => limbs[k]); // Список выбранных конечностей
-              
-              // Если ничего не выбрано, бьем в торс по дефолту
-              if (activeLimbs.length === 0) activeLimbs.push("torso");
+        let targets = [actor];
+        const blastRadius = Number(sys.trapDamageRadius?.value) || 0;
+        if (blastRadius > 0) {
+          const others = canvas.tokens.placeables.filter(
+            (t) =>
+              t.actor &&
+              t.id !== token.id &&
+              t.actor.type !== "container" &&
+              t.actor.type !== "harvest_spot" &&
+              canvas.grid.measureDistance(cToken, t, { gridSpaces: true }) <=
+                blastRadius
+          );
+          others.forEach((t) => targets.push(t.actor));
+        }
 
-              ChatMessage.create({
-                content: `<div style="color:red; font-weight:bold; font-size:1.2em;">💥 ЛОВУШКА СРАБОТАЛА!</div>
+        const limbs = sys.trapLimbs || { torso: true };
+        const activeLimbs = Object.keys(limbs).filter((k) => limbs[k]);
+        if (activeLimbs.length === 0) activeLimbs.push("torso");
+
+        ChatMessage.create({
+          content: `<div style="color:red; font-weight:bold; font-size:1.2em;">💥 ЛОВУШКА СРАБОТАЛА!</div>
                           <div>Радиус: ${blastRadius}м</div>
                           <div>Урон: ${r.total} (x${activeLimbs.length} зон)</div>`,
-                speaker: ChatMessage.getSpeaker({ actor: cActor }),
-              });
+          speaker: ChatMessage.getSpeaker({ actor: cActor }),
+        });
 
-              if (r.total > 0) {
-                  for (let victim of targets) {
-                      for (let limb of activeLimbs) {
-                          // Наносим урон каждой конечности отдельно.
-                          // Система Actor.js сама вычтет HP каждый раз.
-                          // 20 урона в Голову + 20 урона в Торс = -40 HP и травмы обеих зон.
-                          await victim.applyDamage(r.total, "fire", limb);
-                      }
-                  }
-              }
+        if (r.total > 0) {
+          for (let victim of targets) {
+            for (let limb of activeLimbs) {
+              await victim.applyDamage(r.total, "fire", limb);
+            }
+          }
         }
+      }
     }
   }
 });
@@ -337,7 +383,6 @@ Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
       ui.notifications.warn("GM Override: Moving with insufficient AP.");
     }
   }
-
   actor.update({ "system.resources.ap.value": curAP - cost });
   return true;
 });

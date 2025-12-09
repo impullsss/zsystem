@@ -2,6 +2,7 @@ import * as Dice from "./dice.js";
 import { INJURY_EFFECTS, GLOBAL_STATUSES, INFECTION_STAGES } from "./constants.js";
 
 export class ZActor extends Actor {
+
   async _onCreate(data, options, userId) {
      await super._onCreate(data, options, userId);
     if (userId !== game.user.id) return;
@@ -445,6 +446,13 @@ export class ZActor extends Actor {
 
   // --- APPLY DAMAGE ---
   async applyDamage(amount, type = "blunt", limb = "torso") {
+    const undoData = {
+        uuid: this.uuid, // <--- ФИКС 1: Используем UUID вместо ID для поддержки Токенов
+        updates: {},
+        createdEffectIds: []
+    };
+
+    let originalAmount = amount;
     if (this.type === "zombie" && type === "fire") amount *= 2;
 
     let totalResist = 0;
@@ -465,17 +473,38 @@ export class ZActor extends Actor {
 
     const dmg = Math.max(0, Math.floor(amount * (1 - totalResist / 100) - totalAC));
 
+    // ДЕТАЛИЗАЦИЯ ПОГЛОЩЕНИЯ (Лог для ГМа)
+    // ФИКС 2: blind: true скрывает сообщение от игрока-отправителя
+    ChatMessage.create({
+        content: `<div style="font-size:0.85em; color:#555; background:#eee; padding:3px; border:1px solid #ccc;">
+                    <b>Absorb Log (${this.name})</b><br>
+                    Raw: ${originalAmount} (${type})<br>
+                    Armor AC: -${totalAC}<br>
+                    Resist: -${totalResist}%<br>
+                    <b>Final: ${dmg}</b>
+                  </div>`,
+        whisper: ChatMessage.getWhisperRecipients("GM"),
+        blind: true, // <--- ВАЖНО
+        speaker: { alias: "System" }
+    });
+
     if (dmg > 0) {
       const currentHP = this.system.resources.hp.value;
       const newHP = currentHP - dmg;
+      
+      undoData.updates["system.resources.hp.value"] = currentHP;
       const updateData = { "system.resources.hp.value": newHP };
 
       if (this.system.limbs && this.system.limbs[limb]) {
         const currentLimbVal = this.system.limbs[limb].value;
         const newLimbHP = Math.max(0, currentLimbVal - dmg);
+        
+        undoData.updates[`system.limbs.${limb}.value`] = currentLimbVal;
         updateData[`system.limbs.${limb}.value`] = newLimbHP;
+        
         if (currentLimbVal > 0 && newLimbHP <= 0) {
-          await this._applyInjury(limb);
+          const addedIds = await this._applyInjury(limb);
+          if(addedIds) undoData.createdEffectIds.push(...addedIds);
         }
       }
 
@@ -485,33 +514,57 @@ export class ZActor extends Actor {
       const deathThreshold = -(vig * 5);
 
       if (newHP <= deathThreshold && !this.hasStatusEffect("dead")) {
-          await this.createEmbeddedDocuments("ActiveEffect", [{id:"dead", name:"Мертв", icon:"icons/svg/skull.svg", statuses:["dead"]}]);
+          const eff = await this.createEmbeddedDocuments("ActiveEffect", [{id:"dead", name:"Мертв", icon:"icons/svg/skull.svg", statuses:["dead"]}]);
+          undoData.createdEffectIds.push(eff[0].id);
       } 
       else if (currentHP > 0 && newHP <= 0 && !this.hasStatusEffect("status-unconscious")) {
-          await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious, GLOBAL_STATUSES.bleeding]);
+          const eff1 = await this.createEmbeddedDocuments("ActiveEffect", [INJURY_EFFECTS.unconscious]);
+          undoData.createdEffectIds.push(eff1[0].id);
+          
+          const eff2 = await this._applyBleeding("torso"); 
+          if(eff2) undoData.createdEffectIds.push(eff2);
       }
 
       if (this.type !== "zombie" && this.type !== "shelter" && newHP > deathThreshold) {
         await this.checkPanic(dmg);
       }
+      
       const _limbNames = {head:"Голова", torso:"Торс", lArm:"Л.Рука", rArm:"П.Рука", lLeg:"Л.Нога", rLeg:"П.Нога"};
       ui.notifications.info(`${this.name}: -${dmg} HP (${_limbNames[limb] || limb})`);
+      
+      return undoData;
+
     } else {
         ui.notifications.info(`${this.name}: Урон поглощен броней!`);
+        return null;
     }
   }
 
+  async _applyBleeding(limb) {
+      const base = GLOBAL_STATUSES.bleeding;
+      const uniqueId = `bleeding-${limb}`;
+      
+      // Проверка на дубликаты
+      const exists = this.effects.some(e => e.id === uniqueId);
+      if (exists) return null; // Возвращаем null, если эффект уже есть
+
+      const eff = foundry.utils.deepClone(base);
+      eff.id = uniqueId;
+      eff.name = `Кровотечение (${limb})`;
+      eff.statuses = ["bleeding", uniqueId]; 
+
+      const created = await this.createEmbeddedDocuments("ActiveEffect", [eff]);
+      return created[0].id;
+  }
+
   async checkPanic(damageAmount) {
-    if (this.hasStatusEffect("panic")) return;
+    if (this.hasStatusEffect("panic") || this.hasStatusEffect("dead") || this.hasStatusEffect("status-unconscious")) return;
     const bravery = this.system.secondary.bravery.value || 0;
     const tenacity = this.system.secondary.tenacity.value || 0;
     if (damageAmount > tenacity) {
-      const roll = new Roll("1d100");
-      await roll.evaluate();
+      const roll = new Roll("1d100"); await roll.evaluate();
       const saveTarget = bravery * 5;
-      if (roll.total > saveTarget) {
-        await Dice.rollPanicTable(this);
-      }
+      if (roll.total > saveTarget) await Dice.rollPanicTable(this);
     }
   }
 
@@ -635,12 +688,22 @@ export class ZActor extends Actor {
 
     if (effectData) {
       const exists = this.effects.some((e) => e.statuses.has(effectData.id));
-      if (!exists) {
+      let finalId = effectData.id;
+      if (limb.includes("Arm") || limb.includes("Leg")) {
+          finalId = `${effectData.id}-${limb}`; 
+      }
+      const realExists = this.effects.some(e => e.id === finalId || (e.statuses && e.statuses.has(finalId)));
+      
+      if (!realExists) {
         const eff = foundry.utils.deepClone(effectData);
+        eff.id = finalId; 
         eff.name += ` (${limb})`;
-        await this.createEmbeddedDocuments("ActiveEffect", [eff]);
+        eff.statuses = [finalId]; 
+        const created = await this.createEmbeddedDocuments("ActiveEffect", [eff]);
+        return created.map(c => c.id);
       }
     }
+    return [];
   }
 
   async _consumeItem(item) {
@@ -651,6 +714,24 @@ export class ZActor extends Actor {
 
   getRollData() {
     return { ...super.getRollData(), ...this.system };
+  }
+
+  async rollAttribute(attrKey) {
+      const attr = this.system.attributes[attrKey];
+      const label = { str: "СИЛА", agi: "ЛОВКОСТЬ", vig: "ЖИВУЧЕСТЬ", per: "ВОСПРИЯТИЕ", int: "ИНТЕЛЛЕКТ", cha: "ХАРИЗМА" }[attrKey] || attrKey;
+
+      Dice.showRollDialog(label, async (modifier, rollMode) => {
+          const formula = `1d10 + @attr + @mod`;
+          const rollData = { attr: attr.value, mod: modifier };
+          const roll = new Roll(formula, rollData);
+          await roll.evaluate();
+
+          await roll.toMessage({
+              speaker: ChatMessage.getSpeaker({ actor: this }),
+              flavor: `Проверка характеристики: <b>${label}</b>${modifier!==0 ? ` (Mod: ${modifier})` : ""}`,
+              flags: { zsystem: { type: "attribute", key: attrKey } }
+          }, { rollMode: rollMode });
+      });
   }
 
   async rollSkill(skillId) {

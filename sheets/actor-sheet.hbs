@@ -105,7 +105,11 @@
 
                     {{#each system.attributes as |attr key|}}
                     <div class="attr-grid attr-row">
-                        <label>{{lookup ../labels.attributes key}}</label>
+                        <!-- ИЗМЕНЕНИЕ: Добавлен класс attr-roll, data-key и стиль курсора -->
+                        <label class="attr-roll" data-key="{{key}}" style="cursor:pointer; border-bottom:1px dotted #ccc;">
+                            <i class="fas fa-dice-d10"></i> {{lookup ../labels.attributes key}}
+                        </label>
+                        
                         <input type="number" name="system.attributes.{{key}}.base" value="{{attr.base}}"/>
                         <span class="attr-mod" style="{{#if (ne attr.mod 0)}}color:#d84315; font-weight:bold;{{/if}}">
                             {{numberFormat attr.mod sign=true}}

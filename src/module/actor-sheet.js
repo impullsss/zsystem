@@ -131,7 +131,11 @@ export class ZActorSheet extends ActorSheet {
       const max = this.actor.system.resources?.ap?.max || 0;
       await this.actor.update({ "system.resources.ap.value": max });
     });
-
+    html.find(".attr-roll").click((ev) => {
+        const key = ev.currentTarget.dataset.key;
+        this.actor.rollAttribute(key);
+    });
+    
     html.find(".skill-roll").click((ev) => {
       const skillKey = $(ev.currentTarget).closest(".skill-row").data("skill");
       this.actor.rollSkill(skillKey);
