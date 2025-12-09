@@ -210,25 +210,48 @@ export class ZActor extends Actor {
     if (this.type === "container") {
         if (!system.attributes) system.attributes = {};
         const attr = system.attributes;
+        
+        // Замок
         if (!attr.isLocked) attr.isLocked = { value: false };
         if (!attr.keyName) attr.keyName = { value: "" };
         if (!attr.lockDC) attr.lockDC = { value: 15 };
+        if (!attr.canPick) attr.canPick = { value: true }; 
+        if (!attr.canBash) attr.canBash = { value: true }; 
         if (!attr.bashDC) attr.bashDC = { value: 18 };
-        if (!attr.canPick) attr.canPick = { value: true };
-        if (!attr.canBash) attr.canBash = { value: true };
+        if (!attr.noiseFormula) attr.noiseFormula = { value: "2d6" };
         
+        // --- ЛОВУШКА (V3) ---
         if (!attr.isTrapped) attr.isTrapped = { value: false };
         if (!attr.trapActive) attr.trapActive = { value: true };
-        if (!attr.trapDC) attr.trapDC = { value: 15 };
-        if (!attr.disarmDC) attr.disarmDC = { value: 15 };
-        if (!attr.trapSpotRadius) attr.trapSpotRadius = { value: 3 };
-        if (!attr.trapDmg) attr.trapDmg = { value: "2d6" };
         
+        // Урон
+        if (!attr.trapDmg) attr.trapDmg = { value: "2d6" }; 
+        
+        // НОВОЕ: Объект с конечностями (вместо одной строки)
+        if (!attr.trapLimbs) attr.trapLimbs = { 
+            head: false, torso: true, // По дефолту торс
+            lArm: false, rArm: false, 
+            lLeg: false, rLeg: false 
+        };
+        
+        // Радиусы
+        if (!attr.trapTriggerRadius) attr.trapTriggerRadius = { value: 1 };
+        if (!attr.trapDamageRadius) attr.trapDamageRadius = { value: 0 };
+        
+        // Обезвреживание
+        if (!attr.disarmDC) attr.disarmDC = { value: 15 };
+        if (!attr.disarmNoise) attr.disarmNoise = { value: "2" };
+        // НОВОЕ: Навык для обезвреживания
+        if (!attr.disarmSkill) attr.disarmSkill = { value: "mechanical" };
+        
+        // Схрон
         if (!attr.isHidden) attr.isHidden = { value: false };
         if (!attr.spotDC) attr.spotDC = { value: 15 };
+        if (!attr.spotRadius) attr.spotRadius = { value: 3 }; 
+        
         return; 
     }
-
+    
     if (this.type === "shelter" || this.type === "container") return;
     if (!system.attributes) system.attributes = {};
     if (!system.resources) system.resources = {};

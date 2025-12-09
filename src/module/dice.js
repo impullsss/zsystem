@@ -2,14 +2,14 @@ import { NoiseManager } from "./noise.js";
 import { GLOBAL_STATUSES } from "./constants.js";
 
 // ... (_calcResult, _getSlotMachineHTML, rollSkill - без изменений) ...
-function _calcResult(roll, target) {
+export function _calcResult(roll, target) {
     if (roll <= 5) return "crit-success";
     if (roll >= 96) return "crit-fail";
     if (roll <= target) return "success";
     return "fail";
 }
 
-function _getSlotMachineHTML(label, target, rollTotal, resultType) {
+export function _getSlotMachineHTML(label, target, rollTotal, resultType) {
     let statusClass = (resultType.includes("success")) ? "success" : "failure";
     let statusLabel = (resultType === "crit-success") ? "КРИТ. УСПЕХ" : (resultType === "success" ? "УСПЕХ" : (resultType === "crit-fail" ? "КРИТ. ПРОВАЛ" : "ПРОВАЛ"));
     return `<div class="z-chat-card"><div class="z-card-header">${label}</div><div class="z-card-sub">Цель: ${target}%</div><div class="z-slot-machine"><div class="z-reel-window"><div class="z-reel-spin ${statusClass}">${rollTotal}</div></div></div><div class="z-result-label ${statusClass}">${statusLabel}</div></div>`;

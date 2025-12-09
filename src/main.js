@@ -196,66 +196,115 @@ Hooks.on("preDeleteToken", (tokenDoc, context, userId) => {
 });
 
 Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
-  if (!game.user.isGM) return;
+  if (userId !== game.user.id) return;
   if (!changes.x && !changes.y) return;
+  
   const token = tokenDoc.object;
   const actor = token.actor;
-  if (!actor || ["container", "harvest_spot", "shelter"].includes(actor.type))
-    return;
+  if (!actor || ["container", "harvest_spot", "shelter"].includes(actor.type)) return;
   const isZombie = actor.type === "zombie";
 
-  // ПРОВЕРКА ЛОВУШЕК И СХРОНОВ (Окружение)
-  const containers = canvas.tokens.placeables.filter(
+  const interactiveObjs = canvas.tokens.placeables.filter(
     (t) => t.actor && ["container", "harvest_spot"].includes(t.actor.type)
   );
 
-  for (let cToken of containers) {
+  for (let cToken of interactiveObjs) {
     const cActor = cToken.actor;
     const sys = cActor.system.attributes;
-    if (!sys || cActor.type !== "container") continue;
+    if (!sys) continue;
 
-    const dist = canvas.grid.measureDistance(token, cToken, {
-      gridSpaces: true,
-    });
-    const spotRadius = Number(sys.trapSpotRadius?.value) || 2;
-
-    // Схрон
-    if (!isZombie && sys.isHidden?.value && dist <= spotRadius) {
-      const flagKey = `spotted_hidden_${cActor.id}`;
-      if (!actor.getFlag("zsystem", flagKey)) {
-        await actor.setFlag("zsystem", flagKey, true);
-        const per = actor.system.attributes.per.value;
-        const roll = new Roll("1d10 + @per", { per });
-        await roll.evaluate();
-        const dc = sys.spotDC?.value || 15;
-        if (roll.total >= dc) {
-          await cActor.update({ "system.attributes.isHidden.value": false });
-          await cToken.document.update({ hidden: false });
-          ChatMessage.create({
-            content: `👁️ <b>${actor.name}</b> замечает тайник!`,
-            speaker: ChatMessage.getSpeaker({ actor }),
-          });
-        } else {
-          ChatMessage.create({
-            content: `<i>${actor.name} прошел мимо тайника (PER ${roll.total} vs ${dc})</i>`,
-            whisper: ChatMessage.getWhisperRecipients("GM"),
-          });
+    const dist = canvas.grid.measureDistance(token, cToken, { gridSpaces: true });
+    
+    // --- 1. ОБНАРУЖЕНИЕ ТАЙНИКА (Hidden) ---
+    if (!isZombie && sys.isHidden?.value) {
+        // Используем новый атрибут spotRadius
+        const spotRadius = Number(sys.spotRadius?.value) || 2;
+        
+        if (dist <= spotRadius) {
+            const flagKey = `checked_spot_${cToken.id}`;
+            
+            if (!actor.getFlag("zsystem", flagKey)) {
+                await actor.setFlag("zsystem", flagKey, true);
+                
+                const per = actor.system.attributes.per.value;
+                const roll = new Roll("1d10 + @per", { per });
+                await roll.evaluate();
+                const dc = sys.spotDC?.value || 15;
+                
+                if (roll.total >= dc) {
+                    await cActor.update({ "system.attributes.isHidden.value": false });
+                    await cToken.document.update({ hidden: false });
+                    
+                    ChatMessage.create({ 
+                        content: `<div style="color:green">👁️ <b>${actor.name}</b> замечает скрытый тайник!</div>`, 
+                        speaker: ChatMessage.getSpeaker({ actor }) 
+                    });
+                } else {
+                    // ТЕПЕРЬ ЭТО WHISPER GM
+                    ChatMessage.create({ 
+                        content: `<i>${actor.name} проходит мимо тайника (PER ${roll.total} < ${dc})</i>`, 
+                        whisper: ChatMessage.getWhisperRecipients("GM") 
+                    });
+                }
+            }
         }
-      }
     }
 
-    // Ловушка
-    if (sys.isTrapped?.value && sys.trapActive?.value && dist < 0.9) {
-      await cActor.update({ "system.attributes.trapActive.value": false });
-      const dmg = sys.trapDmg?.value || "2d6";
-      const r = new Roll(dmg);
-      await r.evaluate();
-      await actor.applyDamage(r.total, "fire", "torso");
-      NoiseManager.add(20);
-      ChatMessage.create({
-        content: `<div style="color:red; font-weight:bold;">💥 ЛОВУШКА!</div><div>Урон: ${r.total}</div>`,
-        speaker: ChatMessage.getSpeaker({ actor: cActor }),
-      });
+    // --- 2. АКТИВАЦИЯ ЛОВУШКИ (Trigger + AoE) ---
+    if (sys.isTrapped?.value && sys.trapActive?.value) {
+        const triggerDist = Number(sys.trapTriggerRadius?.value) || 1;
+        
+        if (dist <= triggerDist) {
+              // 1. Деактивируем
+              await cActor.update({ "system.attributes.trapActive.value": false });
+              
+              // 2. Урон
+              const dmgFormula = sys.trapDmg?.value || "2d6";
+              const r = new Roll(dmgFormula);
+              await r.evaluate();
+              
+              // 3. Шум
+              const noiseAmount = r.total > 0 ? 20 : 10; 
+              NoiseManager.add(noiseAmount);
+              
+              // 4. Цели
+              let targets = [actor]; 
+              const blastRadius = Number(sys.trapDamageRadius?.value) || 0;
+              
+              if (blastRadius > 0) {
+                  const others = canvas.tokens.placeables.filter(t => 
+                      t.actor && t.id !== token.id && 
+                      t.actor.type !== "container" && t.actor.type !== "harvest_spot" &&
+                      canvas.grid.measureDistance(cToken, t, {gridSpaces:true}) <= blastRadius
+                  );
+                  others.forEach(t => targets.push(t.actor));
+              }
+
+              // 5. Наносим урон (МНОЖЕСТВЕННЫЙ)
+              const limbs = sys.trapLimbs || { torso: true };
+              const activeLimbs = Object.keys(limbs).filter(k => limbs[k]); // Список выбранных конечностей
+              
+              // Если ничего не выбрано, бьем в торс по дефолту
+              if (activeLimbs.length === 0) activeLimbs.push("torso");
+
+              ChatMessage.create({
+                content: `<div style="color:red; font-weight:bold; font-size:1.2em;">💥 ЛОВУШКА СРАБОТАЛА!</div>
+                          <div>Радиус: ${blastRadius}м</div>
+                          <div>Урон: ${r.total} (x${activeLimbs.length} зон)</div>`,
+                speaker: ChatMessage.getSpeaker({ actor: cActor }),
+              });
+
+              if (r.total > 0) {
+                  for (let victim of targets) {
+                      for (let limb of activeLimbs) {
+                          // Наносим урон каждой конечности отдельно.
+                          // Система Actor.js сама вычтет HP каждый раз.
+                          // 20 урона в Голову + 20 урона в Торс = -40 HP и травмы обеих зон.
+                          await victim.applyDamage(r.total, "fire", limb);
+                      }
+                  }
+              }
+        }
     }
   }
 });
