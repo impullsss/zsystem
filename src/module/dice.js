@@ -173,6 +173,9 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   const skillVal = actor.system.skills[skillType]?.value || 0;
   const atkMod = Number(attack.mod) || 0;
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
+
+  // Проверка Стелса
+  const isStealth = actor.hasStatusEffect("stealth");
   
   // Уклонение
   let evasionMod = 0;
@@ -193,10 +196,22 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   
   const roll = new Roll("1d100");
   await roll.evaluate();
+
+  // --- РАСЧЕТ КРИТА ---
+  const baseCritChance = Number(item.system.critChance) || 0;
+  const stealthCritBonus = isStealth ? 5 : 0; 
+  const critThreshold = 5 + baseCritChance + stealthCritBonus;
   
-  const resultType = _calcResult(roll.total, targetChance);
+  // Определение результата
+  let resultType = "fail";
+  if (roll.total <= critThreshold) resultType = "crit-success";
+  else if (roll.total <= targetChance) resultType = "success";
+  else if (roll.total >= 96) resultType = "crit-fail";
+
+  // === ВОТ ЭТИ СТРОЧКИ БЫЛИ ПРОПУЩЕНЫ ===
   const isHit = resultType.includes("success");
   const isCrit = resultType === "crit-success";
+  // =======================================
 
   // --- РАСЧЕТ УРОНА ---
   let dmgAmount = 0;
@@ -207,7 +222,11 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   if (isHit || isGrenade) {
       let formula = attack.dmg || "0";
       if (isGrenade && !isHit) formula = `ceil((${formula}) / 2)`; 
-      if (isCrit) formula = `ceil((${formula}) * 1.5)`;
+      
+      if (isCrit) {
+          const critMult = Number(item.system.critMult) || 1.5;
+          formula = `ceil((${formula}) * ${critMult})`;
+      }
       
       if (skillType === 'melee' || isThrownWeapon) {
           const s = actor.system.attributes.str.value;
@@ -229,7 +248,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       targets.forEach(t => {
           if (t.document?.uuid) {
               damageDataForGM.push({
-                  uuid: t.document.uuid, // Здесь мы уже передавали uuid, это хорошо
+                  uuid: t.document.uuid,
                   amount: dmgAmount,
                   type: item.system.damageType || "blunt",
                   limb: location
@@ -238,31 +257,20 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       });
   }
 
-  const noise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
-  const noiseHtml = noise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${noise}</div>` : "";
+  // --- РАСЧЕТ ШУМА ---
+  let baseNoise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
+  
+  // Если Стелс - шум делится на 2
+  if (isStealth && baseNoise > 0) {
+      baseNoise = Math.ceil(baseNoise / 2);
+  }
+
+  const noiseHtml = baseNoise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${baseNoise} ${isStealth ? '(Стелс)' : ''}</div>` : "";
 
   const modText = modifier !== 0 ? ` (${modifier > 0 ? "+" : ""}${modifier})` : "";
   
-  // КАРТОЧКА БРОСКА
   const cardHtml = _getSlotMachineHTML(item.name + evasionMsg + modText, targetChance, roll.total, resultType);
   
-  // 1. ОТПРАВКА ОСНОВНОГО СООБЩЕНИЯ (Учитывает режим)
-//   await ChatMessage.create({
-//       speaker: ChatMessage.getSpeaker({actor}),
-//       content: `${cardHtml}${dmgDisplay}${noiseHtml}<div class="z-ap-spent">-${apCost} AP</div>`,
-//       type: CONST.CHAT_MESSAGE_TYPES.OTHER,
-//       flags: {
-//           zsystem: {
-//               noiseAdd: noise,
-//               damageData: damageDataForGM 
-//           }
-//       }
-//   }, { 
-//       rollMode: rollMode 
-//   });
-
-  // 2. ОТПРАВКА ДЕТАЛИЗАЦИИ (ВСЕГДА WHISPER GM и BLIND)
-  // Это сообщение видит только ГМ. Игрок не видит даже "System whispers to GM".
   const gmContent = `
   <div style="font-size:0.85em; background:#1a1a1a; color:#ccc; padding:5px; border:1px dashed #555; font-family:monospace; margin-top:5px;">
       <div style="color:#ffab91; font-weight:bold; border-bottom:1px solid #333;">GM INFO: ${actor.name} -> ${targetName}</div>
@@ -280,9 +288,9 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       type: CONST.CHAT_MESSAGE_TYPES.OTHER,
       flags: {
           zsystem: {
-              noiseAdd: noise,
+              noiseAdd: baseNoise, // ИСПРАВЛЕНО: noise -> baseNoise
               damageData: damageDataForGM,
-              gmInfo: gmContent // <--- ВАЖНО: Передаем HTML здесь
+              gmInfo: gmContent
           }
       }
   }, { 

@@ -150,10 +150,12 @@
         "mag": { "value": 0, "max": 0 },
         "reloadAP": 4,
         "range": 1,
-        "attacks": {} ,
+        "attacks": {},
         "isThrowing": false,
         "blastRadius": 0,
-        "templateType": "circle"
+        "templateType": "circle",
+        "critChance": 0,
+        "critMult": 1.5
       },
       "ammo": {
         "templates": ["base"],

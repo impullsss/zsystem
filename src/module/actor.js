@@ -55,6 +55,26 @@ export class ZActor extends Actor {
     }
   }
 
+  async _onUpdate(data, options, userId) {
+    await super._onUpdate(data, options, userId);
+    if (userId !== game.user.id) return;
+
+    // Проверка перегруза при изменении предметов или статов
+    // Мы проверяем вычисляемое свойство, которое настроили в prepareDerivedData
+    const isOverburdened = this.system.secondary?.isOverburdened;
+    const hasEffect = this.hasStatusEffect("overburdened");
+
+    if (isOverburdened && !hasEffect) {
+        // Накладываем эффект без изменений статов (чисто иконка), т.к. статы режем в prepareData
+        const effectData = GLOBAL_STATUSES.overburdened;
+        await this.createEmbeddedDocuments("ActiveEffect", [effectData]);
+        ui.notifications.warn(`${this.name}: Перегруз! (-2 AP)`);
+    } else if (!isOverburdened && hasEffect) {
+        const effect = this.effects.find(e => e.statuses.has("overburdened"));
+        if (effect) await effect.delete();
+    }
+  }
+
   // Ежедневное обновление (Убежище)
   async applyDailyUpdate({ hasFood = true, isSheltered = true, antibioticGiven = false } = {}) {
       if (this.type === 'zombie' || this.type === 'container' || this.type === 'harvest_spot') return null;
@@ -343,6 +363,24 @@ export class ZActor extends Actor {
       });
     }
     system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
+
+    // Логика: Если вес > макс, режем AP
+    const currentWeight = system.secondary.carryWeight.value;
+    const maxWeight = system.secondary.carryWeight.max;
+    
+    // Флаг перегруза для использования в интерфейсе и проверках движения
+    system.secondary.isOverburdened = currentWeight > maxWeight;
+
+    if (this.type !== "zombie") {
+      const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
+      const userBonus = getNum(system.resources.ap.bonus);
+      const effectBonus = getNum(system.resources.ap.effect);
+      
+      // Штраф за перегруз (-2 AP)
+      const encumbrancePenalty = system.secondary.isOverburdened ? 2 : 0;
+      
+      system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus - encumbrancePenalty);
+    }
 
     let naturalAC = Math.floor(s.vig / 2);
     if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };

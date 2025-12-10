@@ -153,6 +153,30 @@ export const GLOBAL_STATUSES = {
     changes: [{ key: "system.secondary.evasion.value", mode: 1, value: 0.75 }],
     description: "Усталость или голод. -25% Точности и Уклонения.",
   },
+  overburdened: {
+    id: "overburdened",
+    label: "Перегруз",
+    name: "Перегруз",
+    icon: "icons/svg/downgrade.svg",
+    statuses: ["overburdened"],
+    description: "Вес превышен. -2 Макс AP, движение стоит дороже."
+  },
+  stealth: {
+    id: "stealth",
+    label: "Скрытность",
+    name: "Скрытность",
+    icon: "icons/svg/mystery-man.svg", // Ниндзя
+    statuses: ["stealth"],
+    description: "Тихое передвижение. Шум -50%. Крит +5%."
+  },
+  invisible: {
+    id: "invisible",
+    label: "Невидимость",
+    name: "Невидимость",
+    icon: "icons/svg/eye.svg",
+    statuses: ["invisible"],
+    description: "Персонаж скрыт от глаз (Token Hidden)."
+  }
 };
 
 // === ИСПРАВЛЕНИЕ ЗДЕСЬ: ЗАМЕНИЛ label на name ===

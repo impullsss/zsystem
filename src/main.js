@@ -358,12 +358,8 @@ Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
 Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
   if (changes.x === undefined && changes.y === undefined) return true;
   const actor = tokenDoc.actor;
-  if (
-    !actor ||
-    !tokenDoc.inCombat ||
-    ["container", "harvest_spot"].includes(actor.type)
-  )
-    return true;
+  // Пропускаем контейнеры и не-комбатантов
+  if (!actor || !tokenDoc.inCombat || ["container", "harvest_spot"].includes(actor.type)) return true;
 
   const size = canvas.grid.size;
   const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x) / size;
@@ -371,18 +367,53 @@ Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
   const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
   if (squaresMoved <= 0) return true;
 
-  let cost =
-    squaresMoved * (actor.effects.some((e) => e.statuses.has("prone")) ? 2 : 1);
+  // --- РАСЧЕТ СТОИМОСТИ ---
+  let costPerSquare = 1;
+  
+  // 1. Сбит с ног (Prone) -> x2
+  if (actor.hasStatusEffect("prone")) costPerSquare += 1;
+  
+  // 2. Перегруз (Overburdened) -> 2 AP за клетку
+  if (actor.hasStatusEffect("overburdened")) costPerSquare = Math.max(costPerSquare, 2);
+
+  // 3. Скрытность (Stealth) -> 2 AP за клетку
+  if (actor.hasStatusEffect("stealth")) costPerSquare = Math.max(costPerSquare, 2);
+
+  const totalCost = squaresMoved * costPerSquare;
   const curAP = actor.system.resources.ap.value;
 
-  if (curAP < cost) {
+  if (curAP < totalCost) {
     if (!game.user.isGM) {
-      ui.notifications.warn("Недостаточно AP.");
+      ui.notifications.warn(`Недостаточно AP. Нужно ${totalCost}, есть ${curAP}.`);
       return false;
     } else {
       ui.notifications.warn("GM Override: Moving with insufficient AP.");
     }
   }
-  actor.update({ "system.resources.ap.value": curAP - cost });
+  actor.update({ "system.resources.ap.value": curAP - totalCost });
   return true;
+});
+
+Hooks.on("createActiveEffect", async (effect, options, userId) => {
+    if (userId !== game.user.id) return;
+    if (effect.statuses.has("invisible")) {
+        const actor = effect.parent;
+        if (actor && actor.isToken) await actor.token.update({ hidden: true });
+        else if (actor) {
+            const tokens = actor.getActiveTokens();
+            for (let t of tokens) await t.document.update({ hidden: true });
+        }
+    }
+});
+
+Hooks.on("deleteActiveEffect", async (effect, options, userId) => {
+    if (userId !== game.user.id) return;
+    if (effect.statuses.has("invisible")) {
+        const actor = effect.parent;
+        if (actor && actor.isToken) await actor.token.update({ hidden: false });
+        else if (actor) {
+            const tokens = actor.getActiveTokens();
+            for (let t of tokens) await t.document.update({ hidden: false });
+        }
+    }
 });
