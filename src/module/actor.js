@@ -7,6 +7,15 @@ export class ZActor extends Actor {
      await super._onCreate(data, options, userId);
     if (userId !== game.user.id) return;
 
+    // --- ДОБАВЛЕНО: Транспорт ---
+    if (this.type === "vehicle") {
+        await this.update({
+            name: "Новый Транспорт",
+            img: "icons/svg/target.svg", // Можешь заменить на иконку машины
+            "prototypeToken.actorLink": true // Машины обычно уникальны и связаны
+        });
+    }
+
     // Зомби: авто-статы и оружие
     if (this.type === "zombie") {
       const updates = {};
@@ -272,6 +281,26 @@ export class ZActor extends Actor {
         
         return; 
     }
+
+    if (this.type === "vehicle") {
+        if (!system.attributes) system.attributes = {};
+        if (!system.attributes.speed) system.attributes.speed = { value: 0 };
+        if (!system.attributes.handling) system.attributes.handling = { value: 0 };
+        if (!system.attributes.mpg) system.attributes.mpg = { value: 5 };
+
+        if (!system.resources) system.resources = {};
+        if (!system.resources.fuel) system.resources.fuel = { value: 0, max: 60 };
+        if (!system.resources.hp) system.resources.hp = { value: 100, max: 100 };
+
+        // Вот из-за отсутствия этого падала ошибка (cargo undefined)
+        if (!system.cargo) system.cargo = { value: 0, max: 500 };
+        
+        // Пассажиры
+        if (!system.passengers) system.passengers = [];
+        
+        return; // Выходим, чтобы не применять логику людей
+    }
+
     
     if (this.type === "shelter" || this.type === "container") return;
     if (!system.attributes) system.attributes = {};

@@ -8,6 +8,7 @@ import { NoiseManager } from "./module/noise.js";
 import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
+import { ZVehicleSheet } from "./module/vehicle-sheet.js"; 
 
 // Глобальный перехватчик: только ГМ исполняет команды
 Hooks.on("createChatMessage", async (message, options, userId) => {
@@ -218,6 +219,11 @@ Hooks.once("init", () => {
     types: ["harvest_spot"],
     makeDefault: true,
     label: "Сбор Ресурсов",
+  });
+  Actors.registerSheet("zsystem", ZVehicleSheet, {
+    types: ["vehicle"],
+    makeDefault: true,
+    label: "Транспорт"
   });
   Items.unregisterSheet("core", ItemSheet);
   Items.registerSheet("zsystem", ZItemSheet, { makeDefault: true });

@@ -1,6 +1,7 @@
+import { ZBaseActorSheet } from "./base-sheet.js";
 import { NoiseManager } from "./noise.js";
 
-export class ZHarvestSheet extends ActorSheet {
+export class ZHarvestSheet extends ZBaseActorSheet { // <--- Наследование
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ["zsystem", "sheet", "harvest"],
@@ -14,7 +15,7 @@ export class ZHarvestSheet extends ActorSheet {
           initial: "actions",
         },
       ],
-      dragDrop: [{ dragSelector: ".item-list .item", dropSelector: null }],
+      dragDrop: [{ dragSelector: ".light-item", dropSelector: null }],
     });
   }
 

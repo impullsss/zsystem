@@ -1,0 +1,119 @@
+<form class="{{cssClass}}" autocomplete="off">
+    <!-- HEADER -->
+    <header class="sheet-header" style="background:#37474f; color:#fff; padding:10px; display:flex; gap:10px; border-bottom:3px solid #cfd8dc;">
+        <img class="profile-img" src="{{actor.img}}" data-edit="img" height="80" width="80" style="border:2px solid #fff; background:#555;"/>
+        <div style="flex:1;">
+            <input name="name" type="text" value="{{actor.name}}" placeholder="Название транспорта" 
+                   style="width:100%; font-size:1.8em; background:transparent; border:none; color:#fff; font-family:'Courier Prime';"/>
+            
+            <div class="flexrow" style="margin-top:10px; gap:15px;">
+                <!-- FUEL -->
+                <div style="text-align:center;">
+                    <label style="font-size:0.8em; color:#cfd8dc;">ТОПЛИВО</label>
+                    <div style="background:#263238; padding:2px 5px; border-radius:3px; border:1px solid #546e7a;">
+                        <input type="number" name="system.resources.fuel.value" value="{{system.resources.fuel.value}}" style="width:40px; color:#ffab91; font-weight:bold;"/>
+                        <span style="color:#aaa;">/</span>
+                        <input type="number" name="system.resources.fuel.max" value="{{system.resources.fuel.max}}" style="width:40px; color:#aaa;"/>
+                    </div>
+                </div>
+
+                <!-- HP (Structure) -->
+                <div style="text-align:center;">
+                    <label style="font-size:0.8em; color:#cfd8dc;">ПРОЧНОСТЬ</label>
+                    <div style="background:#263238; padding:2px 5px; border-radius:3px; border:1px solid #546e7a;">
+                        <input type="number" name="system.resources.hp.value" value="{{system.resources.hp.value}}" style="width:40px; color:#81c784; font-weight:bold;"/>
+                        <span style="color:#aaa;">/</span>
+                        <input type="number" name="system.resources.hp.max" value="{{system.resources.hp.max}}" style="width:40px; color:#aaa;"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- TABS -->
+    <nav class="sheet-tabs tabs" data-group="primary" style="background:#263238; border-bottom:1px solid #546e7a;">
+        <a class="item" data-tab="stats" style="color:#eceff1;">Характеристики</a>
+        <a class="item" data-tab="cargo" style="color:#eceff1;">Багажник</a>
+        <a class="item" data-tab="passengers" style="color:#eceff1;">Пассажиры</a>
+    </nav>
+
+    <!-- BODY -->
+    <section class="sheet-body" style="background:#eceff1; color:#000; padding:10px;">
+        
+        <!-- STATS TAB -->
+        <div class="tab stats" data-group="primary" data-tab="stats">
+            <div class="grid grid-2col" style="gap:20px;">
+                <div class="panel" style="border:1px solid #90a4ae; padding:10px; background:#fff;">
+                    <h3>Параметры</h3>
+                    <div class="form-group">
+                        <label>Скорость (Speed)</label>
+                        <input type="number" name="system.attributes.speed.value" value="{{system.attributes.speed.value}}"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Управляемость (Handling)</label>
+                        <input type="number" name="system.attributes.handling.value" value="{{system.attributes.handling.value}}"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Расход (MPG)</label>
+                        <input type="number" name="system.attributes.mpg.value" value="{{system.attributes.mpg.value}}"/>
+                    </div>
+                </div>
+
+                <div class="panel" style="border:1px solid #90a4ae; padding:10px; background:#fff;">
+                    <h3>Вместимость</h3>
+                    <div class="form-group">
+                        <label>Макс. Груз (кг)</label>
+                        <input type="number" name="system.cargo.max" value="{{system.cargo.max}}"/>
+                    </div>
+                    <div style="margin-top:10px; font-weight:bold; text-align:center;">
+                        Загрузка: {{currentCargo}} / {{system.cargo.max}}
+                        <div style="width:100%; height:8px; background:#ccc; margin-top:5px;">
+                            <div style="height:100%; background:{{#if (gt currentCargo system.cargo.max)}}red{{else}}#546e7a{{/if}}; width:{{cargoPercent}}%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARGO TAB -->
+        <div class="tab cargo" data-group="primary" data-tab="cargo">
+            <ol class="item-list">
+                {{#each actor.items as |item|}}
+                <li class="item flexrow" data-item-id="{{item.id}}" style="background:#fff; border-bottom:1px solid #ccc; padding:5px; align-items:center;">
+                    <img src="{{item.img}}" width="24" height="24" style="margin-right:10px;"/>
+                    <div style="flex:1;">
+                        <strong>{{item.name}}</strong>
+                        <span style="color:#666; font-size:0.8em;">(Вес: {{item.system.weight}})</span>
+                    </div>
+                    <div style="margin-right:10px;">x{{item.system.quantity}}</div>
+                    <div class="item-controls">
+                        <a class="item-edit"><i class="fas fa-edit"></i></a>
+                        <a class="item-delete"><i class="fas fa-trash"></i></a>
+                    </div>
+                </li>
+                {{/each}}
+                {{#unless actor.items}}<div style="text-align:center; color:#777; padding:20px;">Багажник пуст. Перетащите предметы сюда.</div>{{/unless}}
+            </ol>
+        </div>
+
+        <!-- PASSENGERS TAB -->
+        <div class="tab passengers" data-group="primary" data-tab="passengers">
+            <div style="text-align:center; color:#546e7a; margin-bottom:10px; font-style:italic;">
+                Перетащите персонажей из списка Акторов сюда, чтобы посадить в машину.
+            </div>
+            <div class="grid grid-2col" style="gap:10px;">
+                {{#each passengers as |p|}}
+                <div class="passenger-card" data-id="{{p.id}}" style="background:#fff; border:1px solid #90a4ae; padding:5px; display:flex; align-items:center;">
+                    <img src="{{p.img}}" width="40" height="40" style="margin-right:10px; border:1px solid #333;"/>
+                    <div style="flex:1;">
+                        <div style="font-weight:bold;"><a class="open-passenger" data-id="{{p.id}}">{{p.name}}</a></div>
+                        <div style="font-size:0.8em; color:#d32f2f;">HP: {{p.system.resources.hp.value}}</div>
+                    </div>
+                    <a class="remove-passenger" data-id="{{p.id}}" title="Высадить"><i class="fas fa-sign-out-alt"></i></a>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+
+    </section>
+</form>

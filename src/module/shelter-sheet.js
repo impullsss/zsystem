@@ -1,4 +1,5 @@
-export class ZShelterSheet extends ActorSheet {
+import { ZBaseActorSheet } from "./base-sheet.js";
+export class ZShelterSheet extends ZBaseActorSheet {
   
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {

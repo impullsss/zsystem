@@ -1,14 +1,15 @@
+import { ZBaseActorSheet } from "./base-sheet.js";
 import { NoiseManager } from "./noise.js";
 import { _getSlotMachineHTML, _calcResult } from "./dice.js";
 
-export class ZContainerSheet extends ActorSheet {
+export class ZContainerSheet extends ZBaseActorSheet { // <--- Наследование
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ["zsystem", "sheet", "container"],
       template: "systems/zsystem/sheets/container-sheet.hbs",
       width: 500,
       height: 650,
-      dragDrop: [{ dragSelector: ".item-list .item", dropSelector: null }],
+      dragDrop: [{ dragSelector: ".light-item", dropSelector: null }],
       tabs: [
         {
           navSelector: ".sheet-tabs",

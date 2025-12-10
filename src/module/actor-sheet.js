@@ -1,6 +1,6 @@
-import { ZActor } from "./actor.js";
+import { ZBaseActorSheet } from "./base-sheet.js";
 
-export class ZActorSheet extends ActorSheet {
+export class ZActorSheet extends ZBaseActorSheet {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ["zsystem", "sheet", "actor"],
@@ -14,6 +14,9 @@ export class ZActorSheet extends ActorSheet {
           initial: "attributes",
         },
       ],
+      dragDrop: [
+        { dragSelector: ".item", dropSelector: null } 
+      ]
     });
   }
 
@@ -135,7 +138,7 @@ export class ZActorSheet extends ActorSheet {
         const key = ev.currentTarget.dataset.key;
         this.actor.rollAttribute(key);
     });
-    
+
     html.find(".skill-roll").click((ev) => {
       const skillKey = $(ev.currentTarget).closest(".skill-row").data("skill");
       this.actor.rollSkill(skillKey);
