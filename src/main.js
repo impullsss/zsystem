@@ -16,10 +16,33 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   const flags = message.flags?.zsystem;
   if (!flags) return;
 
-  // 1. ШУМ (Без изменений)
+  // 1. ШУМ И АГРО
   if (flags.noiseAdd > 0) {
+    // А) Глобальный шум
     const current = game.settings.get("zsystem", "currentNoise");
     await game.settings.set("zsystem", "currentNoise", Math.max(0, current + flags.noiseAdd));
+
+    // Б) Локальное Агро (НОВОЕ)
+    // Пытаемся найти токен источника
+    let sourceToken = null;
+    
+    // 1. Пробуем через speaker.token (если это токен на сцене)
+    if (message.speaker?.token) {
+        sourceToken = canvas.tokens.get(message.speaker.token);
+    } 
+    // 2. Если нет, пробуем через speaker.actor (находим первый активный токен этого актора)
+    else if (message.speaker?.actor) {
+        const actor = game.actors.get(message.speaker.actor);
+        if (actor) {
+            const tokens = actor.getActiveTokens();
+            if (tokens.length > 0) sourceToken = tokens[0];
+        }
+    }
+
+    // Если нашли источник — запускаем проверку
+    if (sourceToken) {
+        await NoiseManager.checkAggro(sourceToken, flags.noiseAdd);
+    }
   }
 
   // --- НОВОЕ: РАСПАКОВКА GM INFO ---

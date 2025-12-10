@@ -169,6 +169,14 @@ export const GLOBAL_STATUSES = {
     statuses: ["stealth"],
     description: "Тихое передвижение. Шум -50%. Крит +5%."
   },
+  alerted: {
+    id: "alerted",
+    label: "Тревога",
+    name: "Тревога",
+    icon: "icons/svg/hazard.svg",
+    statuses: ["alerted"],
+    description: "Зомби услышал шум и перешел в активный режим."
+  },
   invisible: {
     id: "invisible",
     label: "Невидимость",
