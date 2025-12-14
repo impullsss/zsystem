@@ -150,92 +150,110 @@ export async function performAttack(actor, itemId) {
 async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll") {
   const apCost = Number(attack.ap) || 0;
   const curAP = Number(actor.system.resources.ap.value);
+  
   if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP (нужно ${apCost})`);
 
-  let isThrowingAction = (attack.mode === 'throw') || (item.system.isThrowing && item.system.weaponType !== 'melee');
-  const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
-  const isThrownWeapon = isThrowingAction && !isGrenade; 
-
-  if (!isThrowingAction && item.system.ammoType) {
-      const maxMag = Number(item.system.mag?.max) || 0;
-      if (maxMag > 0) {
-          const curMag = Number(item.system.mag.value) || 0;
-          let cost = attack.name.match(/burst|очередь/i) ? 3 : 1;
-          if (curMag < cost) return ui.notifications.warn("Щелк! Нет патронов.");
-          await item.update({ "system.mag.value": curMag - cost });
-      }
-  }
-
+  // --- ВЫЧИСЛЕНИЕ ЦЕЛЕЙ И МОДИФИКАТОРОВ ---
   let targets = Array.from(game.user.targets);
-  await actor.update({"system.resources.ap.value": curAP - apCost});
+  let targetToken = targets.length > 0 ? targets[0] : null;
+  let sourceToken = actor.getActiveTokens()[0]; // Берем первый токен актора
 
-  let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((isThrowingAction) ? 'athletics' : 'melee');
+  // Базовые параметры
+  let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
   const skillVal = actor.system.skills[skillType]?.value || 0;
   const atkMod = Number(attack.mod) || 0;
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
-
-  // Проверка Стелса
-  const isStealth = actor.hasStatusEffect("stealth");
   
-  // Уклонение
+  // Переменные для расчета
+  let coverPenalty = 0;
+  let coverLabel = "";
+  let rangePenalty = 0;
+  let rangeLabel = "";
   let evasionMod = 0;
-  let evasionMsg = ""; 
+  let evasionMsg = "";
   let targetName = "Нет цели";
-  
-  if (targets.length > 0 && targets[0].actor) {
-      const targ = targets[0].actor;
-      targetName = targ.name;
-      if (!targ.hasStatusEffect("prone")) {
-          const ev = targ.system.secondary?.evasion?.value || 0;
+
+  // --- ЛОГИКА ЦЕЛИ (Укрытия, Дистанция, Уклонение) ---
+  if (targetToken && sourceToken) {
+      targetName = targetToken.name;
+      const dist = canvas.grid.measureDistance(sourceToken, targetToken);
+
+      // 1. Укрытие (Только для дальнего боя или если есть препятствия)
+      // Для ближнего боя укрытие обычно игнорируется, если мы в соседней клетке, 
+      // но оставим проверку, вдруг бьют через окно копьем.
+      const coverData = _calculateCover(sourceToken, targetToken);
+      coverPenalty = coverData.penalty;
+      coverLabel = coverData.label ? ` [${coverData.label} ${coverData.penalty}]` : "";
+
+      if (coverPenalty <= -1000) {
+          return ui.notifications.error("Цель не видна (Полное укрытие)!");
+      }
+
+      // 2. Дальность
+      const rangeData = _calculateRangePenalty(item, dist);
+      rangePenalty = rangeData.penalty;
+      rangeLabel = rangeData.label ? ` [${rangeData.label} ${rangeData.penalty}]` : "";
+
+      // 3. Уклонение
+      if (!targetToken.actor?.hasStatusEffect("prone")) {
+          const ev = targetToken.actor?.system.secondary?.evasion?.value || 0;
           evasionMod = -(ev * 3);
           if (evasionMod !== 0) evasionMsg = ` [Eva ${evasionMod}%]`;
       }
   }
 
-  const targetChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + modifier);
+  // --- РАСХОД РЕСУРСОВ ---
+  let isThrowingAction = (attack.mode === 'throw') || (item.system.isThrowing && item.system.weaponType !== 'melee');
+  const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
+  
+  if (!isThrowingAction && item.system.ammoType) {
+      const curMag = Number(item.system.mag.value) || 0;
+      let ammoCost = attack.name.match(/burst|очередь/i) ? 3 : 1;
+      if (curMag < ammoCost) return ui.notifications.warn("Щелк! Нет патронов.");
+      await item.update({ "system.mag.value": curMag - ammoCost });
+  }
+  await actor.update({"system.resources.ap.value": curAP - apCost});
+
+  // --- БРОСОК ---
+  // Суммируем все модификаторы
+  const totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + modifier);
   
   const roll = new Roll("1d100");
   await roll.evaluate();
 
-  // --- РАСЧЕТ КРИТА ---
-  const baseCritChance = Number(item.system.critChance) || 0;
-  const stealthCritBonus = isStealth ? 5 : 0; 
-  const critThreshold = 5 + baseCritChance + stealthCritBonus;
-  
-  // Определение результата
+  // Крит
+  const isStealth = actor.hasStatusEffect("stealth");
+  const baseCrit = Number(item.system.critChance) || 0;
+  const critThreshold = 5 + baseCrit + (isStealth ? 5 : 0);
+
   let resultType = "fail";
   if (roll.total <= critThreshold) resultType = "crit-success";
-  else if (roll.total <= targetChance) resultType = "success";
+  else if (roll.total <= totalChance) resultType = "success";
   else if (roll.total >= 96) resultType = "crit-fail";
 
-  // === ВОТ ЭТИ СТРОЧКИ БЫЛИ ПРОПУЩЕНЫ ===
   const isHit = resultType.includes("success");
   const isCrit = resultType === "crit-success";
-  // =======================================
 
-  // --- РАСЧЕТ УРОНА ---
+  // --- УРОН ---
   let dmgAmount = 0;
   let dmgDisplay = "";
-  const damageDataForGM = []; 
   let rawDmgFormula = attack.dmg || "0";
+  const damageDataForGM = []; 
 
   if (isHit || isGrenade) {
       let formula = attack.dmg || "0";
       if (isGrenade && !isHit) formula = `ceil((${formula}) / 2)`; 
       
       if (isCrit) {
-          const critMult = Number(item.system.critMult) || 1.5;
-          formula = `ceil((${formula}) * ${critMult})`;
+          const mult = Number(item.system.critMult) || 1.5;
+          formula = `ceil((${formula}) * ${mult})`;
       }
       
-      if (skillType === 'melee' || isThrownWeapon) {
+      if (skillType === 'melee' && !isThrowingAction) {
           const s = actor.system.attributes.str.value;
           const req = item.system.strReq || 1;
-          if (s >= req) {
-              formula += ` + ${s - req}`; 
-          } else {
-              formula = `ceil((${formula}) * 0.5)`;
-          }
+          if (s >= req) formula += ` + ${s - req}`;
+          else formula = `ceil((${formula}) * 0.5)`;
       }
       rawDmgFormula = formula;
 
@@ -245,38 +263,33 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       
       dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН ${isCrit?"(КРИТ!)":""}</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
-      targets.forEach(t => {
-          if (t.document?.uuid) {
-              damageDataForGM.push({
-                  uuid: t.document.uuid,
-                  amount: dmgAmount,
-                  type: item.system.damageType || "blunt",
-                  limb: location
-              });
-          }
-      });
+      // Собираем цели для урона
+      if (targets.length > 0) {
+          targets.forEach(t => {
+             damageDataForGM.push({ uuid: t.document.uuid, amount: dmgAmount, type: item.system.damageType||"blunt", limb: location });
+          });
+      }
   }
 
-  // --- РАСЧЕТ ШУМА ---
+  // --- ШУМ ---
   let baseNoise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
-  
-  // Если Стелс - шум делится на 2
-  if (isStealth && baseNoise > 0) {
-      baseNoise = Math.ceil(baseNoise / 2);
-  }
-
+  if (isStealth && baseNoise > 0) baseNoise = Math.ceil(baseNoise / 2);
   const noiseHtml = baseNoise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${baseNoise} ${isStealth ? '(Стелс)' : ''}</div>` : "";
 
+  // --- ЧАТ КАРТОЧКА ---
   const modText = modifier !== 0 ? ` (${modifier > 0 ? "+" : ""}${modifier})` : "";
+  // Добавляем инфу об укрытии и дальности в заголовок
+  const headerInfo = item.name + evasionMsg + coverLabel + rangeLabel + modText;
   
-  const cardHtml = _getSlotMachineHTML(item.name + evasionMsg + modText, targetChance, roll.total, resultType);
+  const cardHtml = _getSlotMachineHTML(headerInfo, totalChance, roll.total, resultType);
   
   const gmContent = `
   <div style="font-size:0.85em; background:#1a1a1a; color:#ccc; padding:5px; border:1px dashed #555; font-family:monospace; margin-top:5px;">
       <div style="color:#ffab91; font-weight:bold; border-bottom:1px solid #333;">GM INFO: ${actor.name} -> ${targetName}</div>
       Skill: ${skillVal}<br>
       Mods: Atk(${atkMod}) Aim(${aimMod}) Eva(${evasionMod}) User(${modifier})<br>
-      <b>Total Chance: ${targetChance}%</b><br>
+      <b>Cover: ${coverPenalty} | Range: ${rangePenalty}</b><br>
+      <b>Total Chance: ${totalChance}%</b><br>
       <hr style="margin:2px 0; border-color:#333;">
       Formula: ${rawDmgFormula}<br>
       Result: ${dmgAmount}
@@ -288,14 +301,12 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       type: CONST.CHAT_MESSAGE_TYPES.OTHER,
       flags: {
           zsystem: {
-              noiseAdd: baseNoise, // ИСПРАВЛЕНО: noise -> baseNoise
+              noiseAdd: baseNoise,
               damageData: damageDataForGM,
               gmInfo: gmContent
           }
       }
-  }, { 
-      rollMode: rollMode 
-  });
+  }, { rollMode: rollMode });
 
   if (isThrowingAction) {
       if (item.system.quantity > 1) await item.update({"system.quantity": item.system.quantity - 1});
@@ -314,4 +325,55 @@ export async function rollPanicTable(actor) {
     else { behavior = "Берсерк"; effectDetails = "Атакуйте в рукопашную."; }
     const content = `<div class="z-chat-card" style="border-color:orange;"><div class="z-card-header" style="color:orange;">ПАНИКА!</div><div style="font-size:2em; font-weight:bold;">${result}</div><div>${behavior}</div></div>`;
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({actor}), content });
+}
+
+// === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ БОЯ ===
+
+/**
+ * Расчет укрытия (Cover) методом 4 лучей
+ * @returns {Object} { penalty: number, label: string }
+ */
+function _calculateCover(sourceToken, targetToken) {
+    if (!sourceToken || !targetToken) return { penalty: 0, label: "" };
+
+    const sourceCenter = sourceToken.center;
+    const t = targetToken;
+    
+    // 4 угла цели (с небольшим отступом внутрь 2px, чтобы не цеплять стены, на которых стоим)
+    const corners = [
+        { x: t.x + 2, y: t.y + 2 },
+        { x: t.x + t.w - 2, y: t.y + 2 },
+        { x: t.x + t.w - 2, y: t.y + t.h - 2 },
+        { x: t.x + 2, y: t.y + t.h - 2 }
+    ];
+
+    let blockedCount = 0;
+
+    for (let point of corners) {
+        const hasCollision = CONFIG.Canvas.polygonBackends.move.testCollision(
+            sourceCenter, 
+            point, 
+            { mode: "any", type: "move" } // "any" быстрее, нам достаточно знать факт пересечения
+        );
+        if (hasCollision) blockedCount++;
+    }
+
+    if (blockedCount === 0) return { penalty: 0, label: "" };
+    if (blockedCount <= 2) return { penalty: -15, label: "Легкое укр." }; // 1-2 угла закрыты
+    if (blockedCount === 3) return { penalty: -30, label: "Тяж. укр." };  // 3 угла закрыты
+    
+    return { penalty: -1000, label: "Не видно" }; // 4 угла закрыты (полная блокировка)
+}
+
+/**
+ * Расчет штрафа за дальность
+ */
+function _calculateRangePenalty(item, dist) {
+    const range = Number(item.system.range) || 1; // Базовая дальность оружия
+    if (item.system.weaponType === 'melee') return { penalty: 0, label: "" };
+
+    if (dist <= range) return { penalty: 0, label: "" };
+    if (dist <= range * 2) return { penalty: -20, label: "Далеко" };
+    
+    return { penalty: -40, label: "Слишк. далеко" }; // Или запрет стрельбы
 }

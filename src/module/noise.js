@@ -28,6 +28,31 @@ export class NoiseManager {
       }
   }
 
+  static async visualizeNoise(token, radius) {
+      if (!game.settings.get("zsystem", "debugNoise")) return;
+      if (!token || radius <= 0) return;
+
+      const templateData = {
+          t: "circle",
+          user: game.user.id,
+          x: token.center.x,
+          y: token.center.y,
+          direction: 0,
+          distance: radius, // Радиус в игровых единицах (метрах)
+          borderColor: "#FF0000",
+          fillColor: "#FF0000",
+          fillAlpha: 0.2
+      };
+
+      // Создаем шаблон
+      const doc = (await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]))[0];
+
+      // Удаляем через 3 секунды
+      setTimeout(() => {
+          if (doc) doc.delete();
+      }, 3000);
+  }
+
   static async addGM(amount) {
       const current = NoiseManager.value;
       const newVal = Math.max(0, current + amount);
@@ -111,7 +136,7 @@ export class NoiseManager {
             }
         }
     }
-
+    NoiseManager.visualizeNoise(sourceToken, noiseLevel);
     if (alertedCount > 0) {
         console.log(`ZSystem | Aggro Check: ${alertedCount} zombies alerted.`);
     }

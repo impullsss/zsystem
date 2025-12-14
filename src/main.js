@@ -179,6 +179,15 @@ Hooks.once("init", () => {
   Handlebars.registerHelper("lt", (a, b) => a < b);
   Handlebars.registerHelper("gte", (a, b) => a >= b);
 
+  game.settings.register("zsystem", "debugNoise", {
+    name: "Debug: Визуализация Шума",
+    hint: "Рисует круг радиуса шума при каждом действии (удаляется через 3 сек).",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true // Включим по умолчанию для тестов
+  });
+
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = {
