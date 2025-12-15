@@ -151,3 +151,56 @@
 }
 .atk-name { font-weight: bold; font-size: 1.1em; text-transform: uppercase; }
 .atk-info { font-size: 0.8em; color: #bbb; margin-top: 2px; }
+
+/* Выбранная атака */
+.z-attack-btn.selected {
+    background: linear-gradient(to right, #424242, #333);
+    border-left: 4px solid #69f0ae; /* Яркий зеленый */
+    box-shadow: 0 0 5px rgba(105, 240, 174, 0.2);
+}
+
+.z-attack-btn.selected .atk-name {
+    color: #69f0ae;
+}
+
+/* --- AIMING HUD (Плашка прицеливания) --- */
+#z-aiming-hud {
+    position: fixed;
+    z-index: 10000; /* Поверх всего */
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid #555;
+    border-left: 4px solid #fff; /* Цвет меняется динамически в JS */
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: "Roboto Condensed", sans-serif;
+    font-size: 14px;
+    pointer-events: none; /* Важно! Чтобы клик проходил сквозь плашку */
+    display: none; /* Скрыт по умолчанию */
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    transform: translate(15px, 15px); /* Отступ от курсора */
+    backdrop-filter: blur(2px);
+}
+
+#z-aiming-hud .chance-header {
+    font-size: 1.4em;
+    font-weight: bold;
+    border-bottom: 1px solid #444;
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+}
+
+#z-aiming-hud .aim-detail {
+    font-size: 0.9em;
+    color: #ccc;
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+#z-aiming-hud .aim-warn {
+    color: #ff5252;
+    font-weight: bold;
+    margin-top: 4px;
+    text-transform: uppercase;
+}

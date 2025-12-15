@@ -1,6 +1,222 @@
 import { NoiseManager } from "./noise.js"; 
 import { GLOBAL_STATUSES } from "./constants.js";
 
+let aimingHandler = null;
+
+// --- КЛАСС МЕНЕДЖЕРА ПРИЦЕЛИВАНИЯ ---
+class AimingManager {
+    constructor(actor, item, attack, modifier, dialogApp) {
+        this.actor = actor;
+        this.item = item;
+        this.attack = attack;
+        this.modifier = modifier;
+        this.dialogApp = dialogApp;
+        this.sourceToken = actor.getActiveTokens()[0];
+        
+        // UI элементы
+        this.hud = null;
+        this.graphics = new PIXI.Graphics(); // Слой для рисования линии
+
+        this._onMouseMove = this._onMouseMove.bind(this);
+        this._onClick = this._onClick.bind(this);
+        this._onRightClick = this._onRightClick.bind(this);
+        
+        this.activate();
+    }
+
+    activate() {
+        if (!this.sourceToken) return ui.notifications.error("Токен не найден!");
+        
+        // 1. Создаем HUD
+        this.hud = $(`<div id="z-aiming-hud"></div>`);
+        $('body').append(this.hud);
+
+        // 2. Добавляем графику на слой интерфейса (поверх токенов)
+        canvas.interface.addChild(this.graphics);
+
+        // 3. Скрываем все окна (Focus Mode)
+        // Мы используем opacity: 0, чтобы они оставались на месте, но не мешали
+        $('.window-app').animate({ opacity: 0, pointerEvents: 'none' }, 200);
+
+        // 4. Включаем слушатели
+        canvas.stage.on('mousemove', this._onMouseMove);
+        canvas.stage.on('mousedown', this._onClick);
+        canvas.stage.on('rightdown', this._onRightClick);
+        
+        ui.notifications.info("РЕЖИМ ОГНЯ: ЛКМ - Стрелять, ПКМ - Выход.");
+        document.body.style.cursor = "crosshair";
+    }
+
+    deactivate() {
+        canvas.stage.off('mousemove', this._onMouseMove);
+        canvas.stage.off('mousedown', this._onClick);
+        canvas.stage.off('rightdown', this._onRightClick);
+        document.body.style.cursor = "default";
+        
+        // Удаляем HUD
+        if (this.hud) {
+            this.hud.remove();
+            this.hud = null;
+        }
+
+        // Удаляем графику (Линию)
+        this.graphics.clear();
+        canvas.interface.removeChild(this.graphics);
+        
+        // Возвращаем окна
+        $('.window-app').animate({ opacity: 1, pointerEvents: 'all' }, 200);
+        
+        // Снимаем выделение цели
+        if (game.user.targets.size > 0) {
+            game.user.targets.forEach(t => t.setTarget(false, {releaseOthers: false}));
+        }
+    }
+
+    _onMouseMove(event) {
+        const pos = event.data.getLocalPosition(canvas.tokens);
+        
+        // Ищем токен под курсором
+        const target = canvas.tokens.placeables.find(t => {
+            return t.visible && 
+                   t.id !== this.sourceToken.id &&
+                   t.hitArea.contains(pos.x - t.x, pos.y - t.y);
+        });
+
+        // Позиция HUD
+        const clientX = event.data.originalEvent.clientX;
+        const clientY = event.data.originalEvent.clientY;
+        
+        if (this.hud) {
+            this.hud.css({ top: clientY + 15, left: clientX + 15 });
+        }
+
+        // Очищаем старую линию
+        this.graphics.clear();
+
+        if (target) {
+            this._updateHudContent(target);
+            this.hud.show();
+        } else {
+            this.hud.hide();
+        }
+    }
+
+    async _onClick(event) {
+        if (event.data.button !== 0) return; // Только ЛКМ
+
+        const pos = event.data.getLocalPosition(canvas.tokens);
+        const target = canvas.tokens.placeables.find(t => {
+            return t.visible && 
+                   t.id !== this.sourceToken.id &&
+                   t.hitArea.contains(pos.x - t.x, pos.y - t.y);
+        });
+
+        if (target) {
+            const curAP = this.actor.system.resources.ap.value;
+            const cost = Number(this.attack.ap) || 0;
+            
+            if (curAP < cost) {
+                ui.notifications.warn("Недостаточно AP!");
+                return;
+            }
+
+            target.setTarget(true, {releaseOthers: true, groupSelection: false});
+            
+            await _executeAttack(this.actor, this.item, this.attack, "torso", this.modifier);
+            
+            this._updateHudContent(target);
+        }
+    }
+
+    _onRightClick() {
+        this.deactivate();
+        aimingHandler = null;
+        ui.notifications.info("Стрельба завершена.");
+    }
+
+    _updateHudContent(target) {
+        if (!this.hud) return;
+
+        // Расчет шанса
+        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier);
+        const hitChance = chanceData.total;
+        
+        // Цвета
+        let colorHex = 0xff5252; // Числовой для PIXI (Красный)
+        let colorCSS = "#ff5252"; // Строковый для CSS
+
+        if (hitChance >= 80) { colorHex = 0x69f0ae; colorCSS = "#69f0ae"; } // Зеленый
+        else if (hitChance >= 50) { colorHex = 0xffab91; colorCSS = "#ffab91"; } // Оранжевый
+
+        // === РИСОВАНИЕ ЛИНИИ (PIXI) ===
+        // Рисуем линию от центра к центру
+        this.graphics.lineStyle(4, colorHex, 0.6); // Толщина 4, прозрачность 0.6
+        this.graphics.moveTo(this.sourceToken.center.x, this.sourceToken.center.y);
+        this.graphics.lineTo(target.center.x, target.center.y);
+        
+        // Кружок на цели
+        this.graphics.beginFill(colorHex, 0.2);
+        this.graphics.drawCircle(target.center.x, target.center.y, target.w / 2);
+        this.graphics.endFill();
+        // ==============================
+
+        // HTML HUD (Без изменений)
+        let detailsHtml = "";
+        if (chanceData.details.coverPen < 0) detailsHtml += `<div class="aim-detail"><span>Укрытие:</span> <span>${chanceData.details.coverPen}%</span></div>`;
+        if (chanceData.details.rangePen < 0) detailsHtml += `<div class="aim-detail"><span>Дальность:</span> <span>${chanceData.details.rangePen}%</span></div>`;
+        if (chanceData.details.intervPen < 0) detailsHtml += `<div class="aim-detail"><span>Помеха:</span> <span>${chanceData.details.intervPen}%</span></div>`;
+        if (chanceData.details.evasionMod < 0) detailsHtml += `<div class="aim-detail"><span>Уклонение:</span> <span>${chanceData.details.evasionMod}%</span></div>`;
+
+        let warnHtml = "";
+        if (chanceData.details.coverPen <= -1000) warnHtml = `<div class="aim-warn">ЦЕЛЬ НЕ ВИДНА</div>`;
+        
+        const html = `
+            <div class="chance-header" style="color:${colorCSS}">ШАНС: ${hitChance}%</div>
+            <div style="font-size:0.9em; font-weight:bold; margin-bottom:5px;">${target.name}</div>
+            ${detailsHtml}
+            ${warnHtml}
+            <div style="margin-top:5px; border-top:1px solid #555; padding-top:2px; font-size:0.8em; color:#888;">
+                AP: ${this.attack.ap} | ЛКМ: Огонь
+            </div>
+        `;
+
+        this.hud.html(html);
+        this.hud.css("border-left-color", colorCSS);
+    }
+}
+
+// === ВЫНЕСЕННАЯ ФУНКЦИЯ РАСЧЕТА ===
+function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modifier) {
+    let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
+    const skillVal = actor.system.skills[skillType]?.value || 0;
+    const atkMod = Number(attack.mod) || 0;
+    
+    // Укрытие
+    const coverData = _calculateCover(sourceToken, targetToken);
+    const coverPen = coverData.penalty;
+    
+    // Дальность
+    const dist = canvas.grid.measureDistance(sourceToken, targetToken);
+    const rangeData = _calculateRangePenalty(item, dist);
+    const rangePen = rangeData.penalty;
+    
+    // Помехи
+    let intervPen = 0;
+    if (item.system.weaponType === 'ranged') {
+        const obs = _checkInterveningTokens(sourceToken, targetToken);
+        intervPen = obs.length * -20;
+    }
+    
+    // Уклонение
+    let evasionMod = 0;
+    if (!targetToken.actor?.hasStatusEffect("prone")) {
+        evasionMod = -((targetToken.actor?.system.secondary?.evasion?.value || 0) * 3);
+    }
+
+    const total = Math.max(0, skillVal + atkMod + coverPen + rangePen + intervPen + evasionMod + modifier);
+    return { total, details: { coverPen, rangePen, intervPen } };
+}
+
 // === ДИАЛОГ БРОСКА ===
 export async function showRollDialog(label, callback) {
     const content = `
@@ -84,79 +300,98 @@ export async function rollSkill(actor, skillId) {
     });
 }
 
-// === АТАКА (ДИАЛОГ) ===
 export async function performAttack(actor, itemId) {
   const item = actor.items.get(itemId);
   if (!item) return;
-  if (actor.hasStatusEffect("panic")) return ui.notifications.error("Паника! Персонаж не контролирует себя.");
+  if (actor.hasStatusEffect("panic")) return ui.notifications.error("Паника!");
 
   let attackOptions = item.system.attacks || {};
   if (Object.keys(attackOptions).length === 0) {
-      attackOptions["default"] = { 
-          name: "Атака", ap: item.system.apCost || 3, 
-          dmg: item.system.damage || "1d6", noise: item.system.noise || 0 
-      };
+      attackOptions["default"] = { name: "Атака", ap: item.system.apCost, dmg: item.system.damage, noise: item.system.noise };
   }
   
+  // 1. ПОЛУЧАЕМ ПОСЛЕДНЮЮ АТАКУ
+  // Если флага нет, берем первую из списка
+  const lastKey = item.getFlag("zsystem", "lastAttackKey") || Object.keys(attackOptions)[0];
+
   let buttonsHTML = "";
   for (let [key, atk] of Object.entries(attackOptions)) {
-    const totalNoise = (Number(item.system.noise) || 0) + (Number(atk.noise) || 0);
-    buttonsHTML += `<button class="z-attack-btn" data-key="${key}"><div class="atk-name">${atk.name}</div><div class="atk-info">AP: ${atk.ap} | Noise: ${totalNoise}</div></button>`;
+    const totalNoise = (Number(item.system.noise)||0) + (Number(atk.noise)||0);
+    atk.key = key; 
+    
+    // 2. ПРОВЕРЯЕМ, ВЫБРАНА ЛИ ЭТА АТАКА
+    const isSelected = (key === lastKey) ? "selected" : "";
+    
+    buttonsHTML += `<button class="z-attack-btn ${isSelected}" data-key="${key}">
+                        <div class="atk-name">${atk.name}</div>
+                        <div class="atk-info">AP: ${atk.ap} | Noise: ${totalNoise}</div>
+                    </button>`;
   }
   
-  const dialogContent = `
+  const isRanged = item.system.weaponType === 'ranged';
+  
+  const content = `
   <form class="z-attack-dialog">
       <div class="grid grid-2col" style="margin-bottom:10px;">
-          <div class="form-group">
-              <label>Модификатор</label>
-              <input type="number" id="atk-modifier" value="0" style="text-align:center;"/>
-          </div>
-          <div class="form-group">
-              <label>Режим</label>
-              <select id="atk-rollMode">
-                  <option value="roll">Публичный</option>
-                  <option value="gmroll">Бросок Ведущему</option>
-                  <option value="blindroll">Слепой бросок</option>
-                  <option value="selfroll">Только для себя</option>
-              </select>
-          </div>
+          <div class="form-group"><label>Модификатор</label><input type="number" id="atk-modifier" value="0"/></div>
+          <div class="form-group"><label>Режим</label><select id="atk-rollMode"><option value="roll">Публичный</option><option value="gmroll">ГМ</option></select></div>
       </div>
-      <div class="form-group"><label>Цель:</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова (-40)</option><option value="lArm">Л.Рука (-20)</option><option value="rArm">П.Рука (-20)</option><option value="lLeg">Л.Нога (-20)</option><option value="rLeg">П.Нога (-20)</option></select></div>
+      <div class="form-group"><label>Цель:</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова (-40)</option><option value="lLeg">Ноги (-20)</option></select></div>
+      
+      ${isRanged ? `<div class="form-group" style="background:#263238; padding:5px; border-radius:3px;"><label style="color:#eceff1;">Ручное прицеливание</label><input type="checkbox" id="manual-aim" checked/></div>` : ""}
+      
       <hr>
       <div class="attack-buttons">${buttonsHTML}</div>
   </form>`;
 
-  new Dialog({
+  const d = new Dialog({
     title: `Атака: ${item.name}`, 
-    content: dialogContent,
+    content: content,
     buttons: {},
     render: (html) => {
       html.find('.z-attack-btn').click(async (ev) => {
         ev.preventDefault();
+        
+        // Сбрасываем визуальное выделение и ставим новое
+        html.find('.z-attack-btn').removeClass('selected');
+        $(ev.currentTarget).addClass('selected');
+
         const key = ev.currentTarget.dataset.key;
+        const atk = attackOptions[key];
+        atk.key = key; 
+
+        // 3. СОХРАНЯЕМ ВЫБОР
+        await item.setFlag("zsystem", "lastAttackKey", key);
+
         const loc = html.find('#aim-location').val();
-        
-        const modifier = Number(html.find('#atk-modifier').val()) || 0;
-        const rollMode = html.find('#atk-rollMode').val();
-        
-        Object.values(ui.windows).forEach(w => { if (w.title === `Атака: ${item.name}`) w.close(); });
-        await _executeAttack(actor, item, attackOptions[key], loc, modifier, rollMode);
+        const mod = Number(html.find('#atk-modifier').val()) || 0;
+        const manualAim = html.find('#manual-aim').is(':checked');
+
+        if (manualAim && isRanged) {
+            if (aimingHandler) aimingHandler.deactivate();
+            aimingHandler = new AimingManager(actor, item, atk, mod, d);
+        } else {
+            await _executeAttack(actor, item, atk, loc, mod);
+        }
       });
     }
-  }).render(true);
+  });
+  d.render(true);
 }
 
 // === ЛОГИКА АТАКИ (ИСПОЛНЕНИЕ) ===
+// Замени функцию _executeAttack в module/dice.js
+
 async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll") {
   const apCost = Number(attack.ap) || 0;
   const curAP = Number(actor.system.resources.ap.value);
   
   if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP (нужно ${apCost})`);
 
-  // --- ВЫЧИСЛЕНИЕ ЦЕЛЕЙ И МОДИФИКАТОРОВ ---
+  // --- ВЫЧИСЛЕНИЕ ЦЕЛЕЙ ---
   let targets = Array.from(game.user.targets);
   let targetToken = targets.length > 0 ? targets[0] : null;
-  let sourceToken = actor.getActiveTokens()[0]; // Берем первый токен актора
+  let sourceToken = actor.getActiveTokens()[0]; 
 
   // Базовые параметры
   let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
@@ -165,36 +400,45 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
   
   // Переменные для расчета
-  let coverPenalty = 0;
-  let coverLabel = "";
-  let rangePenalty = 0;
-  let rangeLabel = "";
-  let evasionMod = 0;
-  let evasionMsg = "";
+  let coverPenalty = 0; let coverLabel = "";
+  let rangePenalty = 0; let rangeLabel = "";
+  let interventionPenalty = 0; let interventionLabel = ""; // <--- НОВОЕ
+  let evasionMod = 0; let evasionMsg = "";
   let targetName = "Нет цели";
 
-  // --- ЛОГИКА ЦЕЛИ (Укрытия, Дистанция, Уклонение) ---
+  // --- ЛОГИКА ЦЕЛИ ---
   if (targetToken && sourceToken) {
       targetName = targetToken.name;
       const dist = canvas.grid.measureDistance(sourceToken, targetToken);
 
-      // 1. Укрытие (Только для дальнего боя или если есть препятствия)
-      // Для ближнего боя укрытие обычно игнорируется, если мы в соседней клетке, 
-      // но оставим проверку, вдруг бьют через окно копьем.
+      // 1. Укрытие (Стены)
       const coverData = _calculateCover(sourceToken, targetToken);
       coverPenalty = coverData.penalty;
       coverLabel = coverData.label ? ` [${coverData.label} ${coverData.penalty}]` : "";
 
-      if (coverPenalty <= -1000) {
-          return ui.notifications.error("Цель не видна (Полное укрытие)!");
-      }
+      if (coverPenalty <= -1000) return ui.notifications.error("Цель не видна (Полное укрытие)!");
 
       // 2. Дальность
       const rangeData = _calculateRangePenalty(item, dist);
       rangePenalty = rangeData.penalty;
       rangeLabel = rangeData.label ? ` [${rangeData.label} ${rangeData.penalty}]` : "";
 
-      // 3. Уклонение
+      // 3. Живой Щит (Токены на линии) --- НОВОЕ ---
+      if (item.system.weaponType === 'ranged') {
+          const obstacles = _checkInterveningTokens(sourceToken, targetToken);
+          if (obstacles.length > 0) {
+              const penPerObstacle = -20;
+              interventionPenalty = obstacles.length * penPerObstacle;
+              interventionLabel = ` [Помеха x${obstacles.length}: ${interventionPenalty}]`;
+              
+              // Подсветка мешающих (визуально)
+              for(let o of obstacles) {
+                  canvas.interface.createScrollingText(o.center, "Block!", { fontSize: 20, fill: "#FFA500" });
+              }
+          }
+      }
+
+      // 4. Уклонение
       if (!targetToken.actor?.hasStatusEffect("prone")) {
           const ev = targetToken.actor?.system.secondary?.evasion?.value || 0;
           evasionMod = -(ev * 3);
@@ -202,7 +446,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       }
   }
 
-  // --- РАСХОД РЕСУРСОВ ---
+  // --- РАСХОД ---
   let isThrowingAction = (attack.mode === 'throw') || (item.system.isThrowing && item.system.weaponType !== 'melee');
   const isGrenade = isThrowingAction && (Number(item.system.blastRadius) > 0);
   
@@ -215,13 +459,12 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   await actor.update({"system.resources.ap.value": curAP - apCost});
 
   // --- БРОСОК ---
-  // Суммируем все модификаторы
-  const totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + modifier);
+  // Добавляем interventionPenalty в сумму
+  const totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + interventionPenalty + modifier);
   
   const roll = new Roll("1d100");
   await roll.evaluate();
 
-  // Крит
   const isStealth = actor.hasStatusEffect("stealth");
   const baseCrit = Number(item.system.critChance) || 0;
   const critThreshold = 5 + baseCrit + (isStealth ? 5 : 0);
@@ -234,6 +477,11 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   const isHit = resultType.includes("success");
   const isCrit = resultType === "crit-success";
 
+  // --- ВИЗУАЛИЗАЦИЯ ЛУЧА ---
+  if (targetToken && sourceToken) {
+      _drawTracer(sourceToken, targetToken, isHit);
+  }
+
   // --- УРОН ---
   let dmgAmount = 0;
   let dmgDisplay = "";
@@ -243,12 +491,10 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
   if (isHit || isGrenade) {
       let formula = attack.dmg || "0";
       if (isGrenade && !isHit) formula = `ceil((${formula}) / 2)`; 
-      
       if (isCrit) {
           const mult = Number(item.system.critMult) || 1.5;
           formula = `ceil((${formula}) * ${mult})`;
       }
-      
       if (skillType === 'melee' && !isThrowingAction) {
           const s = actor.system.attributes.str.value;
           const req = item.system.strReq || 1;
@@ -263,7 +509,6 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       
       dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН ${isCrit?"(КРИТ!)":""}</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
-      // Собираем цели для урона
       if (targets.length > 0) {
           targets.forEach(t => {
              damageDataForGM.push({ uuid: t.document.uuid, amount: dmgAmount, type: item.system.damageType||"blunt", limb: location });
@@ -271,15 +516,14 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       }
   }
 
-  // --- ШУМ ---
+  // --- ШУМ И ЧАТ ---
   let baseNoise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
   if (isStealth && baseNoise > 0) baseNoise = Math.ceil(baseNoise / 2);
   const noiseHtml = baseNoise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${baseNoise} ${isStealth ? '(Стелс)' : ''}</div>` : "";
 
-  // --- ЧАТ КАРТОЧКА ---
   const modText = modifier !== 0 ? ` (${modifier > 0 ? "+" : ""}${modifier})` : "";
-  // Добавляем инфу об укрытии и дальности в заголовок
-  const headerInfo = item.name + evasionMsg + coverLabel + rangeLabel + modText;
+  // Добавляем interventionLabel в заголовок
+  const headerInfo = item.name + evasionMsg + coverLabel + rangeLabel + interventionLabel + modText;
   
   const cardHtml = _getSlotMachineHTML(headerInfo, totalChance, roll.total, resultType);
   
@@ -288,7 +532,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
       <div style="color:#ffab91; font-weight:bold; border-bottom:1px solid #333;">GM INFO: ${actor.name} -> ${targetName}</div>
       Skill: ${skillVal}<br>
       Mods: Atk(${atkMod}) Aim(${aimMod}) Eva(${evasionMod}) User(${modifier})<br>
-      <b>Cover: ${coverPenalty} | Range: ${rangePenalty}</b><br>
+      <b>Cov:${coverPenalty} | Rng:${rangePenalty} | Block:${interventionPenalty}</b><br>
       <b>Total Chance: ${totalChance}%</b><br>
       <hr style="margin:2px 0; border-color:#333;">
       Formula: ${rawDmgFormula}<br>
@@ -366,6 +610,109 @@ function _calculateCover(sourceToken, targetToken) {
 }
 
 /**
+ * Проверяет, есть ли токены на линии огня
+ * @returns {Array} Список токенов, перекрывающих обзор
+ */
+function _checkInterveningTokens(sourceToken, targetToken) {
+    if (!sourceToken || !targetToken) return [];
+
+    const ray = new Ray(sourceToken.center, targetToken.center);
+    const obstacles = [];
+
+    // Проходимся по всем токенам на сцене
+    for (let t of canvas.tokens.placeables) {
+        if (t.id === sourceToken.id || t.id === targetToken.id) continue; // Игнорируем себя и цель
+        if (!t.actor) continue; // Игнорируем декор
+        if (t.document.hidden) continue; // Игнорируем невидимых
+        
+        // Зомби не мешают друг другу (опционально, но логично для толпы)
+        // if (sourceToken.actor.type === 'zombie' && t.actor.type === 'zombie') continue; 
+
+        // Простая математика: расстояние от центра токена до отрезка (линии огня)
+        // Если расстояние меньше радиуса токена (ширина/2) -> он на линии
+        const dist = _distToSegment(t.center, sourceToken.center, targetToken.center);
+        
+        // Допустим, токен блокирует, если линия проходит ближе чем 0.3 клетки от его центра
+        // (canvas.grid.size * 0.3). Это дает возможность стрелять "впритирку".
+        const threshold = (t.w / 2) * 0.8; 
+        
+        if (dist < threshold) {
+            obstacles.push(t);
+        }
+    }
+    return obstacles;
+}
+
+// Математика: Расстояние от точки P до отрезка AB
+function _distToSegment(p, a, b) {
+    const l2 = (a.x - b.x)**2 + (a.y - b.y)**2;
+    if (l2 === 0) return Math.sqrt((p.x - a.x)**2 + (p.y - a.y)**2);
+    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.sqrt((p.x - (a.x + t * (b.x - a.x)))**2 + (p.y - (a.y + t * (b.y - a.y)))**2);
+}
+
+// Визуализация Трассера
+async function _drawTracer(source, target, isHit) {
+    if (!source || !target) return;
+
+    const s = source.center;
+    const t = target.center;
+
+    // Вычисляем Bounding Box
+    const xMin = Math.min(s.x, t.x);
+    const yMin = Math.min(s.y, t.y);
+    const width = Math.abs(s.x - t.x);
+    const height = Math.abs(s.y - t.y);
+
+    const p0 = [s.x - xMin, s.y - yMin];
+    const p1 = [t.x - xMin, t.y - yMin];
+
+    const drawingData = {
+        t: "p", 
+        author: game.user.id,
+        x: xMin,
+        y: yMin,
+        width: width,
+        height: height,
+        strokeWidth: 4,
+        strokeColor: isHit ? "#69f0ae" : "#ff5252",
+        strokeAlpha: 0.7,
+        fillAlpha: 0,
+        shape: {
+            type: "p",
+            points: [p0[0], p0[1], p1[0], p1[1]]
+        }
+    };
+
+    // ЕСЛИ ГМ -> РИСУЕМ СРАЗУ
+    if (game.user.isGM) {
+        const doc = (await canvas.scene.createEmbeddedDocuments("Drawing", [drawingData]))[0];
+        if (doc) {
+            setTimeout(async () => { 
+                if (canvas.scene.drawings.has(doc.id)) await doc.delete(); 
+            }, 1000);
+        }
+    } 
+    // ЕСЛИ ИГРОК -> ОТПРАВЛЯЕМ ЗАПРОС ГМу
+    else {
+        ChatMessage.create({
+            content: "", // Пустое тело
+            flags: {
+                zsystem: {
+                    visuals: {
+                        type: "tracer",
+                        data: drawingData
+                    }
+                }
+            },
+            whisper: ChatMessage.getWhisperRecipients("GM"),
+            blind: true // Игрок даже не увидит, что отправил это
+        });
+    }
+}
+
+/**
  * Расчет штрафа за дальность
  */
 function _calculateRangePenalty(item, dist) {
@@ -377,3 +724,4 @@ function _calculateRangePenalty(item, dist) {
     
     return { penalty: -40, label: "Слишк. далеко" }; // Или запрет стрельбы
 }
+

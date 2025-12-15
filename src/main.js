@@ -85,7 +85,6 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
 
   // 3. ОБНОВЛЕНИЕ АКТОРОВ (Без изменений)
   if (flags.actorUpdate) {
-     // ... код ...
     const doc = await fromUuid(flags.actorUpdate.uuid);
     const actor = doc?.actor || doc;
     if (actor) {
@@ -96,7 +95,28 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
       }
     }
   }
+
+   // 4. ВИЗУАЛЬНЫЕ ЭФФЕКТЫ (Трассеры) --- НОВОЕ ---
+  if (flags.visuals && flags.visuals.type === "tracer") {
+      const data = flags.visuals.data;
+      // ГМ создает рисунок
+      const doc = (await canvas.scene.createEmbeddedDocuments("Drawing", [data]))[0];
+      
+      // Удаляем рисунок через 1 сек
+      if (doc) {
+          setTimeout(async () => { 
+              if (canvas.scene.drawings.has(doc.id)) await doc.delete(); 
+          }, 1000);
+      }
+      
+      // Удаляем само техническое сообщение, чтобы не засорять чат ГМа
+      // (Делаем небольшую задержку, чтобы не конфликтовать с созданием)
+      setTimeout(() => message.delete(), 500);
+  }
+
 });
+
+  
 
 // === ИСПРАВЛЕННЫЙ ХУК: Контекстное меню (Отмена Урона) ===
 Hooks.on("getChatMessageContextOptions", (html, options) => {
