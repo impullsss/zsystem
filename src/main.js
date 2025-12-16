@@ -18,6 +18,12 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   const flags = message.flags?.zsystem;
   if (!flags) return;
 
+  // --- НОВОЕ: Перемотка Времени (Travel System) ---
+  if (flags.advanceTime > 0) {
+      await game.time.advance(flags.advanceTime);
+      // Опционально: можно не писать уведомление, так как чат-карта уже есть
+  }
+
   // 1. ШУМ И АГРО
   if (flags.noiseAdd > 0) {
     // А) Глобальный шум
@@ -518,4 +524,18 @@ Hooks.on("deleteActiveEffect", async (effect, options, userId) => {
             for (let t of tokens) await t.document.update({ hidden: false });
         }
     }
+});
+
+// === АВТО-ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ПРИ ВЫДЕЛЕНИИ ===
+Hooks.on("controlToken", (token, controlled) => {
+    // Ждем 50мс, чтобы Foundry успела обновить массив canvas.tokens.controlled
+    setTimeout(() => {
+        Object.values(ui.windows).forEach(app => {
+            // Проверяем, что это окно Актора и нужного типа
+            if (app.document && app.document.documentName === "Actor" && 
+               ["harvest_spot", "container"].includes(app.document.type)) {
+                app.render(false);
+            }
+        });
+    }, 50); 
 });

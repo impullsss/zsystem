@@ -59,16 +59,16 @@ static async handleMovement(tokenDoc, changes) {
     const timeSeconds = Math.floor(timeHours * 3600);
 
     // 6. ПРИМЕНЕНИЕ
+    // Списываем топливо (Это работает, т.к. игрок владеет машиной)
     if (isVehicle && finalCost > 0) {
         const newFuel = Math.max(0, fuel - finalCost);
         await actor.update({ "system.resources.fuel.value": newFuel });
     }
 
-    // Продвигаем время мира
-    await game.time.advance(timeSeconds);
+    // ВРЕМЯ МИРА: Убираем прямой вызов game.time.advance(timeSeconds)
+    // Вместо этого передаем timeSeconds во флаг сообщения
 
     // 7. ВИЗУАЛИЗАЦИЯ
-    // Форматируем время красиво (чч:мм)
     const hours = Math.floor(timeHours);
     const minutes = Math.round((timeHours - hours) * 60);
     const timeString = `${hours}ч ${minutes > 0 ? minutes + "м" : ""}`;
@@ -88,11 +88,16 @@ static async handleMovement(tokenDoc, changes) {
                 </div>
             </div>
         `,
-        speaker: ChatMessage.getSpeaker({ actor: actor })
+        speaker: ChatMessage.getSpeaker({ actor: actor }),
+        // ВАЖНО: Передаем запрос на изменение времени ГМу
+        flags: {
+            zsystem: {
+                advanceTime: timeSeconds 
+            }
+        }
     });
 
     // 8. СЛУЧАЙНАЯ ВСТРЕЧА
-    // Для пешеходов шанс выше? Пока оставим одинаковый.
     const encounterChance = Math.min(50, Math.floor(distance / 10) * 10); 
     await this._checkEncounter(encounterChance);
 
@@ -107,7 +112,7 @@ static async handleMovement(tokenDoc, changes) {
 
       if (roll.total <= chance) {
           // Встреча!
-          // Звук тревоги
+          // Звук тревоги (слышат все, это создает напряжение)
           AudioHelper.play({src: "icons/svg/sound.svg", volume: 0.8, autoplay: true}, false);
           
           ChatMessage.create({
@@ -119,7 +124,8 @@ static async handleMovement(tokenDoc, changes) {
                     <button class="roll-encounter-table">Генерировать событие</button>
                 </div>
               `,
-              whisper: ChatMessage.getWhisperRecipients("GM") // Только ГМу
+              whisper: ChatMessage.getWhisperRecipients("GM"),
+              blind: true // <--- ДОБАВИТЬ ЭТУ СТРОКУ
           });
       }
   }

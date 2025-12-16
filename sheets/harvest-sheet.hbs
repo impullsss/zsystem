@@ -19,7 +19,7 @@
     <div class="sheet-body">
         
         {{#if isGM}}
-        <!-- TAB 1: ACTIONS -->
+        <!-- TAB 1: ACTIONS (GM) -->
         <div class="tab" data-tab="actions">
             <div style="text-align:right; margin-bottom:5px;">
                 <a class="add-action" style="color:#2e7d32; font-weight:bold; cursor:pointer;"><i class="fas fa-plus-circle"></i> Добавить действие</a>
@@ -72,11 +72,11 @@
             </div>
         </div>
 
-        <!-- TAB 2: OUTCOMES -->
+        <!-- TAB 2: OUTCOMES (GM) -->
         <div class="tab" data-tab="outcomes">
-            
-            <!-- --- CRIT SUCCESS --- -->
-            <div class="outcome-box" style="border-left: 4px solid #66bb6a;">
+            <!-- (GM Outcomes code - skipped for brevity, works fine) -->
+            <!-- ПРОСТО ВСТАВЬ СВОЙ БЛОК TAB 2 СЮДА, ОН ПРАВИЛЬНЫЙ -->
+             <div class="outcome-box" style="border-left: 4px solid #66bb6a;">
                 <label class="outcome-label success">Критический Успех</label>
                 <input type="text" class="outcome-input" data-field="outcomes.critSuccess.text" value="{{outcomes.critSuccess.text}}" placeholder="Текст..."/>
                 <div class="flexrow" style="margin-top:5px; gap:5px; align-items:center;">
@@ -152,7 +152,7 @@
             </div>
         </div>
 
-        <!-- TAB 3: LOOT PREVIEW -->
+        <!-- TAB 3: LOOT PREVIEW (GM) -->
         <div class="tab" data-tab="loot">
             <div class="section-header">GM Preview <a class="item-create" style="cursor:pointer;"><i class="fas fa-plus"></i></a></div>
             <ol class="light-item-list">
@@ -171,7 +171,7 @@
         </div>
         {{/if}}
 
-        <!-- PLAYER VIEW -->
+        <!-- PLAYER VIEW (ИСПРАВЛЕНО!) -->
         {{#unless isGM}}
             {{#if description}}
                 <div class="harvest-description-box">"{{description}}"</div>
@@ -184,6 +184,7 @@
                 </div>
             {{else}}
                 {{#if isHarvested}}
+                    <!-- СПИСОК ЛУТА -->
                     <div class="section-header"><span><i class="fas fa-box-open"></i> Содержимое</span></div>
                     <ol class="light-item-list">
                         {{#each inventory as |item|}}
@@ -199,9 +200,22 @@
                         {{#unless inventory}}<li style="text-align:center;color:#777;padding:10px;">Пусто...</li>{{/unless}}
                     </ol>
                 {{else}}
+                    <!-- ЭКРАН ВЗАИМОДЕЙСТВИЯ -->
                     <div class="harvest-lock-screen">
                         <i class="fas fa-lock" style="font-size:48px; color:#555; margin-bottom:15px;"></i>
+                        
                         {{#if canHarvest}}
+                            <!-- ВЫБОР ПЕРСОНАЖА (SELECT) -->
+                            <div class="form-group" style="background:#e8f5e9; padding:5px; border-radius:4px; margin-bottom:10px; border:1px solid #4caf50;">
+                                <label style="color:#2e7d32; font-weight:bold; display:block; margin-bottom:3px;">Кто действует?</label>
+                                <select id="actor-selector" style="width:100%; font-family:'Courier Prime'; font-weight:bold;">
+                                    {{#each availableActors}}
+                                        <option value="{{this.id}}">{{this.name}}</option>
+                                    {{/each}}
+                                </select>
+                            </div>
+
+                            <!-- КНОПКИ ДЕЙСТВИЙ -->
                             {{#each actions as |act idx|}}
                                 <button class="harvest-action-btn" data-idx="{{idx}}">
                                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -221,7 +235,8 @@
                                 </button>
                             {{/each}}
                         {{else}}
-                            <div class="status-msg error">{{distanceMsg}}</div>
+                            <!-- СООБЩЕНИЕ ОБ ОШИБКЕ -->
+                            <div class="status-msg error" style="color:#d32f2f; font-weight:bold; margin-top:10px;">{{distanceMsg}}</div>
                         {{/if}}
                     </div>
                 {{/if}}
