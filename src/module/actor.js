@@ -333,7 +333,7 @@ export class ZActor extends Actor {
 
   prepareDerivedData() {
     const system = this.system;
-    if (this.type === "shelter" || this.type === "container") return;
+    if (this.type === "shelter" || this.type === "container" || this.type === "vehicle") return;
     if (!system.attributes) return;
     if (!system.resources) system.resources = {};
     if (!system.secondary) system.secondary = {};

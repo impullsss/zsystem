@@ -8,7 +8,8 @@ import { NoiseManager } from "./module/noise.js";
 import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
-import { ZVehicleSheet } from "./module/vehicle-sheet.js"; 
+import { ZVehicleSheet } from "./module/vehicle-sheet.js";
+import { TravelManager } from "./module/travel.js";
 
 // Глобальный перехватчик: только ГМ исполняет команды
 Hooks.on("createChatMessage", async (message, options, userId) => {
@@ -169,7 +170,6 @@ Hooks.on("getChatMessageContextOptions", (html, options) => {
 });
 
 Hooks.once("init", () => {
-  // ... Init код без изменений ...
   console.log("ZSystem | Initializing...");
   loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
 
@@ -413,11 +413,62 @@ Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
   }
 });
 
-Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
+Hooks.on("renderSceneConfig", (app, html, data) => {
+    // В V13 html приходит как DOM Element. Оборачиваем в jQuery.
+    const $html = $(html);
+    
+    const scene = app.document; 
+    if (!scene) return;
+
+    const isGlobal = scene.getFlag("zsystem", "isGlobalMap");
+    
+    const formGroup = `
+    <div class="form-group">
+        <label>🌍 Глобальная Карта (Travel Mode)</label>
+        <div class="form-fields">
+            <input type="checkbox" name="flags.zsystem.isGlobalMap" ${isGlobal ? "checked" : ""}/>
+        </div>
+        <p class="notes">Если включено, движение токенов расходует Топливо (Vehicle) вместо AP.</p>
+    </div>`;
+    
+    // Ищем инпут внутри вкладки Grid
+    const gridInput = $html.find('select[name="grid.type"]');
+    
+    if (gridInput.length) {
+        gridInput.closest(".form-group").after(formGroup);
+    } else {
+        // Фоллбэк: кидаем в начало вкладки Grid, если не нашли селект
+        $html.find('div[data-tab="grid"]').prepend(formGroup);
+    }
+    
+    // Обновляем высоту окна
+    app.setPosition({height: "auto"});
+});
+
+Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
   if (changes.x === undefined && changes.y === undefined) return true;
+  
+  // Проверка: Игрок ли двигает? ГМ может двигать что угодно без расхода.
+  // Хотя для тестов удобно, чтобы и у ГМа списывалось. Оставим проверку только для AP.
+  const isGM = game.user.isGM;
+
+  const scene = tokenDoc.parent;
+  const isGlobalMap = scene.getFlag("zsystem", "isGlobalMap");
+
+  // === РЕЖИМ 1: ГЛОБАЛЬНАЯ КАРТА ===
+  if (isGlobalMap) {
+      // Вызываем TravelManager. Если он вернет false -> отменяем движение
+      // Важно: TravelManager асинхронный, но preUpdateToken синхронный в плане возврата false.
+      // В Foundry V10+ можно возвращать Promise, но лучше проверить. 
+      // Если нужно строго блокировать, придется хитрить, но обычно await работает.
+      
+      // ВНИМАНИЕ: V12+ поддерживает async в pre-хуках.
+      return await TravelManager.handleMovement(tokenDoc, changes);
+  }
+
+  // === РЕЖИМ 2: ТАКТИЧЕСКИЙ БОЙ (AP) ===
   const actor = tokenDoc.actor;
-  // Пропускаем контейнеры и не-комбатантов
-  if (!actor || !tokenDoc.inCombat || ["container", "harvest_spot"].includes(actor.type)) return true;
+  if (!actor || !tokenDoc.inCombat || ["container", "harvest_spot", "vehicle"].includes(actor.type)) return true;
 
   const size = canvas.grid.size;
   const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x) / size;
@@ -425,30 +476,23 @@ Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
   const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
   if (squaresMoved <= 0) return true;
 
-  // --- РАСЧЕТ СТОИМОСТИ ---
   let costPerSquare = 1;
-  
-  // 1. Сбит с ног (Prone) -> x2
   if (actor.hasStatusEffect("prone")) costPerSquare += 1;
-  
-  // 2. Перегруз (Overburdened) -> 2 AP за клетку
   if (actor.hasStatusEffect("overburdened")) costPerSquare = Math.max(costPerSquare, 2);
-
-  // 3. Скрытность (Stealth) -> 2 AP за клетку
   if (actor.hasStatusEffect("stealth")) costPerSquare = Math.max(costPerSquare, 2);
 
   const totalCost = squaresMoved * costPerSquare;
   const curAP = actor.system.resources.ap.value;
 
   if (curAP < totalCost) {
-    if (!game.user.isGM) {
+    if (!isGM) {
       ui.notifications.warn(`Недостаточно AP. Нужно ${totalCost}, есть ${curAP}.`);
       return false;
     } else {
       ui.notifications.warn("GM Override: Moving with insufficient AP.");
     }
   }
-  actor.update({ "system.resources.ap.value": curAP - totalCost });
+  await actor.update({ "system.resources.ap.value": curAP - totalCost });
   return true;
 });
 
