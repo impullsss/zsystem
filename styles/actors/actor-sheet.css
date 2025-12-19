@@ -212,115 +212,49 @@
   font-size: 1.2em;
 }
 
-/* --- SKILLS GRID --- */
-
 .skill-grid {
   display: grid;
-  /* Структура: Name | Base | + | Points | + | Mod | = | Total | Dice */
-  /* fr забирает все место для имени, px фиксируют цифры */
-  grid-template-columns: 1fr 22px 8px 35px 8px 35px 8px 25px 20px;
+  /* Добавляем колонку для MOD (30px) между Очками и Итогом */
+  /* Name | Base | + | Points | + | Mod | = | Total | Dice */
+  grid-template-columns: 1fr 25px 10px 35px 10px 30px 10px 35px 25px;
   gap: 2px;
   align-items: center;
-  font-size: 12px; /* Оптимальный размер */
-  width: 100%;
 }
-
 .skill-header {
-  font-size: 10px; /* Заголовок поменьше */
+  font-size: 0.7em;
   color: #666;
-  border-bottom: 2px solid #5d4037;
-  margin-bottom: 4px;
-  padding-bottom: 2px;
-  font-weight: bold;
-  text-transform: uppercase;
+  border-bottom: 1px solid #777;
+  margin-bottom: 5px;
   text-align: center;
 }
-
+.skill-header > span:first-child {
+  text-align: left;
+}
 .skill-row {
   border-bottom: 1px dotted #ccc;
-  padding: 3px 0;
-  min-height: 24px;
+  padding: 2px 0;
+  cursor: pointer;
 }
-.skill-row:hover { background: rgba(0,0,0,0.05); }
-
-/* Элементы строки */
-.skill-name {
-  text-align: left;
+.skill-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+  color: #d84315;
+}
+.skill-val {
   font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; /* Троеточие, если длинно */
-  color: #1a1a1a;
-  padding-right: 5px;
-}
-
-.skill-base-text {
-  color: #777;
+  font-family: "Patrick Hand";
+  font-size: 1.1em;
   text-align: center;
 }
-
-.math-sign {
-  color: #aaa;
-  text-align: center;
-  font-size: 10px;
-}
-
-/* Обертка для инпутов, чтобы убрать стандартные отступы браузера */
-.input-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-/* Инпуты */
 .skill-input {
   width: 100% !important;
-  height: 18px !important;
   text-align: center;
-  border: 1px solid #ccc !important;
-  border-radius: 2px;
-  background: rgba(255,255,255,0.5) !important;
+  border: 1px solid #777 !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-radius: 3px !important;
   padding: 0 !important;
+  font-size: 0.9em !important;
   font-family: "Courier Prime", monospace;
-  font-size: 12px !important;
-  font-weight: bold;
 }
-.skill-input:focus {
-  border-color: #2e7d32 !important;
-  background: #fff !important;
-  box-shadow: 0 0 2px rgba(46, 125, 50, 0.5);
-}
-
-/* Цвет модификатора */
-.skill-input.mod { color: #d84315; }
-.skill-val-read.mod { color: #d84315; }
-
-.skill-val-read {
-    font-weight: bold;
-    color: #333;
-    display: block;
-    text-align: center;
-    border-bottom: 1px dashed #ccc;
-    width: 100%;
-}
-
-.skill-total {
-  font-weight: bold;
-  font-size: 13px;
-  color: #1b5e20;
-  text-align: center;
-  font-family: "Arial", sans-serif;
-}
-
-.skill-roll {
-    color: #333;
-    cursor: pointer;
-    text-align: center;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-.skill-roll:hover { opacity: 1; color: #000; }
 
 /* Body Doll */
 .body-chart-container {
@@ -442,11 +376,4 @@
   pointer-events: none;
   z-index: 100;
   text-transform: uppercase;
-}
-.skill-grid {
-  display: grid;
-  grid-template-columns: 1fr 25px 10px 35px 10px 30px 10px 35px 25px; 
-  /* Name | Base | + | Points | + | Mod | = | Total | Dice */
-  gap: 2px;
-  align-items: center;
 }

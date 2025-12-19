@@ -134,62 +134,55 @@
 
                 <!-- SKILLS -->
                 <div style="margin-top:15px;">
-                    <h3 style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                    <h3 style="display:flex; justify-content:space-between;">
                         НАВЫКИ
                         <span style="font-size:0.5em; color:#666; font-weight:normal; margin-top:5px;">(XP: {{system.secondary.spentSkills.value}})</span>
                     </h3>
                     
-                    <!-- УБРАН ЛИШНИЙ DIV-ЗАГОЛОВОК ОТСЮДА -->
+                    <!-- ЗАГОЛОВОК ТАБЛИЦЫ (Внутри UL, как header) -->
+                    <div class="skill-grid skill-header">
+                        <span>Название</span>
+                        <span>База</span>
+                        <span></span>
+                        <span>Очки</span>
+                        <span></span>
+                        <span>Мод</span>
+                        <span></span>
+                        <span>Итог</span>
+                        <span></span>
+                    </div>
 
-                    <ul class="skills-list" style="border:none; padding:0; margin: 0;">
-                        <!-- HEADER (Единственный) -->
-                        <li class="skill-grid skill-header">
-                            <span style="text-align:left;">Название</span>
-                            <span>База</span>
-                            <span></span>
-                            <span>Влож.</span>
-                            <span></span>
-                            <span>Мод</span>
-                            <span></span>
-                            <span>Итог</span>
-                            <span></span>
-                        </li>
-
+                    <ul class="skills-list" style="border:none; padding:0;">
                         {{#each system.skills as |skill key|}}
                         <li class="skill-grid skill-row" data-skill="{{key}}">
-                            <!-- Name -->
                             <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
                             
-                            <!-- Base -->
-                            <span class="skill-base-text">{{skill.base}}</span>
-                            <span class="math-sign">+</span>
+                            <span class="skill-base-text" style="color:#777; font-size:0.8em; text-align:center;">{{skill.base}}</span>
+                            <span style="color:#aaa; text-align:center;">+</span>
                             
-                            <!-- Points -->
-                            <div class="input-wrapper">
+                            <!-- POINTS -->
+                            <div style="text-align:center;">
                                 {{#if ../isGM}}
                                     <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
                                 {{else}}
-                                    <span class="skill-val-read">{{skill.points}}</span>
+                                    <span class="skill-val">{{skill.points}}</span>
                                 {{/if}}
                             </div>
 
-                            <span class="math-sign">+</span>
+                            <span style="color:#aaa; text-align:center;">+</span>
                             
-                            <!-- Mod -->
-                            <div class="input-wrapper">
+                            <!-- MOD -->
+                            <div style="text-align:center;">
                                 {{#if ../isGM}}
-                                     <input class="skill-input mod" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}"/>
+                                     <input class="skill-input" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}" style="color:#d84315;"/>
                                 {{else}}
-                                     <span class="skill-val-read mod">{{skill.mod}}</span>
+                                     <span class="skill-val" style="color:#d84315; font-size:0.9em;">{{skill.mod}}</span>
                                 {{/if}}
                             </div>
 
-                            <span class="math-sign">=</span>
+                            <span style="color:#aaa; text-align:center;">=</span>
+                            <span class="skill-val">{{skill.value}}</span>
                             
-                            <!-- Total -->
-                            <span class="skill-total">{{skill.value}}</span>
-                            
-                            <!-- Roll -->
                             <a class="skill-roll"><i class="fas fa-dice"></i></a>
                         </li>
                         {{/each}}
