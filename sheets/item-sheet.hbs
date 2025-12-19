@@ -18,6 +18,7 @@
 
   <nav class="sheet-tabs tabs" data-group="primary">
     <a class="item" data-tab="details">Параметры</a>
+    <a class="item" data-tab="effects">Эффекты</a>
     <a class="item" data-tab="description">Описание</a>
   </nav>
 
@@ -382,5 +383,44 @@
     <div class="tab description" data-group="primary" data-tab="description">
         <textarea name="system.description">{{system.description}}</textarea>
     </div>
+
+    <!-- TAB: EFFECTS -->
+<div class="tab effects" data-group="primary" data-tab="effects">
+    <div class="perk-effects-header flexrow">
+        <h3>Активные Эффекты предмета</h3>
+        <a class="effect-control" data-action="create" title="Добавить эффект">
+            <i class="fas fa-plus"></i> Добавить
+        </a>
+    </div>
+
+    <ol class="effects-list">
+        {{#each effects as |effect|}}
+        <li class="effect-item flexrow" data-effect-id="{{effect.id}}">
+            <img src="{{effect.img}}" width="24" height="24" style="margin-right:8px;"/>
+            <div class="effect-name" style="flex:1;">
+                <strong>{{effect.name}}</strong>
+                {{#if effect.changes}}
+                <div class="effect-summary">{{effect.changes}}</div>
+                {{/if}}
+            </div>
+            <div class="effect-controls">
+                <a class="effect-control" data-action="toggle" title="Вкл/Выкл">
+                    <i class="fas {{#if effect.disabled}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i>
+                </a>
+                <a class="effect-control" data-action="edit" title="Редактировать"><i class="fas fa-edit"></i></a>
+                <a class="effect-control" data-action="delete" title="Удалить" style="color:#c62828;"><i class="fas fa-trash"></i></a>
+            </div>
+        </li>
+        {{/each}}
+        
+        {{#unless effects}}
+        <p class="notes" style="text-align:center; padding:10px;">
+            У этого предмета пока нет программных эффектов. <br>
+            Нажмите "Добавить", чтобы перк начал влиять на характеристики.
+        </p>
+        {{/unless}}
+    </ol>
+</div>
+
   </section>
 </form>

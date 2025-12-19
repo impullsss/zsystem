@@ -64,6 +64,15 @@ export class ZItemSheet extends ItemSheet {
         };
     }
 
+    context.effects = this.item.effects.map(e => ({
+        id: e.id,
+        name: e.name,
+        img: e.img,
+        disabled: e.disabled,
+        // Для удобства ГМа выведем список изменений в одну строку
+        changes: e.changes.map(c => `${c.key} ${c.mode===2 ? '+' : '='} ${c.value}`).join(", ")
+    }));
+
     return context;
   }
 
@@ -180,6 +189,30 @@ export class ZItemSheet extends ItemSheet {
       ev.preventDefault();
       const key = ev.currentTarget.dataset.key;
       await this.item.update({ [`system.attacks.-=${key}`]: null });
+    });
+
+    $html.find('.effect-control').click(ev => {
+        ev.preventDefault();
+        const a = ev.currentTarget;
+        const effectId = $(a).closest('.effect-item').data('effectId');
+        
+        switch (a.dataset.action) {
+            case "create":
+                return this.item.createEmbeddedDocuments("ActiveEffect", [{
+                    name: "Новый эффект: " + this.item.name,
+                    icon: this.item.img,
+                    origin: this.item.uuid,
+                    disabled: false,
+                    transfer: true
+                }]);
+            case "edit":
+                return this.item.effects.get(effectId).sheet.render(true);
+            case "delete":
+                return this.item.effects.get(effectId).delete();
+            case "toggle":
+                const effect = this.item.effects.get(effectId);
+                return effect.update({ disabled: !effect.disabled });
+        }
     });
   }
 }

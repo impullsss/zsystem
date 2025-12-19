@@ -341,13 +341,13 @@ export class ZActor extends Actor {
 
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     attrKeys.forEach((key) => {
-      if (!system.attributes[key])
-        system.attributes[key] = { base: 1, value: 1, mod: 0 };
-      const attr = system.attributes[key];
-      if (attr.base === undefined) attr.base = attr.value || 1;
-      attr.value = Number(attr.base) || 1;
-      attr.mod = 0;
-    });
+  if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
+  const attr = system.attributes[key];
+  
+  // Инициализируем mod только если его еще нет (не обнуляем при каждой перерисовке!)
+  attr.mod = attr.mod ?? 0; 
+  if (attr.base === undefined) attr.base = attr.value || 1;
+});
 
     if (!system.resources.ap)
       system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
@@ -373,13 +373,19 @@ export class ZActor extends Actor {
 
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     attrKeys.forEach((key) => {
-      const attr = system.attributes[key];
-      attr.base = Math.max(1, Math.min(10, attr.base));
-      attr.value = Math.max(1, attr.value);
-      attr.mod = attr.value - attr.base;
-      spentStats += attr.base - 1;
-      s[key] = attr.value;
-    });
+  const attr = system.attributes[key];
+  
+  // 1. Ограничиваем базу
+  attr.base = Math.max(1, Math.min(10, attr.base));
+  
+  // 2. ВАЖНО: attr.mod на этом этапе УЖЕ содержит бонусы от Активных Эффектов
+  // Мы просто суммируем его с базой
+  attr.value = Math.max(1, attr.base + (Number(attr.mod) || 0));
+
+  // Опционально: Суммируем потраченные статы (всегда считаем от Базы)
+  spentStats += attr.base - 1;
+  s[key] = attr.value;
+});
 
     if (!system.secondary.spentStats) system.secondary.spentStats = { value: 0 };
     system.secondary.spentStats.value = spentStats;

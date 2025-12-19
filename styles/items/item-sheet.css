@@ -5,3 +5,60 @@
     border: 1px solid #777; padding: 5px; background: rgba(255,255,255,0.1);
 }
 .attack-row:nth-child(even) { background: rgba(0,0,0,0.1); }
+
+/* --- ITEM EFFECTS TAB --- */
+.zsystem.sheet.item .tab.effects {
+    padding: 10px;
+}
+
+.perk-effects-header {
+    border-bottom: 2px solid #5d4037;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.perk-effects-header h3 {
+    margin: 0;
+    border: none;
+}
+
+.effects-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.effect-item {
+    background: rgba(0,0,0,0.05);
+    border: 1px solid #999;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    padding: 8px;
+    align-items: center;
+}
+
+.effect-summary {
+    font-size: 0.75em;
+    color: #666;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+}
+
+.effect-controls {
+    display: flex;
+    gap: 10px;
+    font-size: 1.1em;
+}
+
+.effect-control {
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.effect-control:hover {
+    transform: scale(1.1);
+    color: #0d47a1;
+}
