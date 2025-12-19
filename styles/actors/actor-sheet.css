@@ -1,11 +1,12 @@
-/* --- ACTOR SHEET CONTAINER --- */
+/* --- ГЛОБАЛЬНЫЙ КОНТЕЙНЕР ЛИСТА --- */
 .zsystem.sheet.actor {
   background-color: #222;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
   padding: 0;
+  min-width: 750px;
 }
 
-/* --- THE CLIPBOARD PAPER --- */
+/* Эффект бумаги на планшете */
 .zsystem-actor-sheet {
   background-color: #f4e1c1;
   background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjRlMWMxIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNykiLz4KPC9zdmc+");
@@ -17,9 +18,10 @@
   color: #212121;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
   border-radius: 2px;
+  position: relative;
 }
 
-/* Handwritten Inputs */
+/* --- ТИПОГРАФИКА И ИНПУТЫ --- */
 .zsystem-actor-sheet input[type="text"],
 .zsystem-actor-sheet input[type="number"] {
   font-family: "Patrick Hand", cursive;
@@ -30,13 +32,14 @@
   border-bottom: 1px dashed #999;
   padding: 0 5px;
 }
+
 .zsystem-actor-sheet input:focus {
   border-bottom: 1px solid #000;
   box-shadow: none;
   outline: none;
 }
 
-/* --- HEADER AREA --- */
+/* --- ХЕДЕР (ФОТО И БАРЫ) --- */
 .clipboard-header {
   display: flex;
   gap: 15px;
@@ -47,13 +50,15 @@
 }
 
 .profile-img-container {
-  flex: 0 0 100px;
-  height: 100px;
-  border: 2px solid #333;
+  flex: 0 0 110px;
+  height: 110px;
+  border: 4px solid #fff;
   background: #fff;
   transform: rotate(-2deg);
-  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
 }
+
 .profile-img-container img {
   width: 100%;
   height: 100%;
@@ -64,316 +69,330 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
-/* Bars (HP/AP) */
+/* Шкалы HP/AP */
 .stat-bar {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
+
 .bar-label {
   font-weight: bold;
   font-size: 0.9em;
-  width: 60px;
-  text-align: right;
+  width: 30px;
 }
+
 .bar-track {
   flex: 1;
-  height: 18px;
+  height: 20px;
   background: #ccc;
   border: 1px solid #333;
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-.bar-fill {
-  height: 100%;
-  transition: width 0.3s;
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-.bar-fill.hp {
-  background: #b71c1c;
-}
-.bar-fill.ap {
-  background: #2e7d32;
 }
 
-/* Editable Bars Inputs */
+.bar-fill {
+  height: 100%;
+  transition: width 0.4s ease-in-out;
+  position: absolute;
+  left: 0;
+}
+.bar-fill.hp { background: #b71c1c; }
+.bar-fill.ap { background: #2e7d32; }
+
 .bar-inputs {
   position: relative;
   z-index: 5;
   display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
+  justify-content: center;
+  align-items: center;
 }
+
 .bar-inputs input {
-  width: 40px !important;
-  background: transparent !important;
-  border: none !important;
+  width: 45px !important;
   color: #fff !important;
   text-shadow: 1px 1px 2px #000;
-  font-weight: bold;
+  border: none !important;
   text-align: center;
-  padding: 0 !important;
-  font-family: "Courier Prime", monospace;
-  font-size: 14px !important;
-}
-.bar-inputs input:focus {
-  color: #ffd54f !important;
-}
-.bar-inputs input::-webkit-outer-spin-button,
-.bar-inputs input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+  font-weight: bold;
 }
 
 .gm-infection-box {
-  background: rgba(255, 0, 0, 0.1);
-  border: 1px dashed red;
-  padding: 5px;
+  background: rgba(211, 47, 47, 0.1);
+  border: 1px dashed #d32f2f;
+  padding: 4px 8px;
+  font-size: 0.85em;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.8em;
-  margin-top: 5px;
 }
 
-/* --- TABS --- */
+/* --- ВКЛАДКИ (TABS) --- */
 .sheet-tabs {
   display: flex;
-  margin-bottom: 15px;
-  border-bottom: 2px solid #333;
-}
-.sheet-tabs .item {
-  padding: 5px 15px;
-  font-weight: bold;
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-bottom: none;
-  font-family: "Courier Prime", monospace;
-}
-.sheet-tabs .item.active {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: #333;
-  border-radius: 5px 5px 0 0;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #5d4037;
 }
 
-/* --- 3-COLUMN LAYOUT --- */
+.sheet-tabs .item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: bold;
+  border: 1px solid transparent;
+}
+
+.sheet-tabs .item.active {
+  background: rgba(93, 64, 55, 0.1);
+  border: 1px solid #5d4037;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+}
+
+/* --- СЕТКА ОСНОВНОГО ЛИСТА (3 КОЛОНКИ) --- */
 .paper-grid {
   display: grid;
-  grid-template-columns: 1fr 200px 1fr;
+  grid-template-columns: 320px 200px 1fr;
   gap: 15px;
   align-items: start;
 }
 
-/* Attr/Skills */
+/* --- ХАРАКТЕРИСТИКИ (ATTRIBUTES) --- */
 .attr-grid {
   display: grid;
-  grid-template-columns: 1fr 40px 30px 40px;
-  gap: 5px;
+  grid-template-columns: 1fr 40px 35px 40px;
+  gap: 2px;
   align-items: center;
+  padding: 2px 0;
 }
+
 .attr-header {
   font-size: 0.7em;
   color: #666;
   border-bottom: 1px solid #777;
-  margin-bottom: 5px;
   text-align: center;
-}
-.attr-header > span:first-child {
-  text-align: left;
-}
-.attr-row {
-  border-bottom: 1px dotted #ccc;
-  padding: 2px 0;
-}
-.attr-row input {
-  text-align: center;
-  font-weight: bold;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid #aaa;
-  border-radius: 3px;
-}
-.attr-mod {
-  text-align: center;
-  font-size: 0.9em;
-  color: #555;
-}
-.attr-total {
-  text-align: center;
-  font-weight: bold;
-  font-family: "Patrick Hand";
-  font-size: 1.2em;
 }
 
-.skill-grid {
-  display: grid;
-  /* Добавляем колонку для MOD (30px) между Очками и Итогом */
-  /* Name | Base | + | Points | + | Mod | = | Total | Dice */
-  grid-template-columns: 1fr 25px 10px 35px 10px 30px 10px 35px 25px;
-  gap: 2px;
-  align-items: center;
+.attr-row {
+  border-bottom: 1px dotted #ccc;
 }
-.skill-header {
-  font-size: 0.7em;
-  color: #666;
-  border-bottom: 1px solid #777;
-  margin-bottom: 5px;
+
+.attr-total {
+  font-weight: bold;
+  font-family: "Patrick Hand";
+  font-size: 1.3em;
   text-align: center;
 }
-.skill-header > span:first-child {
-  text-align: left;
+
+/* --- НАВЫКИ (SKILLS) - ИСПРАВЛЕННАЯ СЕТКА --- */
+/* --- SKILLS GRID RECOVERY --- */
+.skill-grid {
+  display: grid;
+  /* Колонки: Имя(гибкое) | База(25) | +(10) | Очки(35) | +(10) | Мод(35) | =(10) | Итог(35) | Дайс(25) */
+  grid-template-columns: 1fr 25px 10px 38px 10px 38px 10px 35px 25px;
+  gap: 2px;
+  align-items: center;
+  padding: 0 5px;
 }
+
+.skill-header {
+  background: #3e2723;
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: bold;
+  height: 22px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #212121;
+}
+
+.skill-header span {
+  text-align: center;
+}
+
 .skill-row {
   border-bottom: 1px dotted #ccc;
-  padding: 2px 0;
-  cursor: pointer;
+  height: 30px;
+  transition: background 0.1s;
 }
+
 .skill-row:hover {
-  background: rgba(0, 0, 0, 0.03);
-  color: #d84315;
+  background: rgba(216, 67, 21, 0.05);
 }
-.skill-val {
+
+.skill-name {
+  font-weight: bold;
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Теперь будет "Ближний бо..." только если совсем мало места */
+}
+
+.skill-base-text {
+  color: #666;
+  font-size: 0.85em;
+  text-align: center;
+  font-family: "Courier Prime", monospace;
+}
+
+.skill-op {
+  color: #aaa;
+  text-align: center;
+  font-size: 0.8em;
+}
+
+.skill-total-val {
   font-weight: bold;
   font-family: "Patrick Hand";
   font-size: 1.1em;
   text-align: center;
+  color: #1b5e20; /* Зеленый итог */
 }
+
 .skill-input {
   width: 100% !important;
-  text-align: center;
+  height: 20px !important;
+  text-align: center !important;
   border: 1px solid #777 !important;
   background: rgba(255, 255, 255, 0.5) !important;
   border-radius: 3px !important;
   padding: 0 !important;
-  font-size: 0.9em !important;
+  font-size: 0.85em !important;
   font-family: "Courier Prime", monospace;
 }
 
-/* Body Doll */
+.skill-mod-val {
+    color: #d84315 !important; /* Оранжевый цвет для модификатора */
+}
+
+.skill-roll {
+  text-align: center;
+  cursor: pointer;
+  color: #333;
+  transition: color 0.2s;
+}
+
+.skill-roll:hover {
+  color: #d84315;
+}
+
+/* --- КУКЛА ТЕЛА (BODY DOLL) --- */
 .body-chart-container {
   position: relative;
   width: 200px;
-  height: 300px;
+  height: 280px;
   margin: 0 auto;
 }
+
 .limb-shape {
-  stroke: #000;
-  stroke-width: 1px;
-  opacity: 0.9;
-  transition: fill 0.3s;
-}
-.limb-zone:hover .limb-shape {
-  filter: brightness(1.2);
-  cursor: help;
-}
-.limb-input {
-  position: absolute;
-  width: 30px;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #333;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-.limb-input input {
-  font-size: 12px;
-  border: none;
-  text-align: center;
-  color: #000;
-  padding: 0;
-  font-family: "Courier Prime";
+  stroke: #333;
+  stroke-width: 1.5px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
 }
 
-/* Secondary Stats */
-.secondary-stats-box {
-  margin-top: 15px;
-  width: 100%;
-  border-top: 2px dashed #555;
-  padding-top: 10px;
+.limb-zone:hover .limb-shape { opacity: 1; stroke-width: 2px; }
+
+.limb-input {
+  position: absolute;
+  width: 32px;
+  height: 20px;
+  z-index: 10;
 }
+
+.limb-input input {
+  font-size: 0.9em !important;
+  text-align: center !important;
+  color: #000 !important;
+  background: rgba(255,255,255,0.7) !important;
+  border: 1px solid #333 !important;
+  padding: 0 !important;
+}
+
+/* --- ВТОРИЧНЫЕ ПАРАМЕТРЫ --- */
+.secondary-stats-box {
+  margin-top: 10px;
+  background: rgba(0,0,0,0.03);
+  padding: 8px;
+  border: 1px solid #999;
+}
+
 .sec-stat-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.9em;
-  border-bottom: 1px dotted #ccc;
+  border-bottom: 1px dotted #aaa;
   padding: 2px 0;
-}
-.sec-stat-label {
-  font-weight: bold;
-  color: #4e342e;
-}
-.sec-stat-val {
-  font-family: "Patrick Hand";
-  font-weight: bold;
-  font-size: 1.1em;
+  font-size: 0.9em;
 }
 
-/* Inventory Grid (Small) */
+.sec-stat-label { font-weight: bold; color: #4e342e; }
+.sec-stat-val { font-family: "Patrick Hand"; font-weight: bold; font-size: 1.1em; }
+
+/* --- ИНВЕНТАРЬ И ЭФФЕКТЫ --- */
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  gap: 5px;
 }
+
 .inv-slot {
   aspect-ratio: 1;
-  border: 1px solid #555;
-  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid #5d4037;
+  background: rgba(255,255,255,0.4);
   position: relative;
   cursor: pointer;
-  transition: all 0.2s;
 }
-.inv-slot img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
+
+.inv-slot img { width: 100%; height: 100%; object-fit: contain; }
+
 .inv-qty {
   position: absolute;
   bottom: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: #3e2723;
   color: #fff;
-  font-size: 9px;
-  padding: 1px 3px;
-}
-.inv-slot:hover {
-  border-color: #d84315;
-  background: rgba(216, 67, 21, 0.1);
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  font-size: 0.7em;
+  padding: 0 3px;
 }
 
-/* Full List */
-.full-inv-list .item {
-  font-family: "Patrick Hand";
-  font-size: 1.1em;
-}
-.item-toggle {
-  cursor: pointer;
-  margin-right: 5px;
+/* --- ВКЛАДКА ПЕРКОВ (PERKS TAB) --- */
+.perk-list {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid #5d4037;
 }
 
+.perk-item {
+  display: flex;
+  padding: 8px;
+  border-bottom: 1px solid #aaa;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.perk-item:hover { background: rgba(0,0,0,0.02); }
+
+.perk-img {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #333;
+}
+
+/* --- ШТАМП СМЕРТИ --- */
 .dead-stamp {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(-15deg);
-  border: 5px solid #d32f2f;
-  color: #d32f2f;
-  font-size: 4em;
+  transform: translate(-50%, -50%) rotate(-20deg);
+  border: 8px solid #b71c1c;
+  color: #b71c1c;
+  font-size: 5em;
   font-weight: bold;
-  font-family: "Courier Prime";
-  padding: 10px 20px;
+  padding: 10px 40px;
   opacity: 0.8;
   pointer-events: none;
   z-index: 100;
-  text-transform: uppercase;
+  background: rgba(244, 225, 193, 0.8);
 }

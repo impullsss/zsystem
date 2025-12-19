@@ -161,7 +161,7 @@
     background: #fff;
     border: 1px solid #a1887f;
 }
-.skill-row {
+.character-creator .creator-skill-row {
     display: flex;
     align-items: center;
     padding: 4px 8px;

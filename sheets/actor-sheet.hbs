@@ -133,61 +133,48 @@
                 </div>
 
                 <!-- SKILLS -->
-                <div style="margin-top:15px;">
-                    <h3 style="display:flex; justify-content:space-between;">
-                        НАВЫКИ
-                        <span style="font-size:0.5em; color:#666; font-weight:normal; margin-top:5px;">(XP: {{system.secondary.spentSkills.value}})</span>
-                    </h3>
-                    
-                    <!-- ЗАГОЛОВОК ТАБЛИЦЫ (Внутри UL, как header) -->
-                    <div class="skill-grid skill-header">
-                        <span>Название</span>
-                        <span>База</span>
-                        <span></span>
-                        <span>Очки</span>
-                        <span></span>
-                        <span>Мод</span>
-                        <span></span>
-                        <span>Итог</span>
-                        <span></span>
-                    </div>
+<div style="margin-top:15px;">
+    <h3 style="display:flex; justify-content:space-between;">
+        НАВЫКИ
+        <span style="font-size:0.5em; color:#666; font-weight:normal; margin-top:5px;">(XP: {{system.secondary.spentSkills.value}})</span>
+    </h3>
+    
+    <div class="skill-grid skill-header">
+        <span style="text-align: left;">Название</span>
+        <span>База</span>
+        <span></span> <!-- для + -->
+        <span>Очки</span>
+        <span></span> <!-- для + -->
+        <span>Мод</span>
+        <span></span> <!-- для = -->
+        <span>Итог</span>
+        <span></span> <!-- для кубика -->
+    </div>
 
-                    <ul class="skills-list" style="border:none; padding:0;">
-                        {{#each system.skills as |skill key|}}
-                        <li class="skill-grid skill-row" data-skill="{{key}}">
-                            <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
-                            
-                            <span class="skill-base-text" style="color:#777; font-size:0.8em; text-align:center;">{{skill.base}}</span>
-                            <span style="color:#aaa; text-align:center;">+</span>
-                            
-                            <!-- POINTS -->
-                            <div style="text-align:center;">
-                                {{#if ../isGM}}
-                                    <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
-                                {{else}}
-                                    <span class="skill-val">{{skill.points}}</span>
-                                {{/if}}
-                            </div>
+    <ul class="skills-list" style="border:none; padding:0; margin:0;">
+        {{#each system.skills as |skill key|}}
+        <li class="skill-grid skill-row" data-skill="{{key}}">
+            <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
+            
+            <span class="skill-base-text">{{skill.base}}</span>
+            <span class="skill-op">+</span>
+            
+            <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
+            
+            <span class="skill-op">+</span>
+            
+            <input class="skill-input skill-mod-val" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}" placeholder="0"/>
+            
+            <span class="skill-op">=</span>
+            
+            <span class="skill-total-val">{{skill.value}}</span>
+            
+            <a class="skill-roll"><i class="fas fa-dice-d10"></i></a>
+        </li>
+        {{/each}}
+    </ul>
+</div>
 
-                            <span style="color:#aaa; text-align:center;">+</span>
-                            
-                            <!-- MOD -->
-                            <div style="text-align:center;">
-                                {{#if ../isGM}}
-                                     <input class="skill-input" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}" style="color:#d84315;"/>
-                                {{else}}
-                                     <span class="skill-val" style="color:#d84315; font-size:0.9em;">{{skill.mod}}</span>
-                                {{/if}}
-                            </div>
-
-                            <span style="color:#aaa; text-align:center;">=</span>
-                            <span class="skill-val">{{skill.value}}</span>
-                            
-                            <a class="skill-roll"><i class="fas fa-dice"></i></a>
-                        </li>
-                        {{/each}}
-                    </ul>
-                </div>
             </div>
 
             <!-- COL 2: DOLL & SECONDARY -->
