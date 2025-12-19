@@ -73,6 +73,26 @@ export class ZItemSheet extends ItemSheet {
         changes: e.changes.map(c => `${c.key} ${c.mode===2 ? '+' : '='} ${c.value}`).join(", ")
     }));
 
+    context.bonusOptions = {
+        "system.attributes.str.mod": "Сила (STR)",
+        "system.attributes.agi.mod": "Ловкость (AGI)",
+        "system.attributes.vig.mod": "Живучесть (VIG)",
+        "system.attributes.per.mod": "Восприятие (PER)",
+        "system.attributes.int.mod": "Интеллект (INT)",
+        "system.attributes.cha.mod": "Харизма (CHA)",
+        "system.resources.hp.max": "Макс. Здоровье (HP)",
+        "system.resources.ap.bonus": "Доп. Очки Действия (AP)",
+        "system.secondary.carryWeight.max": "Лимит Веса (+кг)",
+        "system.secondary.evasion.value": "Уклонение (%)",
+        "system.secondary.naturalAC.value": "Природная Броня",
+        // Навыки (Очки обучения)
+        "system.skills.melee.mod": "Навык: Ближний бой",
+        "system.skills.ranged.mod": "Навык: Стрельба",
+        "system.skills.stealth.mod": "Навык: Скрытность"
+    };
+    const effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));
+    context.perkBonuses = effect ? effect.changes : [];
+
     return context;
   }
 
@@ -214,5 +234,50 @@ export class ZItemSheet extends ItemSheet {
                 return effect.update({ disabled: !effect.disabled });
         }
     });
+
+    // Добавить новый бонус в список
+    $html.find('.perk-bonus-add').click(async ev => {
+        let effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));
+        
+        // Если эффекта-контейнера еще нет - создаем
+        if (!effect) {
+            const created = await this.item.createEmbeddedDocuments("ActiveEffect", [{
+                name: "Passive Bonuses: " + this.item.name,
+                icon: this.item.img,
+                transfer: true,
+                "flags.zsystem.isMainBonus": true,
+                changes: []
+            }]);
+            effect = created[0];
+        }
+
+        const newChanges = [...effect.changes, { key: "system.attributes.str.mod", mode: 2, value: "1" }];
+        await effect.update({ changes: newChanges });
+    });
+
+    // Удалить бонус
+    $html.find('.perk-bonus-delete').click(async ev => {
+        const idx = ev.currentTarget.dataset.idx;
+        const effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));
+        if (!effect) return;
+
+        const newChanges = effect.changes.filter((_, i) => i != idx);
+        await effect.update({ changes: newChanges });
+    });
+
+    // Изменить ключ или значение
+    $html.find('.perk-bonus-change').change(async ev => {
+        const idx = ev.currentTarget.dataset.idx;
+        const field = ev.currentTarget.dataset.field; // "key" или "value"
+        let val = ev.currentTarget.value;
+        
+        const effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));
+        const newChanges = effect.toObject().changes;
+
+        newChanges[idx][field] = (field === "value") ? String(val) : val;
+        
+        await effect.update({ changes: newChanges });
+    });
+
   }
 }
