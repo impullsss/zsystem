@@ -27,18 +27,25 @@ class AimingManager {
     activate() {
         if (!this.sourceToken) return ui.notifications.error("Токен не найден!");
         
-        // 1. Создаем HUD
+        // 1. Добавляем системный класс на BODY (понадобится для CSS)
+        document.body.classList.add('zsystem-aiming-focus');
+
+        // 2. Создаем HUD
         this.hud = $(`<div id="z-aiming-hud"></div>`);
         $('body').append(this.hud);
 
-        // 2. Добавляем графику на слой интерфейса (поверх токенов)
+        // 3. Добавляем графику
         canvas.interface.addChild(this.graphics);
 
-        // 3. Скрываем все окна (Focus Mode)
-        // Мы используем opacity: 0, чтобы они оставались на месте, но не мешали
-        $('.window-app').animate({ opacity: 0, pointerEvents: 'none' }, 200);
+        // 4. Скрываем все окна БЕЗОПАСНО
+        // Нам нужно отключить pointer-events ПРЯМО СЕЙЧАС, а не после анимации
+        const allWindows = $('.window-app');
+        allWindows.css({
+            'pointer-events': 'none', // Отключаем клики сквозь окна
+            'user-select': 'none'
+        }).animate({ opacity: 0 }, 250);
 
-        // 4. Включаем слушатели
+        // 5. Включаем слушатели
         canvas.stage.on('mousemove', this._onMouseMove);
         canvas.stage.on('mousedown', this._onClick);
         canvas.stage.on('rightdown', this._onRightClick);
@@ -48,25 +55,30 @@ class AimingManager {
     }
 
     deactivate() {
+        // 1. Убираем системный класс
+        document.body.classList.remove('zsystem-aiming-focus');
+
+        // 2. Возвращаем видимость и КЛИКАБЕЛЬНОСТЬ окнам
+        const allWindows = $('.window-app');
+        allWindows.css({
+            'pointer-events': 'all',
+            'user-select': 'auto'
+        }).animate({ opacity: 1 }, 200);
+
+        // 3. Отключаем всё остальное
         canvas.stage.off('mousemove', this._onMouseMove);
         canvas.stage.off('mousedown', this._onClick);
         canvas.stage.off('rightdown', this._onRightClick);
         document.body.style.cursor = "default";
         
-        // Удаляем HUD
         if (this.hud) {
             this.hud.remove();
             this.hud = null;
         }
 
-        // Удаляем графику (Линию)
         this.graphics.clear();
         canvas.interface.removeChild(this.graphics);
         
-        // Возвращаем окна
-        $('.window-app').animate({ opacity: 1, pointerEvents: 'all' }, 200);
-        
-        // Снимаем выделение цели
         if (game.user.targets.size > 0) {
             game.user.targets.forEach(t => t.setTarget(false, {releaseOthers: false}));
         }

@@ -39,3 +39,14 @@ h1, h2, h3 {
   height: calc(100% - 100px); /* Вычитаем примерную высоту хедера и навигации */
   overflow: hidden; /* Скролл будет внутри .tab */
 }
+
+/* Специальный режим прицеливания */
+body.zsystem-aiming-focus .window-app {
+    pointer-events: none !important; /* Гарантируем прокликивание сквозь окна */
+    user-select: none !important;
+}
+
+/* При этом HUD прицеливания ДОЛЖЕН быть виден (у него свой id) */
+body.zsystem-aiming-focus #z-aiming-hud {
+    pointer-events: none !important; /* Он сам тоже прозрачен для клика */
+}
