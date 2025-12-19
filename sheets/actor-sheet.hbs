@@ -106,31 +106,36 @@
                     </div>
 
                     {{#each system.attributes as |attr key|}}
-                    <div class="attr-grid attr-row">
-                        <!-- Roll Label -->
-                        <label class="attr-roll" data-key="{{key}}" style="cursor:pointer; border-bottom:1px dotted #ccc;">
-                            <i class="fas fa-dice-d10"></i> {{lookup ../labels.attributes key}}
-                        </label>
-                        
-                        <!-- BASE VALUE (Locked for Players) -->
-                        <div style="text-align:center;">
-                            {{#if ../isGM}}
-                                <input type="number" name="system.attributes.{{key}}.base" value="{{attr.base}}"/>
-                            {{else}}
-                                <span style="font-weight:bold; font-size:1.1em;">{{attr.base}}</span>
-                            {{/if}}
-                        </div>
+    <div class="attr-grid attr-row">
+        <!-- Группа иконка + Название -->
+        <label class="attr-label attr-roll" data-key="{{key}}">
+            <span class="attr-icon"><i class="fas fa-dice-d10"></i></span>
+            <span class="attr-name">{{lookup ../labels.attributes key}}</span>
+        </label>
+        
+        <!-- Базовое значение -->
+        <div class="attr-base">
+            {{#if ../isGM}}
+                <input type="number" name="system.attributes.{{key}}.base" value="{{attr.base}}"/>
+            {{else}}
+                <span>{{attr.base}}</span>
+            {{/if}}
+        </div>
 
-                        <!-- MOD -->
-                        <span class="attr-mod" style="{{#if (ne attr.mod 0)}}color:#d84315; font-weight:bold;{{/if}}">
-                            {{numberFormat attr.mod sign=true}}
-                        </span>
-                        
-                        <!-- TOTAL -->
-                        <span class="attr-total">{{attr.value}}</span>
-                    </div>
-                    {{/each}}
-                </div>
+        <!-- Модификатор (как пилюля) -->
+        <div class="attr-mod-wrapper">
+            <span class="attr-mod-pill {{#if (gt attr.mod 0)}}pos{{else}}{{#if (lt attr.mod 0)}}neg{{/if}}{{/if}}">
+                {{numberFormat attr.mod sign=true}}
+            </span>
+        </div>
+        
+        <!-- Финальный итог -->
+        <div class="attr-total">
+            {{attr.value}}
+        </div>
+    </div>
+    {{/each}}
+</div>
 
                 <!-- SKILLS -->
 <div style="margin-top:15px;">
