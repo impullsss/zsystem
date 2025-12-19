@@ -210,6 +210,7 @@ export class ZShelterSheet extends ZBaseActorSheet {
             });
         }
     });
+    html.find('.end-session-btn').click(this._onEndSession.bind(this));
   }
 
   async _onAddWorker(projectItem) {
@@ -290,6 +291,81 @@ export class ZShelterSheet extends ZBaseActorSheet {
               }
           }
       }).render(true);
+  }
+
+  async _onEndSession() {
+      if (!game.user.isGM) return ui.notifications.warn("Только ГМ начисляет опыт.");
+
+      const morale = this.actor.system.morale.value;
+      let moraleBonus = 0;
+      if (morale >= 80) moraleBonus = 2;
+      else if (morale >= 50) moraleBonus = 1;
+
+      const content = `
+      <form>
+          <div class="form-group">
+              <label>База за выживание</label>
+              <input type="number" id="base-sp" value="3" readonly style="background:#eee;"/>
+          </div>
+          <div class="form-group">
+              <label>Бонус Морали ({{morale}})</label>
+              <input type="number" id="morale-sp" value="{{moraleBonus}}" readonly style="background:#eee;"/>
+          </div>
+          <div class="form-group">
+              <label>Бонус за Цели/Рейды</label>
+              <input type="number" id="objective-sp" value="0" autofocus/>
+          </div>
+          <p style="font-size:0.9em; color:#666;">
+              Опыт получат все {{residentCount}} жителей.
+          </p>
+      </form>`;
+
+      new Dialog({
+          title: "Начисление Очков Опыта (SP)",
+          content: Handlebars.compile(content)({ morale, moraleBonus, residentCount: this.actor.system.residents.length }),
+          buttons: {
+              ok: {
+                  label: "Начислить",
+                  icon: '<i class="fas fa-check"></i>',
+                  callback: async (html) => {
+                      const base = Number(html.find('#base-sp').val());
+                      const mor = Number(html.find('#morale-sp').val());
+                      const obj = Number(html.find('#objective-sp').val());
+                      const total = base + mor + obj;
+
+                      await this._distributeXP(total);
+                  }
+              }
+          }
+      }).render(true);
+  }
+
+  async _distributeXP(amount) {
+      if (amount <= 0) return;
+      const residents = this.actor.system.residents || [];
+      
+      let count = 0;
+      for (let rid of residents) {
+          const actor = game.actors.get(rid);
+          if (actor && actor.type === "survivor") {
+              const current = Number(actor.system.secondary.xp.value) || 0;
+              await actor.update({
+                  "system.secondary.xp.value": current + amount
+              });
+              count++;
+          }
+      }
+      
+      ChatMessage.create({
+          content: `<div class="z-chat-card">
+                      <div class="z-card-header">📈 КОНЕЦ СЕССИИ</div>
+                      <div style="font-size:1.2em; text-align:center; margin:10px 0;">
+                          Получено <b>${amount} SP</b>
+                      </div>
+                      <div style="font-size:0.8em; color:#777;">Начислено ${count} жителям.</div>
+                    </div>`
+      });
+      ui.notifications.info(`Начислено ${amount} SP для ${count} жителей.`);
   }
 
   async _onDrop(event) {

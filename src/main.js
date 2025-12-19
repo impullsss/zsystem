@@ -204,6 +204,11 @@ Hooks.once("init", () => {
   Handlebars.registerHelper("gt", (a, b) => a > b);
   Handlebars.registerHelper("lt", (a, b) => a < b);
   Handlebars.registerHelper("gte", (a, b) => a >= b);
+  Handlebars.registerHelper("mod", (a, b) => Number(a) % Number(b));
+  Handlebars.registerHelper("floor", (a) => Math.floor(Number(a)));
+  Handlebars.registerHelper("div", (a, b) => Number(a) / Number(b));
+  Handlebars.registerHelper("mult", (a, b) => Number(a) * Number(b));
+  Handlebars.registerHelper("sum", (a, b) => Number(a) + Number(b));
 
   game.settings.register("zsystem", "debugNoise", {
     name: "Debug: Визуализация Шума",

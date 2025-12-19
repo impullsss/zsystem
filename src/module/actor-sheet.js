@@ -1,4 +1,5 @@
 import { ZBaseActorSheet } from "./base-sheet.js";
+import { ZCharacterCreator } from "./apps/character-creator.js";
 
 export class ZActorSheet extends ZBaseActorSheet {
   static get defaultOptions() {
@@ -26,6 +27,7 @@ export class ZActorSheet extends ZBaseActorSheet {
     context.isGM = game.user.isGM;
     context.isProne =
       this.actor.effects?.some((e) => e.statuses.has("prone")) || false;
+    context.perks = []; 
 
     const currentHP = this.actor.system.resources?.hp?.value ?? 0;
 
@@ -94,6 +96,12 @@ export class ZActorSheet extends ZBaseActorSheet {
 
     const items = this.actor.items || [];
     for (let i of items) {
+
+      if (i.type === 'perk') {
+          // Добавляем в отдельный массив и пропускаем добавление в инвентарь
+          context.perks.push(i);
+          continue; 
+      }
       let cat = i.system.category || "misc";
       if (i.type === "weapon") cat = "weapon";
       if (i.type === "ammo") cat = "ammo";
@@ -220,6 +228,10 @@ export class ZActorSheet extends ZBaseActorSheet {
         content: "Восстановить всё?",
         yes: () => this.actor.fullHeal(),
       });
+    });
+
+    html.find('.char-manager-btn').click(ev => {
+        new ZCharacterCreator(this.actor).render(true);
     });
 
     html.find(".item-create").click(this._onItemCreate.bind(this));

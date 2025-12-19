@@ -1,0 +1,212 @@
+/* --- WINDOW CONTAINER --- */
+.zsystem.character-creator {
+    background: #e0e0e0;
+    color: #212121;
+    font-family: "Courier Prime", monospace;
+    border: 4px solid #3e2723;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    min-height: 650px;
+}
+
+.zsystem.character-creator .window-content {
+    background: #f5f5f5;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* --- HEADER --- */
+.creator-header {
+    flex: 0 0 50px;
+    background: #3e2723;
+    color: #fff;
+    padding: 0 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #1b1b1b;
+}
+.creator-title { font-size: 1.4em; font-weight: bold; text-transform: uppercase; }
+.creator-mode-badge { background: #ffab91; color: #bf360c; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+
+/* --- BODY (SIDEBAR + CONTENT) --- */
+.creator-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Чтобы скроллился только контент */
+    background: url("../assets/paper-texture.png") repeat, #f5f5f5;
+}
+
+/* SIDEBAR */
+.creator-sidebar {
+    flex: 0 0 220px;
+    background: #d7ccc8;
+    border-right: 1px solid #a1887f;
+    display: flex;
+    flex-direction: column;
+    padding-top: 10px;
+}
+
+.step-btn {
+    padding: 12px 15px;
+    background: transparent;
+    border-bottom: 1px solid #a1887f;
+    cursor: pointer;
+    text-align: left;
+    font-weight: bold;
+    color: #5d4037;
+    transition: background 0.2s;
+    font-size: 0.95em;
+    display: flex;
+    justify-content: space-between; /* Текст слева, статус справа */
+    align-items: center;
+}
+.step-btn:hover { background: rgba(255,255,255,0.4); padding-left: 20px; }
+.step-btn.active { background: #3e2723; color: #fff; border-color: #1b1b1b; }
+
+/* Status Badges in Sidebar */
+.step-status {
+    font-size: 0.85em;
+    background: rgba(255,255,255,0.3);
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+.step-btn.active .step-status { color: #3e2723; background: #fff; }
+
+/* CONTENT */
+.step-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.step-title {
+    font-size: 1.6em;
+    border-bottom: 3px double #3e2723;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    color: #3e2723;
+}
+
+.step-desc {
+    font-style: italic;
+    color: #555;
+    margin-bottom: 15px;
+    background: rgba(0,0,0,0.05);
+    padding: 8px;
+    border-left: 4px solid #3e2723;
+}
+
+/* --- STEP 1: PERK CARDS --- */
+.perk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); /* Шире карточки */
+    gap: 10px;
+    padding-bottom: 10px;
+}
+.perk-card {
+    background: #fff;
+    border: 1px solid #a1887f;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 3px;
+    position: relative;
+    min-height: 80px;
+}
+.perk-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.2); border-color: #3e2723; transform: translateY(-2px); }
+.perk-card.selected { background: #e8f5e9; border: 2px solid #2e7d32; }
+.perk-card.disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+
+.perk-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-weight: bold; font-size: 1.05em; border-bottom: 1px dotted #ccc; padding-bottom: 4px; }
+.perk-desc { font-size: 0.85em; color: #444; line-height: 1.3; }
+.check-mark { position: absolute; top: 8px; right: 8px; color: #2e7d32; font-size: 1.2em; display: none; }
+.perk-card.selected .check-mark { display: block; }
+
+/* --- STEP 2: STATS --- */
+.stats-allocator {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Две колонки */
+    gap: 15px;
+}
+.stat-row {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+}
+.stat-ctrl {
+    width: 24px;
+    height: 24px;
+    background: #eee;
+    border: 1px solid #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 2px;
+}
+.stat-ctrl:hover { background: #ddd; }
+.stat-val { font-size: 1.4em; font-weight: bold; width: 35px; text-align: center; }
+
+/* --- STEP 3: SKILLS --- */
+.skills-allocator {
+    background: #fff;
+    border: 1px solid #a1887f;
+}
+.skill-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+}
+.skill-row:nth-child(even) { background: #fafafa; }
+.skill-label { flex: 2; font-weight: bold; }
+.skill-base { flex: 1; color: #777; text-align: center; }
+.skill-controls { flex: 2; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.skill-total { flex: 1; text-align: center; font-weight: bold; font-size: 1.1em; color: #1b5e20; }
+
+.skill-input-creator {
+    width: 40px;
+    text-align: center;
+    font-weight: bold;
+    border: none;
+    border-bottom: 2px solid #a1887f;
+    background: transparent;
+    font-family: "Courier Prime";
+    font-size: 1.1em;
+}
+.skill-input-creator:focus { outline: none; border-bottom-color: #2e7d32; background: rgba(0,0,0,0.05); }
+
+/* --- FOOTER --- */
+.creator-footer {
+    flex: 0 0 60px;
+    background: #d7ccc8;
+    border-top: 2px solid #a1887f;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+.z-btn {
+    padding: 10px 25px;
+    border: 2px solid #3e2723;
+    background: #5d4037;
+    color: #fff;
+    font-family: "Courier Prime";
+    font-weight: bold;
+    font-size: 1em;
+    cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 3px 3px 0px rgba(0,0,0,0.3);
+}
+.z-btn:hover { background: #4e342e; margin-top: -1px; margin-bottom: 1px; box-shadow: 4px 4px 0px rgba(0,0,0,0.3); }
+.z-btn:active { margin-top: 2px; margin-bottom: -2px; box-shadow: 1px 1px 0px rgba(0,0,0,0.3); }
+.z-btn:disabled { background: #888; border-color: #555; cursor: not-allowed; opacity: 0.7; box-shadow: none; }

@@ -64,6 +64,31 @@ export class ZActor extends Actor {
     }
   }
 
+  async _preUpdate(changed, options, user) {
+    await super._preUpdate(changed, options, user);
+
+    // Если меняется кол-во потраченного опыта
+    if (foundry.utils.hasProperty(changed, "system.secondary.xp.spent")) {
+        const oldSpent = this.system.secondary.xp.spent || 0;
+        const newSpent = foundry.utils.getProperty(changed, "system.secondary.xp.spent");
+
+        // Порог: каждые 25 очков
+        const oldThreshold = Math.floor(oldSpent / 25);
+        const newThreshold = Math.floor(newSpent / 25);
+
+        if (newThreshold > oldThreshold) {
+            const earnedPP = newThreshold - oldThreshold;
+            const currentPP = this.system.secondary.perkPoints.value || 0;
+            
+            // Начисляем PP
+            changed["system.secondary.perkPoints.value"] = currentPP + earnedPP;
+            
+            // Выведем сообщение для ГМа/Игрока
+            options.zsystem_pp_earned = earnedPP; // Передадим инфо в options, чтобы вывести тост позже
+        }
+    }
+  }
+
   async _onUpdate(data, options, userId) {
     await super._onUpdate(data, options, userId);
     if (userId !== game.user.id) return;
@@ -434,19 +459,29 @@ export class ZActor extends Actor {
 
     for (let [key, conf] of Object.entries(skillConfig)) {
       if (!system.skills[key])
-        system.skills[key] = { base: 0, value: 0, points: 0 };
+        system.skills[key] = { base: 0, value: 0, points: 0, mod: 0 };
+      
       const skill = system.skills[key];
+
+      // Расчет Базы (как и было)
       if (this.type === "zombie" && skill.base > 0) {
-          // Zombies use manual base
+          // Zombies keep manual base
       } else {
         if (key === "science") skill.base = s.int * 4;
         else if (key === "mechanical") skill.base = s.int + Math.max(s.str, s.agi);
         else if (key === "survival") skill.base = s.per + Math.max(s.vig, s.int);
         else skill.base = s[conf.a1] + s[conf.a2];
       }
+
+      // --- НОВОЕ: Учет Модификатора ---
       const invested = getNum(skill.points);
+      const modifier = getNum(skill.mod);
       spentSkills += invested;
-      skill.value = Math.min(100, skill.base + invested);
+
+      // Формула: База + Очки + Мод
+      // Ограничение 100 ставим на итог, или можно разрешить >100 с бонусами. 
+      // Обычно hard cap 100 лучше для d100 системы.
+      skill.value = Math.min(100, skill.base + invested + modifier);
     }
     if (!system.secondary.spentSkills) system.secondary.spentSkills = { value: 0 };
     system.secondary.spentSkills.value = spentSkills;

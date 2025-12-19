@@ -240,6 +240,67 @@
         </div>
         {{/if}}
 
+        <!-- ПЕРКИ / ЧЕРТЫ -->
+        {{#if (eq item.type "perk")}}
+        <div class="perk-properties" style="background: rgba(0,0,0,0.05); padding: 10px; border: 1px solid #777; border-radius: 4px;">
+            <h3 style="margin-top:0; border-bottom:1px solid #555;">Настройки Перка</h3>
+            
+            <!-- ВЫБОР ТИПА ПЕРКА (Было пропущено) -->
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label>Тип (Subtype)</label>
+                <select name="system.subtype" style="width: 100%;">
+                    <option value="general" {{#if (eq system.subtype "general")}}selected{{/if}}>Общий (General)</option>
+                    <option value="skill" {{#if (eq system.subtype "skill")}}selected{{/if}}>Мастерство (Skill)</option>
+                    <option value="background" {{#if (eq system.subtype "background")}}selected{{/if}}>Предыстория (Background)</option>
+                </select>
+            </div>
+
+            <!-- СТОИМОСТЬ -->
+            <div class="grid grid-2col">
+                <div class="form-group">
+                    <label>Стоимость (PP)</label>
+                    <input type="number" name="system.xpCost" value="{{system.xpCost}}" placeholder="1"/>
+                </div>
+            </div>
+
+            <!-- КОНСТРУКТОР ТРЕБОВАНИЙ -->
+            <div class="form-group" style="border-top:1px dashed #777; margin-top:10px; padding-top:5px;">
+                <label>Требования (Заполняется автоматически)</label>
+                
+                <!-- Кнопка добавления -->
+                <a class="req-add" style="float:right; font-size:0.8em; color:green; cursor:pointer;">
+                    <i class="fas fa-plus-circle"></i> Добавить условие
+                </a>
+                
+                <!-- Список условий -->
+                <div class="req-list" style="margin-top:5px;">
+                    {{#each reqList as |req idx|}}
+                    <div class="flexrow" style="align-items:center; margin-bottom:2px;">
+                        <!-- Выбор параметра -->
+                        <select class="req-change" data-idx="{{idx}}" data-field="key" style="flex:2; margin-right:5px;">
+                            {{selectOptions ../reqOptions selected=req.key localize=false}}
+                        </select>
+                        
+                        <!-- Значение -->
+                        <input type="number" class="req-change" data-idx="{{idx}}" data-field="val" value="{{req.val}}" style="flex:1; text-align:center;"/>
+                        
+                        <!-- Удалить -->
+                        <a class="req-delete" data-idx="{{idx}}" style="color:red; margin-left:5px; cursor:pointer;"><i class="fas fa-times"></i></a>
+                    </div>
+                    {{/each}}
+                    
+                    {{#unless reqList}}
+                    <div style="font-size:0.8em; color:#777; font-style:italic;">Нет требований (доступно всем).</div>
+                    {{/unless}}
+                </div>
+                
+                <!-- СКРЫТОЕ ПОЛЕ: ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ -->
+                <!-- Мы убрали дубликат input type="text" внизу, который ломал данные -->
+                <input type="text" name="system.requirements" value="{{system.requirements}}" style="display:none;"/>
+            </div>
+        </div>
+        {{/if}}
+
         <!-- ПАТРОНЫ -->
         {{#if (eq item.type "ammo")}}
         <div class="ammo-properties">
@@ -250,7 +311,7 @@
         </div>
         {{/if}}
         
-        <!-- ЕДА (НОВАЯ СЕКЦИЯ) -->
+        <!-- ЕДА -->
         {{#if (eq item.type "food")}}
         <div class="food-properties" style="background: rgba(0,255,0,0.05); padding: 5px; border-radius: 4px; border: 1px solid #777;">
             <h3>Склад Убежища</h3>
@@ -304,12 +365,14 @@
 
         {{#if (ne item.type "weapon")}}
         {{#if (ne item.type "armor")}}
+        {{#if (ne item.type "perk")}}
             <div class="form-group" style="margin-top: 10px;">
                 <label>Категория</label>
                 <select name="system.category">
                     {{selectOptions categoryOptions selected=system.category localize=false}}
                 </select>
             </div>
+        {{/if}}
         {{/if}}
         {{/if}}
 

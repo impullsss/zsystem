@@ -13,9 +13,10 @@
     "styles/actors/actor-sheet.css",
     "styles/actors/loot.css",
     "styles/actors/shelter.css",
-    "styles/items/item-sheet.css"
+    "styles/items/item-sheet.css",
+    "styles/apps/character-creator.css"
   ],
-  
+
   "languages": [
     {
       "lang": "ru",
@@ -25,51 +26,61 @@
   ],
 
   "documentTypes": {
-    "Actor": { 
-        "survivor": {}, 
-        "npc": {}, 
-        "zombie": {}, 
-        "shelter": {}, 
-        "container": {
+    "Actor": {
+      "survivor": {},
+      "npc": {},
+      "zombie": {},
+      "shelter": {},
+      "container": {
         "attributes": {
-            "isLocked": { "value": false },
-            "keyName": { "value": "" },
-            "lockDC": { "value": 15 },
-            "bashDC": { "value": 18 },
-            "isTrapped": { "value": false },
-            "trapActive": { "value": true },
-            "trapDC": { "value": 15 },
-            "disarmDC": { "value": 15 },
-            "trapSpotRadius": { "value": 3 },
-            "trapDmg": { "value": "2d6" },
-            "isHidden": { "value": false },
-            "spotDC": { "value": 15 },
-            "canPick": { "value": true },
-            "canBash": { "value": true }
+          "isLocked": { "value": false },
+          "keyName": { "value": "" },
+          "lockDC": { "value": 15 },
+          "bashDC": { "value": 18 },
+          "isTrapped": { "value": false },
+          "trapActive": { "value": true },
+          "trapDC": { "value": 15 },
+          "disarmDC": { "value": 15 },
+          "trapSpotRadius": { "value": 3 },
+          "trapDmg": { "value": "2d6" },
+          "isHidden": { "value": false },
+          "spotDC": { "value": 15 },
+          "canPick": { "value": true },
+          "canBash": { "value": true }
         }
-    },
-        "harvest_spot": {},
-    "vehicle": {
+      },
+      "harvest_spot": {},
+      "vehicle": {
         "attributes": {
-            "speed": { "value": 0, "max": 100 },
-            "handling": { "value": 0 },
-            "mpg": { "value": 5 } 
+          "speed": { "value": 0, "max": 100 },
+          "handling": { "value": 0 },
+          "mpg": { "value": 5 }
         },
         "resources": {
-            "fuel": { "value": 0, "max": 60 },
-            "hp": { "value": 100, "max": 100 }
+          "fuel": { "value": 0, "max": 60 },
+          "hp": { "value": 100, "max": 100 }
         },
         "cargo": { "value": 0, "max": 500 },
-        "passengers": [] 
-    }
+        "passengers": []
+      }
     },
-    "Item": { 
-        "weapon": {}, "armor": {}, "consumable": {}, "ammo": {}, 
-        "resource": {}, "medicine": {}, "food": {}, "materials": {}, 
-        "luxury": {}, "misc": {}, "upgrade": {}, "project": {}
+    "Item": {
+      "weapon": {},
+      "armor": {},
+      "consumable": {},
+      "ammo": {},
+      "resource": {},
+      "medicine": {},
+      "food": {},
+      "materials": {},
+      "luxury": {},
+      "misc": {},
+      "upgrade": {},
+      "project": {},
+      "perk": {}
     }
   },
-  
+
   "template": {
     "Actor": {
       "types": ["survivor", "npc", "zombie"],
@@ -96,16 +107,16 @@
         "naturalAC": { "value": 0 }
       },
       "skills": {
-        "melee": { "value": 0, "base": 0, "points": 0 },
-        "ranged": { "value": 0, "base": 0, "points": 0 },
-        "science": { "value": 0, "base": 0, "points": 0 },
-        "mechanical": { "value": 0, "base": 0, "points": 0 },
-        "medical": { "value": 0, "base": 0, "points": 0 },
-        "diplomacy": { "value": 0, "base": 0, "points": 0 },
-        "leadership": { "value": 0, "base": 0, "points": 0 },
-        "survival": { "value": 0, "base": 0, "points": 0 },
-        "athletics": { "value": 0, "base": 0, "points": 0 },
-        "stealth": { "value": 0, "base": 0, "points": 0 }
+        "melee": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "ranged": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "science": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "mechanical": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "medical": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "diplomacy": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "leadership": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "survival": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "athletics": { "value": 0, "base": 0, "points": 0, "mod": 0 },
+        "stealth": { "value": 0, "base": 0, "points": 0, "mod": 0 }
       },
       "limbs": {
         "head": { "value": 10, "max": 10 },
@@ -117,28 +128,28 @@
       }
     },
     "zombie": {
-        "attributes": {
-            "str": { "value": 4 },
-            "agi": { "value": 2 },
-            "vig": { "value": 10 }
-        },
-        "resources": {
-            "hp": { "value": 50, "max": 50 },
-            "ap": { "value": 4, "max": 4 },
-            "noise": { "value": 0 } 
-        }
+      "attributes": {
+        "str": { "value": 4 },
+        "agi": { "value": 2 },
+        "vig": { "value": 10 }
+      },
+      "resources": {
+        "hp": { "value": 50, "max": 50 },
+        "ap": { "value": 4, "max": 4 },
+        "noise": { "value": 0 }
+      }
     },
     "shelter": {
-        "resources": {
-            "food": { "value": 50, "max": 500, "consumption": 1 }, 
-            "fuel": { "value": 20, "max": 100, "daily": 5 },
-            "parts": { "value": 0 },
-            "antibiotics": { "value": 5 },
-            "defense": { "value": 0 }, 
-            "luxury": { "value": 0 }
-        },
-        "morale": { "value": 50, "max": 100, "trend": -5 },
-        "residents": [] 
+      "resources": {
+        "food": { "value": 50, "max": 500, "consumption": 1 },
+        "fuel": { "value": 20, "max": 100, "daily": 5 },
+        "parts": { "value": 0 },
+        "antibiotics": { "value": 5 },
+        "defense": { "value": 0 },
+        "luxury": { "value": 0 }
+      },
+      "morale": { "value": 50, "max": 100, "trend": -5 },
+      "residents": []
     },
     "Item": {
       "templates": {
@@ -172,73 +183,90 @@
       },
       "ammo": {
         "templates": ["base"],
-        "calibre": "" 
+        "calibre": ""
       },
       "armor": {
         "templates": ["base"],
         "ac": 0,
         "hp": { "value": 100, "max": 100 },
-        "dr": { "blunt": 0, "slashing": 0, "piercing": 0, "ballistic": 0, "fire": 0 },
-        "coverage": { "head": false, "torso": true, "lArm": false, "rArm": false, "lLeg": false, "rLeg": false },
+        "dr": {
+          "blunt": 0,
+          "slashing": 0,
+          "piercing": 0,
+          "ballistic": 0,
+          "fire": 0
+        },
+        "coverage": {
+          "head": false,
+          "torso": true,
+          "lArm": false,
+          "rArm": false,
+          "lLeg": false,
+          "rLeg": false
+        },
         "penalties": { "dex": 0, "move": 0, "noise": 0 }
       },
-      "medicine": { 
-          "templates": ["base"],
-          "healAmount": 10,
-          "quality": 1,
-          "isAntibiotic": false
+      "medicine": {
+        "templates": ["base"],
+        "healAmount": 10,
+        "quality": 1,
+        "isAntibiotic": false
       },
       "upgrade": {
-          "templates": ["base"],
-          "costParts": 50,
-          "hoursNeeded": 24,
-          "progress": 0,
-          "reqSkill": "mechanical",
-          "reqLevel": 1,
-          "minPeople": 1,
-          "partsCost": 0,
-          "partsPaid": 0,
-          "workers": [],
-          "isCompleted": false,
-          "bonusType": "none",
-          "bonusValue": 0,
-          "outputItem": ""
+        "templates": ["base"],
+        "costParts": 50,
+        "hoursNeeded": 24,
+        "progress": 0,
+        "reqSkill": "mechanical",
+        "reqLevel": 1,
+        "minPeople": 1,
+        "partsCost": 0,
+        "partsPaid": 0,
+        "workers": [],
+        "isCompleted": false,
+        "bonusType": "none",
+        "bonusValue": 0,
+        "outputItem": ""
       },
       "project": {
-          "templates": ["base"],
-          "costParts": 0,
-          "hoursNeeded": 4,
-          "progress": 0,
-          "reqSkill": "science",
-          "reqLevel": 1,
-          "minPeople": 1,
-          "partsCost": 0,
-          "partsPaid": 0,
-          "workers": [],
-          "isCompleted": false,
-          "bonusType": "none",
-          "bonusValue": 0,
-          "outputItem": ""
+        "templates": ["base"],
+        "costParts": 0,
+        "hoursNeeded": 4,
+        "progress": 0,
+        "reqSkill": "science",
+        "reqLevel": 1,
+        "minPeople": 1,
+        "partsCost": 0,
+        "partsPaid": 0,
+        "workers": [],
+        "isCompleted": false,
+        "bonusType": "none",
+        "bonusValue": 0,
+        "outputItem": ""
       },
-      "food": { 
-          "templates": ["base"],
-          "satiety": 0,      
-          "spoilage": 0,     
-          "resourceValue": 1 
+      "food": {
+        "templates": ["base"],
+        "satiety": 0,
+        "spoilage": 0,
+        "resourceValue": 1
       },
       "materials": { "templates": ["base"] },
       "luxury": { "templates": ["base"] },
       "resource": { "templates": ["base"] },
       "consumable": { "templates": ["base"] },
-      "misc": { "templates": ["base"] }
+      "misc": { "templates": ["base"] },
+      "perk": {
+          "templates": ["base"],
+          "subtype": "general", 
+          "xpCost": 1,
+          "requirements": ""
+      }
     }
   },
   "grid": { "distance": 1, "units": "m" },
   "primaryTokenAttribute": "resources.hp",
   "secondaryTokenAttribute": "resources.ap",
   "relationships": {
-    "requires": [
-      { "id": "socketlib", "type": "module" }
-    ]
+    "requires": [{ "id": "socketlib", "type": "module" }]
   }
 }

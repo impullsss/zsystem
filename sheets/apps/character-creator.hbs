@@ -1,0 +1,295 @@
+<form class="zsystem character-creator" autocomplete="off">
+    <!-- HEADER -->
+    <div class="creator-header">
+        <div class="creator-title">
+            <i class="fas fa-id-card"></i> {{actor.name}}
+        </div>
+        <div class="creator-mode-badge">
+            {{#if isCreation}}СОЗДАНИЕ{{else}}ПРОКАЧКА{{/if}}
+        </div>
+    </div>
+
+    {{#if isCreation}}
+        <!-- ====================== CREATION MODE ====================== -->
+        
+        <!-- BODY (Sidebar + Content) -->
+        <div class="creator-body">
+            
+            <!-- SIDEBAR -->
+            <div class="creator-sidebar">
+                <div class="step-btn {{#if (eq step 1)}}active{{/if}}" data-step="1">
+                    <span>1. Досье</span>
+                    <span class="step-status" style="color:{{#if bgValid}}green{{else}}#d84315{{/if}}">
+                        {{#if bgValid}}OK{{else}}{{bgCount}}/2{{/if}}
+                    </span>
+                </div>
+                
+                <div class="step-btn {{#if (eq step 2)}}active{{/if}}" data-step="2">
+                    <span>2. Характеристики</span>
+                    <span class="step-status" style="color:{{#if isStatsValid}}green{{else}}#d84315{{/if}}">
+                        {{#if isStatsValid}}OK{{else}}{{statsPointsLeft}}{{/if}}
+                    </span>
+                </div>
+                
+                <div class="step-btn {{#if (eq step 3)}}active{{/if}}" data-step="3">
+                    <span>3. Тренировка</span>
+                    <span class="step-status" style="color:{{#if canProceedSkills}}green{{else}}#d84315{{/if}}">
+                        {{skillPointsLeft}}
+                    </span>
+                </div>
+                
+                <div class="step-btn {{#if (eq step 4)}}active{{/if}}" data-step="4">
+                    <span>4. Особенности</span>
+                    {{#if (and (eq step 4) (lt ppLeft 1))}}<i class="fas fa-check step-status" style="color:green"></i>{{/if}}
+                </div>
+            </div>
+
+            <!-- CONTENT -->
+            <div class="step-content">
+                
+                <!-- STEP 1: BACKGROUND -->
+                 {{#if (eq step 1)}}
+                    <div class="step-title">Шаг 1: Досье</div>
+                    <div class="step-desc">
+                        Выберите <b>2 черты</b> предыстории.<br>
+                        <div style="margin-top:5px; font-size:1.1em;">
+                            Статус: 
+                            {{#if bgValid}}
+                                <span style="color:green; font-weight:bold;">ГОТОВО ({{bgCount}}/2)</span>
+                            {{else}}
+                                <span style="color:#d84315; font-weight:bold;">
+                                    ВЫБРАНО: {{bgCount}} / 2
+                                </span>
+                            {{/if}}
+                        </div>
+                    </div>
+
+                    <div class="perk-grid">
+                        {{#each availableBackgrounds as |bg|}}
+                            <div class="perk-card bg-card {{#if bg.selected}}selected{{/if}}" data-item-id="{{bg.id}}">
+                                <i class="fas fa-check-circle check-mark"></i>
+                                <div class="perk-header">
+                                    <img src="{{bg.img}}" width="24" height="24"/> {{bg.name}}
+                                </div>
+                                <div class="perk-desc">{{{bg.system.description}}}</div>
+                            </div>
+                        {{/each}}
+                    </div>
+                {{/if}}
+
+                <!-- STEP 2: STATS -->
+                {{#if (eq step 2)}}
+                    <div class="step-title">Шаг 2: Характеристики</div>
+                    <div class="step-desc">Распределите 33 очка. Минимум 1, Максимум 10.</div>
+                    
+                    <div style="text-align:center; font-size:1.4em; font-weight:bold; margin-bottom:15px; padding:5px; background:rgba(0,0,0,0.05); border-radius:4px;">
+                        Свободные очки: <span style="color:{{#if isStatsValid}}green{{else}}#d84315{{/if}}">{{statsPointsLeft}}</span>
+                    </div>
+                    
+                    <div class="stats-allocator">
+                        {{#each statsList as |stat|}}
+                        <div class="stat-row">
+                            <label style="font-weight:bold; font-size:1.1em;">{{stat.label}}</label>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <a class="stat-ctrl" data-action="minus" data-key="{{stat.key}}"><i class="fas fa-minus"></i></a>
+                                <span class="stat-val">{{stat.value}}</span>
+                                <a class="stat-ctrl" data-action="plus" data-key="{{stat.key}}"><i class="fas fa-plus"></i></a>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                {{/if}}
+
+                <!-- STEP 3: SKILLS -->
+                {{#if (eq step 3)}}
+                    <div class="step-title">Шаг 3: Тренировка</div>
+                    <div class="step-desc">Цена растет с уровнем: <b>1</b> (0-39), <b>2</b> (40-69), <b>3</b> (70+).</div>
+                    
+                    <div style="text-align:center; font-size:1.4em; font-weight:bold; margin-bottom:15px; padding:5px; background:rgba(0,0,0,0.05); border-radius:4px;">
+                        Осталось SP: <span style="color:{{#if (gte skillPointsLeft 0)}}green{{else}}red{{/if}}">{{skillPointsLeft}}</span>
+                    </div>
+
+                    <div class="skills-allocator">
+                        <div class="skill-row" style="background:#5d4037; color:#fff; font-weight:bold;">
+                            <div style="flex:2;">Навык</div>
+                            <div style="flex:1; text-align:center;">База</div>
+                            <div style="flex:2; text-align:center;">Вложено</div>
+                            <div style="flex:1; text-align:center;">Итог</div>
+                        </div>
+                        
+                        {{#each skillsList as |skill|}}
+                        <div class="skill-row">
+                            <div class="skill-label">{{skill.label}}</div>
+                            <div class="skill-base">{{skill.base}}</div>
+                            
+                            <div class="skill-controls">
+                                 <a class="skill-ctrl" data-action="minus" data-key="{{skill.key}}"><i class="fas fa-minus"></i></a>
+                                 
+                                 <input type="number" class="skill-input-creator" data-key="{{skill.key}}" value="{{skill.added}}"/>
+                                 
+                                 <a class="skill-ctrl" data-action="plus" data-key="{{skill.key}}" title="Цена: {{skill.nextCost}} SP">
+                                     <i class="fas fa-plus"></i>
+                                 </a>
+                            </div>
+                            
+                            <div class="skill-total">{{skill.total}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                {{/if}}
+
+                <!-- STEP 4: PERKS -->
+                {{#if (eq step 4)}}
+                    <div class="step-title">Шаг 4: Особые приметы</div>
+                    <div class="step-desc">Бюджет: <b>{{ppLeft}} PP</b>. Выберите 1 стартовый перк.</div>
+
+                    <div class="perk-grid">
+                        {{#each availablePerks as |perk|}}
+                            <div class="perk-card perk-select-card {{#if perk.selected}}selected{{/if}} {{#if perk.disabled}}disabled{{/if}}" 
+                                 data-item-id="{{perk.id}}">
+                                
+                                <i class="fas fa-check-circle check-mark"></i>
+                                
+                                <div class="perk-header" style="justify-content:space-between;">
+                                    <div style="display:flex; align-items:center; gap:5px;">
+                                        <img src="{{perk.img}}" width="24" height="24"/> {{perk.name}}
+                                    </div>
+                                    <span style="font-size:0.8em; background:#333; color:#fff; padding:1px 4px; border-radius:3px;">{{perk.cost}} PP</span>
+                                </div>
+                                
+                                <div class="perk-desc" style="margin-bottom:5px;">{{{perk.system.description}}}</div>
+                                
+                                {{#if perk.system.requirements}}
+                                <div style="font-size:0.8em; font-weight:bold; color:{{#if perk.reqMet}}green{{else}}red{{/if}}">
+                                    Треб: {{perk.system.requirements}} {{#if perk.reqMet}}<i class="fas fa-check"></i>{{else}}<i class="fas fa-times"></i>{{/if}}
+                                </div>
+                                {{/if}}
+                                {{#unless perk.canAfford}}<div style="color:red; font-size:0.8em; font-weight:bold;">Дорого</div>{{/unless}}
+                            </div>
+                        {{/each}}
+                    </div>
+                {{/if}}
+            </div>
+        </div>
+
+        <!-- FOOTER (Вынесен наружу!) -->
+        <div class="creator-footer">
+            {{#if (gt step 1)}} 
+                <button type="button" class="z-btn" data-action="prev">НАЗАД</button> 
+            {{else}}
+                <div style="width:120px;"></div> <!-- Пустое место для выравнивания -->
+            {{/if}}
+            
+            {{#if (lt step 4)}}
+                {{#if (and (eq step 1) (not bgValid))}} 
+                    <button type="button" class="z-btn" disabled>ДАЛЕЕ (2)</button>
+                {{else}}{{#if (and (eq step 2) (not isStatsValid))}} 
+                    <button type="button" class="z-btn" disabled>ДАЛЕЕ ({{statsPointsLeft}})</button>
+                {{else}}{{#if (and (eq step 3) (not canProceedSkills))}} 
+                    <button type="button" class="z-btn" disabled>ДАЛЕЕ</button>
+                {{else}} 
+                    <button type="button" class="z-btn" data-action="next">ДАЛЕЕ</button>
+                {{/if}}{{/if}}{{/if}}
+            {{else}}
+                <button type="button" class="z-btn" data-action="finish" style="background:#2e7d32;">ЗАВЕРШИТЬ</button>
+            {{/if}}
+        </div>
+
+    {{else}}
+        <!-- ====================== LEVEL UP MODE ====================== -->
+        
+        <div style="background:#37474f; color:#fff; padding:10px; display:flex; justify-content:space-around; font-size:1.2em;">
+            <div><i class="fas fa-graduation-cap"></i> SP: <span style="color:#69f0ae;">{{xpAvailable}}</span></div>
+            <div><i class="fas fa-star"></i> PP: <span style="color:#ffab91;">{{ppAvailable}}</span></div>
+        </div>
+
+        <div class="creator-body" style="display:grid; grid-template-columns: 1fr 1fr;">
+            
+            <!-- LEFT -->
+            <div class="panel" style="padding:15px; overflow-y:auto; border-right:2px solid #555;">
+                <h3 style="border-bottom:2px solid #3e2723; margin-bottom:10px;">Тренировка Навыков</h3>
+                <div class="skills-list">
+                    <div class="flexrow" style="font-weight:bold; font-size:0.8em; color:#555; padding-bottom:5px;">
+                        <span style="flex:2;">Навык</span>
+                        <span style="flex:1; text-align:center;">Тек.</span>
+                        <span style="flex:2; text-align:center;">Вложено</span>
+                        <span style="flex:1; text-align:center;">Итог</span>
+                    </div>
+                    
+                    {{#each skillsList as |skill|}}
+                    <div class="flexrow" style="align-items:center; padding:5px 0; border-bottom:1px dotted #ccc;">
+                        <span style="flex:2; font-weight:bold;">{{skill.label}}</span>
+                        <span style="flex:1; text-align:center; color:#555;">{{skill.current}}</span>
+                        
+                        <!-- CONTROLS -->
+                        <div style="flex:2; display:flex; align-items:center; justify-content:center; gap:5px;">
+                            <!-- MINUS -->
+                            <a class="levelup-skill-ctrl" data-action="minus" data-key="{{skill.key}}" 
+                               style="cursor:pointer; color:#d84315; {{#unless skill.canMinus}}opacity:0.3; cursor:default;{{/unless}}">
+                                <i class="fas fa-minus-square"></i>
+                            </a>
+
+                            <!-- INPUT (Показывает сколько добавлено в сессии) -->
+                            <input type="number" class="skill-input-levelup" data-key="{{skill.key}}" value="{{skill.added}}" 
+                                   style="width:40px; text-align:center; font-weight:bold; border:none; border-bottom:2px solid #5d4037; background:transparent;"/>
+
+                            <!-- PLUS -->
+                            <a class="levelup-skill-ctrl" data-action="plus" data-key="{{skill.key}}" 
+                               style="cursor:pointer; color:#2e7d32; {{#unless skill.canAfford}}opacity:0.3; cursor:default;{{/unless}}"
+                               title="Цена: {{skill.nextCost}} SP">
+                                <i class="fas fa-plus-square"></i>
+                            </a>
+                        </div>
+
+                        <!-- TOTAL PROJECTED -->
+                        <span style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{skill.total}}</span>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+
+            <!-- RIGHT -->
+            <div class="panel" style="padding:15px; overflow-y:auto; background:#eceff1;">
+                <div class="stats-shop" style="margin-bottom:20px;">
+                    <h3 style="border-bottom:2px solid #3e2723;">Характеристики (2 PP)</h3>
+                    <div class="grid grid-3col" style="gap:5px; margin-top:5px;">
+                        {{#each statsTrain as |st|}}
+                        <button type="button" class="train-stat-btn" data-key="{{st.key}}" 
+                                style="font-size:0.8em; {{#if st.disabled}}opacity:0.6;{{else}}background:#ffab91; color:#bf360c;{{/if}}"
+                                {{#if st.disabled}}disabled{{/if}}>
+                            {{st.label}}: {{st.value}} <i class="fas fa-arrow-up"></i>
+                        </button>
+                        {{/each}}
+                    </div>
+                </div>
+
+                <div class="perks-shop">
+                    <h3 style="border-bottom:2px solid #3e2723;">Магазин Перков</h3>
+                    {{#each shopPerks as |perk|}}
+                    <div class="perk-card {{#if perk.disabled}}disabled{{/if}}" style="margin-top:5px;">
+                        <div class="flexrow" style="align-items:center;">
+                            <img src="{{perk.img}}" width="24"/>
+                            <strong style="margin-left:5px; flex:1;">{{perk.name}}</strong>
+                            <span style="background:#333; color:#fff; padding:2px 5px; font-size:0.8em;">{{perk.cost}} PP</span>
+                        </div>
+                        <div style="font-size:0.8em; margin:5px 0;">{{{perk.system.description}}}</div>
+                        {{#if perk.reqMet}}
+                            {{#if perk.canAfford}}
+                                <button type="button" class="buy-perk-btn" data-id="{{perk.id}}" data-cost="{{perk.cost}}" style="width:100%; background:#2e7d32; color:white;">Купить</button>
+                            {{else}}
+                                <button disabled style="width:100%;">Не хватает PP</button>
+                            {{/if}}
+                        {{else}}
+                            <div style="color:red; font-size:0.8em;">Треб: {{perk.system.requirements}}</div>
+                        {{/if}}
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+        </div>
+
+        <div class="creator-footer" style="justify-content:flex-end;">
+            <button type="button" class="z-btn" data-action="finish" style="background:#1565c0;">СОХРАНИТЬ ИЗМЕНЕНИЯ</button>
+        </div>
+    {{/if}}
+</form>

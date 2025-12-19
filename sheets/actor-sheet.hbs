@@ -11,6 +11,11 @@
       <div class="header-stats">
           <div style="border-bottom: 1px solid #333;">
               <input name="name" type="text" value="{{actor.name}}" placeholder="Имя Выжившего" style="font-size: 1.5em; border:none; width:100%;"/>
+              {{#if (eq actor.type "survivor")}}
+              <a class="char-manager-btn" title="Меню Персонажа (Прокачка)" style="font-size:1.2em; color:#333; cursor:pointer; margin-left:10px;">
+                  <i class="fas fa-id-card"></i>
+              </a>
+              {{/if}}
           </div>
 
           <!-- HP Bar -->
@@ -70,13 +75,10 @@
 
   <!-- 2. TABS (Translated) -->
   <nav class="sheet-tabs tabs" data-group="primary">
-    {{#unless (and isDead (not isGM))}}
-    <a class="item" data-tab="main">Статус</a>
-    {{/unless}}
+    {{#unless (and isDead (not isGM))}}<a class="item" data-tab="main">Статус</a>{{/unless}}
+    <a class="item" data-tab="perks">Черты</a>  <!-- НОВАЯ ВКЛАДКА -->
     <a class="item" data-tab="inventory">Рюкзак</a>
-    {{#unless (and isDead (not isGM))}}
-    <a class="item" data-tab="effects">Эффекты</a>
-    {{/unless}}
+    {{#unless (and isDead (not isGM))}}<a class="item" data-tab="effects">Эффекты</a>{{/unless}}
   </nav>
 
   <!-- 3. BODY -->
@@ -105,15 +107,26 @@
 
                     {{#each system.attributes as |attr key|}}
                     <div class="attr-grid attr-row">
-                        <!-- ИЗМЕНЕНИЕ: Добавлен класс attr-roll, data-key и стиль курсора -->
+                        <!-- Roll Label -->
                         <label class="attr-roll" data-key="{{key}}" style="cursor:pointer; border-bottom:1px dotted #ccc;">
                             <i class="fas fa-dice-d10"></i> {{lookup ../labels.attributes key}}
                         </label>
                         
-                        <input type="number" name="system.attributes.{{key}}.base" value="{{attr.base}}"/>
+                        <!-- BASE VALUE (Locked for Players) -->
+                        <div style="text-align:center;">
+                            {{#if ../isGM}}
+                                <input type="number" name="system.attributes.{{key}}.base" value="{{attr.base}}"/>
+                            {{else}}
+                                <span style="font-weight:bold; font-size:1.1em;">{{attr.base}}</span>
+                            {{/if}}
+                        </div>
+
+                        <!-- MOD -->
                         <span class="attr-mod" style="{{#if (ne attr.mod 0)}}color:#d84315; font-weight:bold;{{/if}}">
                             {{numberFormat attr.mod sign=true}}
                         </span>
+                        
+                        <!-- TOTAL -->
                         <span class="attr-total">{{attr.value}}</span>
                     </div>
                     {{/each}}
@@ -121,32 +134,62 @@
 
                 <!-- SKILLS -->
                 <div style="margin-top:15px;">
-                    <h3 style="display:flex; justify-content:space-between;">
+                    <h3 style="display:flex; justify-content:space-between; margin-bottom: 5px;">
                         НАВЫКИ
                         <span style="font-size:0.5em; color:#666; font-weight:normal; margin-top:5px;">(XP: {{system.secondary.spentSkills.value}})</span>
                     </h3>
                     
-                    <div class="skill-grid skill-header">
-                        <span>Название</span>
-                        <span>База</span>
-                        <span></span>
-                        <span>Очки</span>
-                        <span></span>
-                        <span>Итог</span>
-                        <span></span>
-                    </div>
+                    <!-- УБРАН ЛИШНИЙ DIV-ЗАГОЛОВОК ОТСЮДА -->
 
-                    <ul class="skills-list" style="border:none; padding:0;">
+                    <ul class="skills-list" style="border:none; padding:0; margin: 0;">
+                        <!-- HEADER (Единственный) -->
+                        <li class="skill-grid skill-header">
+                            <span style="text-align:left;">Название</span>
+                            <span>База</span>
+                            <span></span>
+                            <span>Влож.</span>
+                            <span></span>
+                            <span>Мод</span>
+                            <span></span>
+                            <span>Итог</span>
+                            <span></span>
+                        </li>
+
                         {{#each system.skills as |skill key|}}
                         <li class="skill-grid skill-row" data-skill="{{key}}">
-                            <span class="skill-name">{{lookup ../labels.skills key}}</span>
+                            <!-- Name -->
+                            <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
                             
-                            <span class="skill-base-text" style="color:#777; font-size:0.8em; text-align:center;">{{skill.base}}</span>
-                            <span style="color:#aaa; text-align:center;">+</span>
-                            <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
-                            <span style="color:#aaa; text-align:center;">=</span>
-                            <span class="skill-val">{{skill.value}}</span>
+                            <!-- Base -->
+                            <span class="skill-base-text">{{skill.base}}</span>
+                            <span class="math-sign">+</span>
                             
+                            <!-- Points -->
+                            <div class="input-wrapper">
+                                {{#if ../isGM}}
+                                    <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
+                                {{else}}
+                                    <span class="skill-val-read">{{skill.points}}</span>
+                                {{/if}}
+                            </div>
+
+                            <span class="math-sign">+</span>
+                            
+                            <!-- Mod -->
+                            <div class="input-wrapper">
+                                {{#if ../isGM}}
+                                     <input class="skill-input mod" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}"/>
+                                {{else}}
+                                     <span class="skill-val-read mod">{{skill.mod}}</span>
+                                {{/if}}
+                            </div>
+
+                            <span class="math-sign">=</span>
+                            
+                            <!-- Total -->
+                            <span class="skill-total">{{skill.value}}</span>
+                            
+                            <!-- Roll -->
                             <a class="skill-roll"><i class="fas fa-dice"></i></a>
                         </li>
                         {{/each}}
@@ -220,10 +263,38 @@
                     <div class="sec-stat-row"><span class="sec-stat-label">Храбрость</span><span class="sec-stat-val">{{system.secondary.bravery.value}}</span></div>
                     <div class="sec-stat-row"><span class="sec-stat-label">Стойкость</span><span class="sec-stat-val">{{system.secondary.tenacity.value}}</span></div>
                     
-                    <div class="sec-stat-row" style="margin-top:5px; border-top:1px dashed #555; padding-top:5px;">
-                        <span class="sec-stat-label">Очки Улучшений</span>
-                        <!-- Input for XP -->
-                        <input type="number" name="system.secondary.xp.value" value="{{system.secondary.xp.value}}" style="width:40px; text-align:right; font-weight:bold;"/>
+                    <!-- ВОЗВРАЩЕНО: XP и PP -->
+                    <div style="margin-top:10px; border-top:1px dashed #777; padding-top:5px;">
+                        
+                        <!-- Опыт (SP) -->
+                        <div class="sec-stat-row" title="Потрачено всего: {{system.secondary.xp.spent}}">
+                            <span class="sec-stat-label" style="color:#1b5e20;">Опыт (SP)</span>
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                {{#if isGM}}
+                                    <input type="number" name="system.secondary.xp.value" value="{{system.secondary.xp.value}}" style="width:40px; text-align:right; font-weight:bold;"/>
+                                {{else}}
+                                    <span class="sec-stat-val" style="color:#1b5e20;">{{system.secondary.xp.value}}</span>
+                                {{/if}}
+                            </div>
+                        </div>
+
+                        <!-- Прогресс бар до Perk Point -->
+                        <div style="width:100%; height:4px; background:#ccc; margin-bottom:5px; position:relative;" title="Прогресс до следующего PP">
+                            <!-- Считаем остаток от деления на 25 -->
+                            <div style="height:100%; background:#ffab91; width:{{calculatePercentage (mod system.secondary.xp.spent 25) 25}}%;"></div>
+                        </div>
+
+                        <!-- Perk Points -->
+                        <div class="sec-stat-row">
+                            <span class="sec-stat-label" style="color:#d84315;">Perk Points</span>
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                {{#if isGM}}
+                                    <input type="number" name="system.secondary.perkPoints.value" value="{{system.secondary.perkPoints.value}}" style="width:40px; text-align:right; font-weight:bold;"/>
+                                {{else}}
+                                    <span class="sec-stat-val" style="color:#d84315;">{{system.secondary.perkPoints.value}}</span>
+                                {{/if}}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -340,6 +411,55 @@
                 </ol>
                 {{/if}}
             {{/each}}
+        </div>
+    </div>
+
+    <!-- TAB: PERKS / FEATURES -->
+    <div class="tab perks" data-group="primary" data-tab="perks">
+        <div class="perk-list">
+            <!-- Заголовок -->
+            <div class="flexrow" style="background:#3e2723; color:#fff; padding:5px; font-weight:bold; margin-bottom:5px;">
+                <div style="flex:1;">Название</div>
+                <div style="flex:2;">Описание</div>
+                <div style="width:50px; text-align:center;">PP</div>
+                {{#if isGM}}<div style="width:40px;"></div>{{/if}}
+            </div>
+
+            {{#each perks as |perk|}}
+            <div class="item flexrow" data-item-id="{{perk.id}}" style="border-bottom:1px solid #ccc; padding:5px; align-items:flex-start; background:rgba(255,255,255,0.3);">
+                
+                <!-- Иконка и Имя -->
+                <div style="flex:1; display:flex; align-items:center; gap:5px;">
+                    <img src="{{perk.img}}" width="24" height="24" style="border:1px solid #555;"/>
+                    <div>
+                        <div style="font-weight:bold;">{{perk.name}}</div>
+                        <div style="font-size:0.8em; color:#555; font-style:italic;">
+                            {{#if (eq perk.system.subtype "background")}}Предыстория{{else}}Перк{{/if}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Описание -->
+                <div style="flex:2; font-size:0.9em; color:#333;">
+                    {{{perk.system.description}}}
+                </div>
+
+                <!-- Стоимость -->
+                <div style="width:50px; text-align:center; font-weight:bold; color:#d84315;">
+                    {{#if perk.system.xpCost}}{{perk.system.xpCost}}{{else}}-{{/if}}
+                </div>
+
+                <!-- Контролы -->
+                <div class="item-controls" style="width:40px; text-align:right;">
+                    <a class="item-edit"><i class="fas fa-edit"></i></a>
+                    {{#if ../isGM}}<a class="item-delete" style="color:red;"><i class="fas fa-trash"></i></a>{{/if}}
+                </div>
+            </div>
+            {{/each}}
+            
+            {{#unless perks}}
+            <p style="text-align:center; color:#777; margin-top:20px;">Нет особенностей.</p>
+            {{/unless}}
         </div>
     </div>
 

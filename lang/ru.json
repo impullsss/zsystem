@@ -17,5 +17,6 @@
   "TYPES.Item.upgrade": "Постройка",
   "TYPES.Item.project": "Проект (Крафт)",
   "TYPES.Actor.harvest_spot": "Точка Сбора",
-  "TYPES.Actor.vehicle": "Транспорт"
+  "TYPES.Actor.vehicle": "Транспорт",
+  "TYPES.Item.perk": "Перк / Черта"
 }
