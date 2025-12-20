@@ -26,7 +26,7 @@ export class ZItemSheet extends ItemSheet {
     };
     context.categoryOptions = {
       medicine: "Медицина", food: "Еда", materials: "Материалы",
-      luxury: "Роскошь", misc: "Разное"
+       fuel: "Топливо", luxury: "Роскошь", misc: "Разное"
     };
     context.skillsList = { 
         melee: "Ближний бой", ranged: "Стрельба", science: "Наука", 

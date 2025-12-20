@@ -346,36 +346,113 @@
         {{#if (eq item.type "armor")}}
         <div class="armor-properties">
             <div class="form-group">
-                <label>AC (Класс Брони)</label>
-                <input type="number" name="system.ac" value="{{system.ac}}"/>
+                <label style="font-weight: bold; font-size: 1.1em;">AC (Класс Защиты)</label>
+                <input type="number" name="system.ac" value="{{system.ac}}" style="background: rgba(0,0,0,0.1); font-weight: bold;"/>
+                <p class="notes" style="font-size: 0.8em; color: #666;">Влияет на шанс попадания по вам.</p>
             </div>
-            <!-- ... DR Table ... -->
-            <div class="coverage-table" style="margin-top:10px; border-top:1px dashed #777; padding-top:5px;">
-                <label style="font-weight:bold;">Зоны покрытия:</label>
-                <div class="grid grid-3col">
-                    <label><input type="checkbox" name="system.coverage.head" {{checked system.coverage.head}}/> Голова</label>
-                    <label><input type="checkbox" name="system.coverage.torso" {{checked system.coverage.torso}}/> Торс</label>
-                    <label><input type="checkbox" name="system.coverage.lArm" {{checked system.coverage.lArm}}/> Л.Рука</label>
-                    <label><input type="checkbox" name="system.coverage.rArm" {{checked system.coverage.rArm}}/> П.Рука</label>
-                    <label><input type="checkbox" name="system.coverage.lLeg" {{checked system.coverage.lLeg}}/> Л.Нога</label>
-                    <label><input type="checkbox" name="system.coverage.rLeg" {{checked system.coverage.rLeg}}/> П.Нога</label>
+
+            <hr>
+            
+            <h3>Сопротивление урону (DR %)</h3>
+            <div class="dr-table" style="background: rgba(0,0,0,0.05); padding: 8px; border: 1px solid #777; border-radius: 4px; margin-bottom: 10px;">
+                <div class="grid grid-2col" style="gap: 10px;">
+                    <div class="form-group">
+                        <label><i class="fas fa-hammer"></i> Дробящий</label>
+                        <input type="number" name="system.dr.blunt" value="{{system.dr.blunt}}" placeholder="0%"/>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-fencer"></i> Режущий</label>
+                        <input type="number" name="system.dr.slashing" value="{{system.dr.slashing}}" placeholder="0%"/>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-bullseye"></i> Колющий</label>
+                        <input type="number" name="system.dr.piercing" value="{{system.dr.piercing}}" placeholder="0%"/>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-crosshairs"></i> Пулевой</label>
+                        <input type="number" name="system.dr.ballistic" value="{{system.dr.ballistic}}" placeholder="0%"/>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-fire"></i> Огненный</label>
+                        <input type="number" name="system.dr.fire" value="{{system.dr.fire}}" placeholder="0%"/>
+                    </div>
                 </div>
+            </div>
+
+            <hr>
+
+            <div class="coverage-table" style="margin-top:10px;">
+                <label style="font-weight:bold; display: block; border-bottom: 1px solid #5d4037; margin-bottom: 5px;">Зоны покрытия (Coverage):</label>
+                <div class="grid grid-3col" style="font-size: 0.9em; background: rgba(255,255,255,0.3); padding: 5px; border-radius: 4px;">
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.head" {{checked system.coverage.head}}/> Голова</label>
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.torso" {{checked system.coverage.torso}}/> Торс</label>
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.lArm" {{checked system.coverage.lArm}}/> Л. Рука</label>
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.rArm" {{checked system.coverage.rArm}}/> П. Рука</label>
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.lLeg" {{checked system.coverage.lLeg}}/> Л. Нога</label>
+                    <label class="flexrow" style="align-items: center;"><input type="checkbox" name="system.coverage.rLeg" {{checked system.coverage.rLeg}}/> П. Нога</label>
+                </div>
+                <p class="notes" style="font-size: 0.75em; font-style: italic; color: #555; margin-top: 3px;">Armor AC and DR will only apply if the target limb is covered.</p>
             </div>
         </div>
         {{/if}}
 
-        {{#if (ne item.type "weapon")}}
-        {{#if (ne item.type "armor")}}
-        {{#if (ne item.type "perk")}}
-            <div class="form-group" style="margin-top: 10px;">
-                <label>Категория</label>
-                <select name="system.category">
-                    {{selectOptions categoryOptions selected=system.category localize=false}}
-                </select>
-            </div>
-        {{/if}}
-        {{/if}}
-        {{/if}}
+        {{!-- Выбор Категории (всегда виден для предметов, которые не оружие/броня/перк) --}}
+    {{#if isCategoryEditable}}
+    <div class="form-group" style="margin-top: 10px; background: rgba(0,0,0,0.1); padding: 5px; border-radius: 4px;">
+        <label>Категория предмета</label>
+        <select name="system.category">
+            {{selectOptions categoryOptions selected=system.category localize=false}}
+        </select>
+    </div>
+    {{/if}}
+
+    {{!-- Динамические поля на основе категории --}}
+    
+    {{!-- Секция ЕДЫ --}}
+    {{#if (eq system.category "food")}}
+    <div class="resource-logic-box" style="background: rgba(0,255,0,0.05); border: 1px solid #2e7d32; padding: 10px; margin-top: 5px;">
+        <h3>Параметры Еды</h3>
+        <div class="form-group">
+            <label>Очки провизии (Provision Points)</label>
+            <input type="number" name="system.resourceValue" value="{{system.resourceValue}}"/>
+        </div>
+        <p class="notes" style="font-size: 0.8em; color: #555;"><i>Каждое очко пополнит запас еды в Убежище при сдаче.</i></p>
+    </div>
+    {{/if}}
+
+    {{!-- Секция МАТЕРИАЛОВ (ДЕТАЛЕЙ) --}}
+    {{#if (eq system.category "materials")}}
+    <div class="resource-logic-box" style="background: rgba(255,150,0,0.05); border: 1px solid #ef6c00; padding: 10px; margin-top: 5px;">
+        <h3>Параметры Ресурсов</h3>
+        <div class="form-group">
+            <label>Ценность в деталях (Parts Value)</label>
+            <input type="number" name="system.resourceValue" value="{{system.resourceValue}}"/>
+        </div>
+        <p class="notes" style="font-size: 0.8em; color: #555;"><i>Это количество Запчастей (Parts), которое вы получите за утилизацию 1 ед. предмета.</i></p>
+    </div>
+    {{/if}}
+    {{!-- Секция ТОПЛИВА --}}
+    {{#if (eq system.category "fuel")}}
+    <div class="resource-logic-box" style="background: rgba(183,28,28,0.05); border: 1px solid #b71c1c; padding: 10px; margin-top: 5px;">
+        <h3>Параметры Горючего</h3>
+        <div class="form-group">
+            <label>Объем топлива (Fuel Units)</label>
+            <input type="number" name="system.resourceValue" value="{{system.resourceValue}}"/>
+        </div>
+        <p class="notes" style="font-size: 0.8em; color: #555;"><i>Единицы топлива для заправки машины или генератора.</i></p>
+    </div>
+    {{/if}}
+    {{!-- Секция РОСКОШИ (Luxury) --}}
+{{#if (eq system.category "luxury")}}
+<div class="resource-logic-box" style="background: rgba(3, 169, 244, 0.05); border: 1px solid #03a9f4; padding: 10px; margin-top: 5px;">
+    <h3>Роскошь (Бонус Морали)</h3>
+    <div class="form-group">
+        <label>Вклад в Мораль (Points)</label>
+        <input type="number" name="system.resourceValue" value="{{system.resourceValue}}"/>
+    </div>
+    <p class="notes" style="font-size: 0.8em; color: #555;"><i>Порадует выживших при сдаче на склад.</i></p>
+</div>
+{{/if}}
 
     </div>
 

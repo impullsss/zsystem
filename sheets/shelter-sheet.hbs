@@ -206,6 +206,12 @@
             <div class="inventory-controls flexrow" style="margin-bottom:10px;">
                 <a class="item-create" data-type="select"><i class="fas fa-plus"></i> Добавить предмет</a>
             </div>
+            <div style="margin: 10px 0; padding: 10px; background: rgba(0,0,0,0.05); border: 2px dashed #5d4037; text-align: center;">
+    <p style="font-size: 0.9em; margin-bottom: 8px;">Перетащите еду и материалы сюда, затем нажмите кнопку ниже:</p>
+    <button type="button" class="process-stockpile-btn" style="background: #2e7d32; color: white; font-weight: bold; height: 40px; cursor: pointer;">
+        <i class="fas fa-boxes"></i> Утилизировать и пополнить ресурсы
+    </button>
+</div>
             <ol class="items-list">
                 {{#each inventory as |section key|}}
                 <li class="item-header flexrow" style="background:#ddd; padding:5px; font-weight:bold;">

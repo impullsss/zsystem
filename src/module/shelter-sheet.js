@@ -211,6 +211,76 @@ export class ZShelterSheet extends ZBaseActorSheet {
         }
     });
     html.find('.end-session-btn').click(this._onEndSession.bind(this));
+    html.find('.process-stockpile-btn').click(async ev => {
+    ev.preventDefault();
+    
+    const items = this.actor.items;
+    let foodGain = 0;
+    let partsGain = 0;
+    let fuelGain = 0;
+    let moraleGain = 0; // Для предметов Роскоши
+    let itemsToDelete = [];
+
+    for (let i of items) {
+        const val = Number(i.system.resourceValue) || 0;
+        const qty = Number(i.system.quantity) || 1;
+        const cat = i.system.category;
+        
+        if (val > 0) {
+            if (cat === 'food') {
+                foodGain += val * qty;
+                itemsToDelete.push(i.id);
+            }
+            else if (cat === 'materials') {
+                partsGain += val * qty;
+                itemsToDelete.push(i.id);
+            }
+            else if (cat === 'fuel') {
+                fuelGain += val * qty;
+                itemsToDelete.push(i.id);
+            }
+            else if (cat === 'luxury') {
+                moraleGain += val * qty;
+                itemsToDelete.push(i.id);
+            }
+        }
+    }
+
+    // ИСПРАВЛЕННОЕ УСЛОВИЕ ПРОВЕРКИ (добавили все типы ресурсов)
+    if (foodGain === 0 && partsGain === 0 && fuelGain === 0 && moraleGain === 0) {
+        return ui.notifications.warn("Нет подходящих предметов для пополнения ресурсов!");
+    }
+
+    // Подготовка обновлений ресурсов
+    const updates = {
+        "system.resources.food.value": (this.actor.system.resources.food.value || 0) + foodGain,
+        "system.resources.parts.value": (this.actor.system.resources.parts.value || 0) + partsGain,
+        "system.resources.fuel.value": (this.actor.system.resources.fuel.value || 0) + fuelGain,
+        "system.morale.value": Math.min(100, (this.actor.system.morale.value || 50) + moraleGain)
+    };
+
+    await this.actor.update(updates);
+    await this.actor.deleteEmbeddedDocuments("Item", itemsToDelete);
+
+    // Расширенный чат-репорт
+    let reportBody = "";
+    if (foodGain > 0) reportBody += `<div style="color:green;"><b>+ ${foodGain}</b> Провизии</div>`;
+    if (partsGain > 0) reportBody += `<div style="color:orange;"><b>+ ${partsGain}</b> Запчастей</div>`;
+    if (fuelGain > 0) reportBody += `<div style="color:red;"><b>+ ${fuelGain}</b> Топлива</div>`;
+    if (moraleGain > 0) reportBody += `<div style="color:blue;"><b>+ ${moraleGain}</b> Морали</div>`;
+
+    ChatMessage.create({
+        content: `
+            <div class="z-chat-card">
+                <div class="z-card-header">СКЛАД ОБНОВЛЕН</div>
+                ${reportBody}
+                <hr>
+                <div style="font-size:0.8em; font-style:italic; color:#666;">Группа утилизировала припасы.</div>
+            </div>
+        `,
+        speaker: ChatMessage.getSpeaker({actor: this.actor})
+    });
+});
   }
 
   async _onAddWorker(projectItem) {
