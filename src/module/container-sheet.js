@@ -180,7 +180,25 @@ export class ZContainerSheet extends ZBaseActorSheet { // <--- Наследов�
     else ui.notifications.error(`Нужен предмет: "${keyName}"`);
   }
 
+  async _checkDistance() {
+    const actor = this._getActingActor();
+    if (!actor) return false;
+    
+    const token = actor.getActiveTokens()[0];
+    const target = this.actor.getActiveTokens()[0];
+    
+    if (!token || !target) return true; // Если токенов нет на сцене (редкий кейс)
+
+    const dist = canvas.grid.measureDistance(token, target);
+    if (dist > 2.5) { // 2.5 метра — это примерно 1-2 клетки
+        ui.notifications.warn("Слишком далеко!");
+        return false;
+    }
+    return true;
+}
+
   async _onTryPick(ev) {
+    if (!await this._checkDistance()) return;
     const actor = this._getActor();
     if (!actor) return ui.notifications.warn("Выберите персонажа.");
     if (this.actor.system.attributes.canPick?.value === false)

@@ -157,27 +157,32 @@
     </div>
 
     <ul class="skills-list" style="border:none; padding:0; margin:0;">
-        {{#each system.skills as |skill key|}}
-        <li class="skill-grid skill-row" data-skill="{{key}}">
-            <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
-            
-            <span class="skill-base-text">{{skill.base}}</span>
-            <span class="skill-op">+</span>
-            
-            <input class="skill-input" type="number" name="system.skills.{{key}}.points" value="{{skill.points}}"/>
-            
-            <span class="skill-op">+</span>
-            
-            <input class="skill-input skill-mod-val" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}" placeholder="0"/>
-            
-            <span class="skill-op">=</span>
-            
-            <span class="skill-total-val">{{skill.value}}</span>
-            
-            <a class="skill-roll"><i class="fas fa-dice-d10"></i></a>
-        </li>
-        {{/each}}
-    </ul>
+    {{#each system.skills as |skill key|}}
+    <li class="skill-grid skill-row" data-skill="{{key}}">
+        <span class="skill-name" title="{{lookup ../labels.skills key}}">{{lookup ../labels.skills key}}</span>
+        
+        <span class="skill-base-text">{{skill.base}}</span>
+        <span class="skill-op">+</span>
+        
+        <!-- ИСПРАВЛЕНО: добавлена ссылка на родительский контекст ../isGM -->
+        <input class="skill-input {{#unless ../isGM}}locked-input{{/unless}}" 
+               type="number" 
+               name="system.skills.{{key}}.points" 
+               value="{{skill.points}}" 
+               {{#unless ../isGM}}readonly{{/unless}} />
+        
+        <span class="skill-op">+</span>
+        
+        <input class="skill-input skill-mod-val" type="number" name="system.skills.{{key}}.mod" value="{{skill.mod}}" placeholder="0"/>
+        
+        <span class="skill-op">=</span>
+        
+        <span class="skill-total-val">{{skill.value}}</span>
+        
+        <a class="skill-roll"><i class="fas fa-dice-d10"></i></a>
+    </li>
+    {{/each}}
+</ul>
 </div>
 
             </div>
