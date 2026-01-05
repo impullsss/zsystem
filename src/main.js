@@ -219,6 +219,25 @@ Hooks.once("init", () => {
     default: true // Включим по умолчанию для тестов
   });
 
+  game.settings.register("zsystem", "restrictMovement", {
+    name: "Ограничить движение в бою",
+    hint: "Игроки могут двигать токены только в свой ход.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  // Настройка контроля атак
+  game.settings.register("zsystem", "restrictAttack", {
+    name: "Ограничить атаки в бою",
+    hint: "Игроки могут атаковать только в свой ход.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = {
@@ -456,55 +475,64 @@ Hooks.on("renderSceneConfig", (app, html, data) => {
     app.setPosition({height: "auto"});
 });
 
-Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
-  if (changes.x === undefined && changes.y === undefined) return true;
-  
-  // Проверка: Игрок ли двигает? ГМ может двигать что угодно без расхода.
-  // Хотя для тестов удобно, чтобы и у ГМа списывалось. Оставим проверку только для AP.
-  const isGM = game.user.isGM;
-
-  const scene = tokenDoc.parent;
-  const isGlobalMap = scene.getFlag("zsystem", "isGlobalMap");
-
-  // === РЕЖИМ 1: ГЛОБАЛЬНАЯ КАРТА ===
-  if (isGlobalMap) {
-      // Вызываем TravelManager. Если он вернет false -> отменяем движение
-      // Важно: TravelManager асинхронный, но preUpdateToken синхронный в плане возврата false.
-      // В Foundry V10+ можно возвращать Promise, но лучше проверить. 
-      // Если нужно строго блокировать, придется хитрить, но обычно await работает.
-      
-      // ВНИМАНИЕ: V12+ поддерживает async в pre-хуках.
-      return await TravelManager.handleMovement(tokenDoc, changes);
-  }
-
-  // === РЕЖИМ 2: ТАКТИЧЕСКИЙ БОЙ (AP) ===
-  const actor = tokenDoc.actor;
-  if (!actor || !tokenDoc.inCombat || ["container", "harvest_spot", "vehicle"].includes(actor.type)) return true;
-
-  const size = canvas.grid.size;
-  const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x) / size;
-  const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y) / size;
-  const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
-  if (squaresMoved <= 0) return true;
-
-  let costPerSquare = 1;
-  if (actor.hasStatusEffect("prone")) costPerSquare += 1;
-  if (actor.hasStatusEffect("overburdened")) costPerSquare = Math.max(costPerSquare, 2);
-  if (actor.hasStatusEffect("stealth")) costPerSquare = Math.max(costPerSquare, 2);
-
-  const totalCost = squaresMoved * costPerSquare;
-  const curAP = actor.system.resources.ap.value;
-
-  if (curAP < totalCost) {
-    if (!isGM) {
-      ui.notifications.warn(`Недостаточно AP. Нужно ${totalCost}, есть ${curAP}.`);
-      return false;
-    } else {
-      ui.notifications.warn("GM Override: Moving with insufficient AP.");
+Hooks.on("canvasReady", () => {
+    // Если это игрок, принудительно снимаем выделение со всех токенов через 100мс
+    if (!game.user.isGM) {
+        setTimeout(() => {
+            canvas.tokens.releaseAll();
+        }, 100);
     }
-  }
-  await actor.update({ "system.resources.ap.value": curAP - totalCost });
-  return true;
+});
+
+Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
+    // 1. Если это не перемещение — игнорируем
+    if (changes.x === undefined && changes.y === undefined) return true;
+    
+    // 2. ГМ всегда может двигать
+    if (game.user.isGM) return true;
+
+    // 3. Проверка настройки "Ограничить движение"
+    const isRestrictEnabled = game.settings.get("zsystem", "restrictMovement");
+    
+    if (isRestrictEnabled && game.combat && game.combat.active) {
+        const combatant = game.combat.combatant;
+        
+        // ВАЖНО: Проверяем, находится ли токен в текущем бою и его ли сейчас ход
+        // Если токен в бою, но ID комбатанта не совпадает с этим токеном
+        if (tokenDoc.inCombat && combatant && combatant.tokenId !== tokenDoc.id) {
+            ui.notifications.warn(`Сейчас не ваш ход! Ходит: ${combatant.name}`);
+            return false; // Жесткая остановка обновления в Foundry
+        }
+    }
+
+    // --- Логика расхода AP (оставляем твою рабочую версию) ---
+    const actor = tokenDoc.actor;
+    if (!actor || !tokenDoc.inCombat) return true;
+
+    const size = canvas.grid.size;
+    const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x) / size;
+    const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y) / size;
+    const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
+    if (squaresMoved <= 0) return true;
+
+    let costPerSquare = 1;
+    if (actor.hasStatusEffect("prone")) costPerSquare += 1;
+    if (actor.hasStatusEffect("overburdened")) costPerSquare = Math.max(costPerSquare, 2);
+    if (actor.hasStatusEffect("stealth")) costPerSquare = Math.max(costPerSquare, 2);
+
+    const totalCost = squaresMoved * costPerSquare;
+    const curAP = actor.system.resources.ap.value;
+
+    if (curAP < totalCost) {
+        ui.notifications.warn(`Недостаточно AP. Нужно ${totalCost}, есть ${curAP}.`);
+        return false; 
+    }
+
+    // Если всё ок, списываем AP. 
+    // В V13 изменения в preUpdate лучше делать через changes, но для AP мы делаем прямой update
+    actor.update({ "system.resources.ap.value": curAP - totalCost });
+
+    return true;
 });
 
 Hooks.on("createActiveEffect", async (effect, options, userId) => {
@@ -529,6 +557,19 @@ Hooks.on("deleteActiveEffect", async (effect, options, userId) => {
             for (let t of tokens) await t.document.update({ hidden: false });
         }
     }
+});
+
+Hooks.on("deleteCombat", async (combat, options, userId) => {
+    if (!game.user.isGM) return;
+
+    for (let combatant of combat.combatants) {
+        const actor = combatant.actor;
+        if (actor) {
+            const maxAP = actor.system.resources.ap.max || 7;
+            await actor.update({ "system.resources.ap.value": maxAP });
+        }
+    }
+    ui.notifications.info("Бой окончен. Очки действия восстановлены.");
 });
 
 // === АВТО-ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ПРИ ВЫДЕЛЕНИИ ===

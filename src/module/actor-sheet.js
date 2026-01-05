@@ -123,12 +123,17 @@ export class ZActorSheet extends ZBaseActorSheet {
     html.find(".stand-up-btn").click((ev) => this.actor.standUp());
 
     html.find(".rest-btn").click((ev) => {
-      Dialog.confirm({
+    // --- ФИКС: ЗАПРЕТ ОТДЫХА В БОЮ ---
+    if (this.actor.inCombat) {
+        return ui.notifications.warn("Вы не можете отдыхать во время боя!");
+    }
+
+    Dialog.confirm({
         title: "Ночной отдых",
         content: "Отдохнуть и восстановить силы?",
         yes: () => this.actor.longRest(),
-      });
     });
+});
 
     html.find(".zombie-rise-btn").click((ev) => {
       Dialog.confirm({

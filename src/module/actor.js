@@ -365,27 +365,29 @@ export class ZActor extends Actor {
     if (!system.skills) system.skills = {};
 
     const getNum = (val) => {
-      const n = Number(val);
-      return isNaN(n) ? 0 : n;
+        const n = Number(val);
+        return isNaN(n) ? 0 : n;
     };
+    
     const s = {};
     let spentStats = 0;
 
+    // 1. АТРИБУТЫ (Минимум 1)
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     attrKeys.forEach((key) => {
-  const attr = system.attributes[key];
-  
-  // 1. Ограничиваем базу
-  attr.base = Math.max(1, Math.min(10, attr.base));
-  
-  // 2. ВАЖНО: attr.mod на этом этапе УЖЕ содержит бонусы от Активных Эффектов
-  // Мы просто суммируем его с базой
-  attr.value = Math.max(1, attr.base + (Number(attr.mod) || 0));
+        const attr = system.attributes[key];
+        attr.base = Math.max(1, Math.min(10, getNum(attr.base)));
+        // Итоговое значение не может быть меньше 1
+        attr.value = Math.max(1, attr.base + (Number(attr.mod) || 0));
+        spentStats += attr.base - 1;
+        s[key] = attr.value;
+    });
 
-  // Опционально: Суммируем потраченные статы (всегда считаем от Базы)
-  spentStats += attr.base - 1;
-  s[key] = attr.value;
-});
+    // 2. РЕСУРСЫ (Минимум 0)
+    if (system.resources.ap) {
+        system.resources.ap.max = Math.max(0, getNum(system.resources.ap.max));
+        system.resources.ap.value = Math.max(0, getNum(system.resources.ap.value));
+    }
 
     if (!system.secondary.spentStats) system.secondary.spentStats = { value: 0 };
     system.secondary.spentStats.value = spentStats;
@@ -395,53 +397,39 @@ export class ZActor extends Actor {
 
     // HP (General)
     if (this.type !== "zombie") {
-      if (!system.resources.hp)
-        system.resources.hp = { value: 70, max: 70, penalty: 0 };
-      const baseMaxHP = 70 + (s.vig - 1) * 10;
-      const hpPenalty = getNum(system.resources.hp.penalty);
-      system.resources.hp.max = Math.max(10, baseMaxHP - hpPenalty);
-      if (system.resources.hp.value > system.resources.hp.max)
-        system.resources.hp.value = system.resources.hp.max;
+        if (!system.resources.hp) system.resources.hp = { value: 70, max: 70, penalty: 0 };
+        const baseMaxHP = 70 + (s.vig - 1) * 10;
+        const hpPenalty = getNum(system.resources.hp.penalty);
+        system.resources.hp.max = Math.max(10, baseMaxHP - hpPenalty);
+        if (system.resources.hp.value > system.resources.hp.max)
+            system.resources.hp.value = system.resources.hp.max;
     }
 
-    // AP
+    // AP Calculation (Base + Bonuses)
     if (this.type !== "zombie") {
-      const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
-      const userBonus = getNum(system.resources.ap.bonus);
-      const effectBonus = getNum(system.resources.ap.effect);
-      system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus);
+        const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
+        const userBonus = getNum(system.resources.ap.bonus);
+        const effectBonus = getNum(system.resources.ap.effect);
+        
+        // Вес и перегруз
+        if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0 };
+        system.secondary.carryWeight.max = 40 + (s.str - 1) * 10;
+        
+        let totalWeight = 0;
+        if (this.items) {
+            this.items.forEach((item) => {
+                totalWeight += getNum(item.system.weight) * getNum(item.system.quantity);
+            });
+        }
+        system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
+        
+        system.secondary.isOverburdened = system.secondary.carryWeight.value > system.secondary.carryWeight.max;
+        const encumbrancePenalty = system.secondary.isOverburdened ? 2 : 0;
+        
+        system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus - encumbrancePenalty);
     }
 
-    if (!system.secondary.carryWeight)
-      system.secondary.carryWeight = { value: 0, max: 0 };
-    system.secondary.carryWeight.max = 40 + (s.str - 1) * 10;
-    
-    let totalWeight = 0;
-    if (this.items) {
-      this.items.forEach((item) => {
-        totalWeight += getNum(item.system.weight) * getNum(item.system.quantity);
-      });
-    }
-    system.secondary.carryWeight.value = Math.round(totalWeight * 100) / 100;
-
-    // Логика: Если вес > макс, режем AP
-    const currentWeight = system.secondary.carryWeight.value;
-    const maxWeight = system.secondary.carryWeight.max;
-    
-    // Флаг перегруза для использования в интерфейсе и проверках движения
-    system.secondary.isOverburdened = currentWeight > maxWeight;
-
-    if (this.type !== "zombie") {
-      const baseAP = 7 + Math.ceil((s.agi - 1) / 2);
-      const userBonus = getNum(system.resources.ap.bonus);
-      const effectBonus = getNum(system.resources.ap.effect);
-      
-      // Штраф за перегруз (-2 AP)
-      const encumbrancePenalty = system.secondary.isOverburdened ? 2 : 0;
-      
-      system.resources.ap.max = Math.max(0, baseAP + userBonus + effectBonus - encumbrancePenalty);
-    }
-
+    // Вторичные
     let naturalAC = Math.floor(s.vig / 2);
     if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };
     system.secondary.naturalAC.value = naturalAC;
@@ -449,66 +437,54 @@ export class ZActor extends Actor {
     if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
     system.secondary.evasion.value = s.agi;
 
+    // 3. НАВЫКИ
     let spentSkills = 0;
     const skillConfig = {
-      melee: { a1: "str", a2: "agi" },
-      ranged: { a1: "agi", a2: "per" },
-      science: { a1: "int", mult: 4 },
-      mechanical: { a1: "int", altA2: ["str", "agi"] },
-      medical: { a1: "int", a2: "per" },
-      diplomacy: { a1: "cha", a2: "per" },
-      leadership: { a1: "cha", a2: "int" },
-      survival: { a1: "per", altA2: ["vig", "int"] },
-      athletics: { a1: "str", a2: "agi" },
-      stealth: { a1: "agi", a2: "per" },
+        melee: { a1: "str", a2: "agi" },
+        ranged: { a1: "agi", a2: "per" },
+        science: { a1: "int", mult: 4 },
+        mechanical: { a1: "int", altA2: ["str", "agi"] },
+        medical: { a1: "int", a2: "per" },
+        diplomacy: { a1: "cha", a2: "per" },
+        leadership: { a1: "cha", a2: "int" },
+        survival: { a1: "per", altA2: ["vig", "int"] },
+        athletics: { a1: "str", a2: "agi" },
+        stealth: { a1: "agi", a2: "per" },
     };
 
     for (let [key, conf] of Object.entries(skillConfig)) {
-      if (!system.skills[key])
-        system.skills[key] = { base: 0, value: 0, points: 0, mod: 0 };
-      
-      const skill = system.skills[key];
+        if (!system.skills[key]) system.skills[key] = { base: 0, value: 0, points: 0, mod: 0 };
+        const skill = system.skills[key];
 
-      // Расчет Базы (как и было)
-      if (this.type === "zombie" && skill.base > 0) {
-          // Zombies keep manual base
-      } else {
-        if (key === "science") skill.base = s.int * 4;
-        else if (key === "mechanical") skill.base = s.int + Math.max(s.str, s.agi);
-        else if (key === "survival") skill.base = s.per + Math.max(s.vig, s.int);
-        else skill.base = s[conf.a1] + s[conf.a2];
-      }
+        if (this.type !== "zombie") {
+            if (key === "science") skill.base = s.int * 4;
+            else if (key === "mechanical") skill.base = s.int + Math.max(s.str, s.agi);
+            else if (key === "survival") skill.base = s.per + Math.max(s.vig, s.int);
+            else skill.base = s[conf.a1] + s[conf.a2];
+        }
 
-      // --- НОВОЕ: Учет Модификатора ---
-      const invested = getNum(skill.points);
-      const modifier = getNum(skill.mod);
-      spentSkills += invested;
-
-      // Формула: База + Очки + Мод
-      // Ограничение 100 ставим на итог, или можно разрешить >100 с бонусами. 
-      // Обычно hard cap 100 лучше для d100 системы.
-      skill.value = Math.min(100, skill.base + invested + modifier);
+        const invested = getNum(skill.points);
+        const modifier = getNum(skill.mod);
+        spentSkills += invested;
+        skill.value = Math.min(100, skill.base + invested + modifier);
     }
+    
     if (!system.secondary.spentSkills) system.secondary.spentSkills = { value: 0 };
     system.secondary.spentSkills.value = spentSkills;
 
-    // --- LIMBS CALCULATION ---
+    // 4. КОНЕЧНОСТИ
     if (this.type !== "zombie") {
-      const totalHP = system.resources.hp.max;
-      const setLimb = (part, percent) => {
-        const limb = system.limbs[part];
-        const baseMax = Math.floor(totalHP * percent);
-        limb.max = Math.max(1, baseMax - (limb.penalty || 0));
-        if (limb.value > limb.max) limb.value = limb.max;
-      };
-      setLimb("head", 0.2);
-      setLimb("torso", 0.45);
-      setLimb("lArm", 0.15);
-      setLimb("rArm", 0.15);
-      setLimb("lLeg", 0.2);
-      setLimb("rLeg", 0.2);
+        const totalHP = system.resources.hp.max;
+        const setLimb = (part, percent) => {
+            const limb = system.limbs[part];
+            const baseMax = Math.floor(totalHP * percent);
+            limb.max = Math.max(1, baseMax - (getNum(limb.penalty)));
+            if (limb.value > limb.max) limb.value = limb.max;
+        };
+        setLimb("head", 0.2); setLimb("torso", 0.45); setLimb("lArm", 0.15);
+        setLimb("rArm", 0.15); setLimb("lLeg", 0.2); setLimb("rLeg", 0.2);
     }
-  }
+}
 
   hasStatusEffect(statusId) {
     return this.effects.some(

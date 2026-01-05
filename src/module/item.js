@@ -42,6 +42,11 @@ export class ZItem extends Item {
 
     // Дефолты по типам
     if (this.type === 'weapon') {
+      if (system.noise !== undefined) {
+            system.noise = Math.max(0, Number(system.noise) || 0);
+        }
+        // ВАЖНО: Мы НЕ трогаем system.attacks, там минус разрешен
+        if (!system.attacks) system.attacks = {};
       data.apCost = (typeof data.apCost !== 'undefined') ? data.apCost : 0;
       data.damage = data.damage ?? '';
       data.skillType = data.skillType ?? 'melee';
