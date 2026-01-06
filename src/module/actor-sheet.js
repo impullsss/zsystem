@@ -157,6 +157,14 @@ export class ZActorSheet extends ZBaseActorSheet {
       this.actor.rollSkill(skillKey);
     });
 
+    html.find('.convert-loot-btn').click(ev => {
+    Dialog.confirm({
+        title: "Превратить в лут?",
+        content: "<p>Персонаж будет удален и заменен контейнером с его вещами.</p>",
+        yes: () => this.actor.convertToLoot()
+    });
+    });
+
     // --- ИНВЕНТАРЬ (ЕДИНЫЙ БЛОК) ---
 
     // 1. Использование (Медицина / Оружие / Редактирование)

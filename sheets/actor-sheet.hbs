@@ -61,7 +61,14 @@
               <button type="button" class="rest-btn" style="font-size:0.8em; padding:2px;"><i class="fas fa-bed"></i> Отдых</button>
               {{#if isProne}}<button type="button" class="stand-up-btn" style="font-size:0.8em; padding:2px; background:#ffcc80;"><i class="fas fa-child"></i> Встать</button>{{/if}}
           </div>
-
+        {{#if isGM}}
+                {{#if (or isDead (ne actor.type "survivor"))}}
+                    <button type="button" class="convert-loot-btn" 
+                            style="background: #5d4037; color: white; border: 1px solid #000; margin-top: 5px;">
+                        <i class="fas fa-box-open"></i> Превратить в лут
+                    </button>
+                {{/if}}
+            {{/if}}
           {{#if isGM}}
           <div class="gm-infection-box">
               <i class="fas fa-biohazard"></i> Инфекция:

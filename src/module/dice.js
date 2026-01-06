@@ -579,12 +579,16 @@ export async function rollPanicTable(actor) {
 
 function _checkInterveningTokens(sourceToken, targetToken) {
     if (!sourceToken || !targetToken) return [];
+    const ray = new Ray(sourceToken.center, targetToken.center);
     const obstacles = [];
+
     for (let t of canvas.tokens.placeables) {
+        // Пропускаем себя, цель, скрытых и токены без акторов
         if (t.id === sourceToken.id || t.id === targetToken.id || !t.actor || t.document.hidden) continue;
         
-        // ФИКС: Мертвые тела не мешают обзору и не создают помеху
-        if (t.actor.system.resources.hp.value <= 0) continue;
+        // --- ФИКС: Безопасная проверка HP ---
+        const hp = t.actor.system.resources?.hp;
+        if (!hp || hp.value <= 0) continue; // Пропускаем трупы и объекты без HP
 
         const dist = _distToSegment(t.center, sourceToken.center, targetToken.center);
         if (dist < (t.w / 2) * 0.8) obstacles.push(t);
