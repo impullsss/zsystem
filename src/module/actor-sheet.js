@@ -115,9 +115,12 @@ export class ZActorSheet extends ZBaseActorSheet {
     context.inventory = inventory;
   }
 
+
   activateListeners(html) {
     super.activateListeners(html);
     if (!this.isEditable) return;
+
+    
 
     // --- КНОПКИ УПРАВЛЕНИЯ ---
     html.find(".stand-up-btn").click((ev) => this.actor.standUp());
@@ -164,6 +167,16 @@ export class ZActorSheet extends ZBaseActorSheet {
         yes: () => this.actor.convertToLoot()
     });
     });
+
+    html.find(".item-favorite").click(async (ev) => {
+    ev.preventDefault();
+    const li = $(ev.currentTarget).parents(".item");
+    const item = this.actor.items.get(li.data("itemId"));
+    
+    // Переключаем флаг (создаем его, если нет)
+    const isFav = item.system.favorite || false;
+    await item.update({ "system.favorite": !isFav });
+});
 
     // --- ИНВЕНТАРЬ (ЕДИНЫЙ БЛОК) ---
 
@@ -226,7 +239,35 @@ export class ZActorSheet extends ZBaseActorSheet {
       ev.preventDefault();
       const li = $(ev.currentTarget).parents(".item");
       const item = this.actor.items.get(li.data("itemId"));
-      await item.update({ "system.equipped": !item.system.equipped });
+      if (!item) return;
+
+      const isEquipping = !item.system.equipped; // Пытаемся надеть?
+
+      // --- ЛОГИКА КОНТРОЛЯ РУК ---
+      if (isEquipping && item.type === "weapon") {
+          // Сколько слотов занимает это оружие
+          const slotsForThisItem = item.system.hands === "2h" ? 2 : 1;
+          
+          // Считаем, сколько рук УЖЕ занято другими надетыми пушками
+          const equippedWeapons = this.actor.items.filter(i => 
+              i.type === "weapon" && 
+              i.system.equipped && 
+              i.id !== item.id
+          );
+
+          let currentlyUsedSlots = 0;
+          equippedWeapons.forEach(w => {
+              currentlyUsedSlots += (w.system.hands === "2h" ? 2 : 1);
+          });
+
+          // Если сумма превышает 2 слота — блокируем
+          if (currentlyUsedSlots + slotsForThisItem > 2) {
+              return ui.notifications.warn(`Все руки заняты (использовано: ${currentlyUsedSlots}/2)! Сначала снимите другое оружие.`);
+          }
+      }
+
+      // Если проверка пройдена или мы снимаем вещь — обновляем статус
+      await item.update({ "system.equipped": isEquipping });
     });
 
     html.find(".item-reload").click((ev) => {
@@ -249,6 +290,96 @@ export class ZActorSheet extends ZBaseActorSheet {
 
     html.find(".item-create").click(this._onItemCreate.bind(this));
     html.find(".effect-control").click((ev) => this._onManageEffect(ev));
+
+    new ContextMenu(html, ".item", [
+    {
+      name: "Передать члену отряда",
+      icon: '<i class="fas fa-exchange-alt"></i>',
+      condition: li => {
+        const itemId = li.data("itemId");
+        const item = this.actor.items.get(itemId);
+        // Нельзя передавать надетые вещи и мертвым
+        return item && !item.system.equipped && this.actor.system.resources.hp.value > 0;
+      },
+      callback: li => {
+        const item = this.actor.items.get(li.data("itemId"));
+        this._showTransferDialog(item);
+      }
+    }
+  ]);
+  
+  }
+
+  /** @override */
+  _getItemContextOptions() {
+    const options = super._getItemContextOptions();
+
+    // Добавляем пункт "Передать персонажу"
+    options.push({
+      name: "Передать члену отряда",
+      icon: '<i class="fas fa-exchange-alt"></i>',
+      condition: li => {
+        const item = this.actor.items.get(li.data("itemId"));
+        // Нельзя передавать надетые вещи (сначала сними!) или если персонаж мертв
+        return item && !item.system.equipped && this.actor.system.resources.hp.value > 0;
+      },
+      callback: li => {
+        const item = this.actor.items.get(li.data("itemId"));
+        this._showTransferDialog(item);
+      }
+    });
+
+    return options;
+  }
+
+  /**
+   * Диалог выбора получателя
+   */
+  async _showTransferDialog(item) {
+    // Собираем всех выживших (кроме себя)
+    const targets = game.actors.filter(a => a.type === "survivor" && a.id !== this.actor.id);
+    
+    if (targets.length === 0) return ui.notifications.warn("Больше нет доступных персонажей.");
+
+    let optionsHtml = targets.map(t => `<option value="${t.uuid}">${t.name}</option>`).join("");
+
+    new Dialog({
+      title: `Передать: ${item.name}`,
+      content: `
+        <form>
+          <div class="form-group">
+            <label>Кому передать?</label>
+            <select id="target-uuid">${optionsHtml}</select>
+          </div>
+          <p style="font-size:0.8em; color:gray;">Предмет будет перемещен в инвентарь выбранного персонажа.</p>
+        </form>
+      `,
+      buttons: {
+        confirm: {
+          icon: '<i class="fas fa-check"></i>',
+          label: "Передать",
+          callback: async (html) => {
+            const targetUuid = html.find("#target-uuid").val();
+            
+            // Отправляем запрос ГМу (используем уже готовую систему флагов в main.js)
+            ChatMessage.create({
+              content: `<i>Система: ${this.actor.name} передает ${item.name}...</i>`,
+              whisper: ChatMessage.getWhisperRecipients("GM"),
+              flags: {
+                zsystem: {
+                  transferItem: {
+                    sourceUuid: item.uuid,
+                    targetActorUuid: targetUuid // transferItem в main.js должен уметь работать с UUID
+                  }
+                }
+              }
+            });
+            ui.notifications.info(`Вы передали ${item.name}.`);
+          }
+        },
+        cancel: { label: "Отмена" }
+      }
+    }).render(true);
   }
 
   async _onItemCreate(event) {
@@ -325,3 +456,4 @@ export class ZActorSheet extends ZBaseActorSheet {
     }
   }
 }
+

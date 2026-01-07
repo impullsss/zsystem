@@ -50,3 +50,13 @@ body.zsystem-aiming-focus .window-app {
 body.zsystem-aiming-focus #z-aiming-hud {
     pointer-events: none !important; /* Он сам тоже прозрачен для клика */
 }
+
+.z-interact-btn i {
+    color: #ffab91; /* Наш оранжевый акцент */
+    text-shadow: 0 0 5px #000;
+}
+
+.z-interact-btn:hover i {
+    color: #ffffff;
+    transform: scale(1.2);
+}

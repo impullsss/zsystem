@@ -304,38 +304,32 @@
                 </div>
                 
                 <div class="inventory-grid">
-                    <!-- ОРУЖИЕ (Только экипированное) -->
-                    {{#each inventory.weapon.items as |item|}}
-                        {{#if item.system.equipped}}
-                        <div class="inv-slot item" data-item-id="{{item.id}}" title="{{item.name}} (Надето)">
-                            <img src="{{item.img}}"/>
-                            <span class="inv-qty" style="background:#2e7d32;">E</span> <!-- E for Equipped -->
-                        </div>
-                        {{/if}}
-                    {{/each}}
+    {{#each inventory as |section|}}
+        {{#each section.items as |item|}}
+            {{#if (or item.system.equipped item.system.favorite (eq item.type "medicine"))}}
+            <div class="inv-slot item" data-item-id="{{item.id}}" title="{{item.name}}">
+                <img src="{{item.img}}"/>
+                
+                <div class="inv-qty">
+                    {{#if item.system.equipped}}
+                        <span style="background:#2e7d32; padding: 0 4px;">E</span>
+                    {{else if item.system.favorite}}
+                        <span style="background:#fbc02d; color:#000; padding: 0 2px;"><i class="fas fa-star" style="font-size:0.7em;"></i></span>
+                    {{/if}}
                     
-                    <!-- БРОНЯ (Только экипированная) -->
-                    {{#each inventory.armor.items as |item|}}
-                        {{#if item.system.equipped}}
-                        <div class="inv-slot item" data-item-id="{{item.id}}" title="{{item.name}} (Надето)">
-                            <img src="{{item.img}}"/>
-                            <span class="inv-qty" style="background:#1565c0;">E</span>
-                        </div>
-                        {{/if}}
-                    {{/each}}
-
-                    <!-- МЕДИЦИНА (Вся) -->
-                    {{#each inventory.medicine.items as |item|}}
-                    <div class="inv-slot item" data-item-id="{{item.id}}" title="{{item.name}}">
-                        <img src="{{item.img}}"/>
-                        <span class="inv-qty">{{item.system.quantity}}</span>
-                    </div>
-                    {{/each}}
-                    
-                    <!-- Заполнители -->
-                    <div class="inv-slot" style="opacity:0.3; border-style:dashed;"></div>
-                    <div class="inv-slot" style="opacity:0.3; border-style:dashed;"></div>
+                    {{#if (gt item.system.quantity 1)}}
+                        <span style="background:rgba(0,0,0,0.5); padding: 0 4px;">{{item.system.quantity}}</span>
+                    {{/if}}
                 </div>
+            </div>
+            {{/if}}
+        {{/each}}
+    {{/each}}
+    
+    <!-- Заполнители -->
+    <div class="inv-slot" style="opacity:0.1; border-style:dashed;"></div>
+    <div class="inv-slot" style="opacity:0.1; border-style:dashed;"></div>
+</div>
 
                 <h3 style="margin-top:20px;">ЭФФЕКТЫ</h3>
                 <div style="font-size:0.9em;">
@@ -383,6 +377,10 @@
                         
                         <div class="item-controls" style="display:flex; gap:5px;">
                             <!-- Кнопка Экипировки -->
+                            <a class="item-favorite" title="В быстрый доступ">
+                            <i class="{{#if item.system.favorite}}fas fa-star{{else}}far fa-star{{/if}}" 
+                             style="{{#if item.system.favorite}}color:#fbc02d;{{else}}color:#aaa;{{/if}}"></i>
+                             </a>
                             {{#if (or (eq item.type "weapon") (eq item.type "armor"))}}
                                 <a class="item-toggle" title="{{#if item.system.equipped}}Снять{{else}}Надеть{{/if}}">
                                     <i class="fas {{#if item.system.equipped}}fa-tshirt{{else}}fa-shirt{{/if}}" 

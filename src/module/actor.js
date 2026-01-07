@@ -67,6 +67,41 @@ export class ZActor extends Actor {
     }
   }
 
+  /** @override */
+  async _preUpdateEmbeddedDocuments(embeddedName, result, options, userId) {
+    await super._preUpdateEmbeddedDocuments(embeddedName, result, options, userId);
+
+    if (embeddedName !== "Item" || game.user.id !== userId) return;
+
+    for (let update of result) {
+        // Проверяем попытку экипировки
+        const isEquipping = foundry.utils.getProperty(update, "system.equipped") === true;
+        if (!isEquipping) continue;
+
+        const item = this.items.get(update._id);
+        if (!item || item.type !== "weapon") continue;
+
+        // Считаем занятые слоты
+        const newNeeded = (item.system.hands === "2h") ? 2 : 1;
+        const currentEquipped = this.items.filter(i => 
+            i.type === "weapon" && 
+            i.system.equipped && 
+            i.id !== item.id
+        );
+
+        let usedSlots = 0;
+        currentEquipped.forEach(w => usedSlots += (w.system.hands === "2h" ? 2 : 1));
+
+        if (usedSlots + newNeeded > 2) {
+            ui.notifications.warn(`У персонажа всего две руки! Не удается надеть ${item.name}.`);
+            
+            // В V13 для отмены обновления внутри _preUpdate нужно удалить запись из массива result
+            // Либо (проще) изменить статус обратно на false прямо в объекте обновления
+            update["system.equipped"] = false; 
+        }
+    }
+}
+
   async _preUpdate(changed, options, user) {
     await super._preUpdate(changed, options, user);
 
@@ -475,30 +510,43 @@ export class ZActor extends Actor {
 
   prepareDerivedData() {
     const system = this.system;
-    if (["shelter", "container", "vehicle"].includes(this.type)) return;
+    // Защита: если данных нет, выходим. 
+    // В V13 это критично для предотвращения TypeError при создании
+    if (!system || ["shelter", "container", "vehicle"].includes(this.type)) return;
+
+    // ГАРАНТИРУЕМ наличие объектов перед итерацией
+    system.attributes = system.attributes || {};
+    system.skills = system.skills || {};
+    system.secondary = system.secondary || {};
+    system.resources = system.resources || {};
 
     const getNum = (val) => {
       const n = Number(val);
       return isNaN(n) ? 0 : n;
     };
 
-    // 1. АТРИБУТЫ (Hard Cap 1)
+    // 1. АТРИБУТЫ (Проверка на существование ключей)
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     let spentStats = 0;
     attrKeys.forEach((key) => {
+      // Инициализируем атрибут, если его нет (важно при создании нового чара)
+      if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
+      
       const attr = system.attributes[key];
       attr.base = Math.max(1, Math.min(10, getNum(attr.base)));
       attr.value = Math.max(1, attr.base + getNum(attr.mod));
-      spentStats += attr.base - 1;
+      spentStats += (attr.base - 1);
     });
+    
+    // Инициализируем secondary, если его нет
     system.secondary.spentStats = { value: spentStats };
 
-    // 2. НАВЫКИ (Исправленный цикл)
+    // 2. НАВЫКИ (Добавлена проверка на наличие skills)
     let spentSkills = 0;
     const skillConfig = {
       melee: ["str", "agi"],
       ranged: ["agi", "per"],
-      science: "int4", // специальный ключ для int * 4
+      science: "int4",
       mechanical: ["int", "max_str_agi"],
       medical: ["int", "per"],
       diplomacy: ["cha", "per"],
@@ -508,42 +556,54 @@ export class ZActor extends Actor {
       stealth: ["agi", "per"],
     };
 
-    for (let [key, skill] of Object.entries(system.skills)) {
+    // Безопасный перебор навыков
+    for (const key of Object.keys(skillConfig)) {
+      if (!system.skills[key]) system.skills[key] = { points: 0, mod: 0, value: 0, base: 0 };
+      
+      const skill = system.skills[key];
       const s = system.attributes;
       const cfg = skillConfig[key];
 
-      // Расчет базы
-      if (cfg === "int4") {
-        skill.base = s.int.value * 4;
-      } else if (cfg[1] === "max_str_agi") {
-        skill.base = s.int.value + Math.max(s.str.value, s.agi.value);
-      } else if (cfg[1] === "max_vig_int") {
-        skill.base = s.per.value + Math.max(s.vig.value, s.int.value);
-      } else {
-        skill.base = s[cfg[0]].value + s[cfg[1]].value;
+      // Расчет базы (с проверкой на наличие атрибутов)
+      try {
+          if (cfg === "int4") {
+            skill.base = (s.int?.value || 1) * 4;
+          } else if (cfg[1] === "max_str_agi") {
+            skill.base = (s.int?.value || 1) + Math.max(s.str?.value || 1, s.agi?.value || 1);
+          } else if (cfg[1] === "max_vig_int") {
+            skill.base = (s.per?.value || 1) + Math.max(s.vig?.value || 1, s.int?.value || 1);
+          } else {
+            skill.base = (s[cfg[0]]?.value || 1) + (s[cfg[1]]?.value || 1);
+          }
+      } catch (e) {
+          skill.base = 2; // Фоллбэк, если статы еще не готовы
       }
 
       const invested = getNum(skill.points);
       const modifier = getNum(skill.mod);
       spentSkills += invested;
 
-      // Итог
-      skill.value = Math.max(
-        0,
-        Math.min(100, skill.base + invested + modifier)
-      );
+      skill.value = Math.max(0, Math.min(100, skill.base + invested + modifier));
     }
     system.secondary.spentSkills = { value: spentSkills };
 
-    // 3. HP / AP (Hard Cap 0)
-    const baseMaxHP = 70 + (system.attributes.vig.value - 1) * 10;
+    // 3. HP / AP (Безопасная инициализация внутренних объектов)
+    if (!system.resources.hp) system.resources.hp = { value: 10, max: 10, penalty: 0 };
+    if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
+
+    // Теперь расчет будет безопасным
+    const vigValue = system.attributes.vig?.value || 1;
+    const baseMaxHP = 70 + (vigValue - 1) * 10;
+    
     system.resources.hp.max = Math.max(
       10,
       baseMaxHP - getNum(system.resources.hp.penalty)
     );
 
-    const baseAP = 7 + Math.ceil((system.attributes.agi.value - 1) / 2);
+    const agiValue = system.attributes.agi?.value || 1;
+    const baseAP = 7 + Math.ceil((agiValue - 1) / 2);
     const encumbrance = system.secondary.isOverburdened ? 2 : 0;
+    
     system.resources.ap.max = Math.max(
       0,
       baseAP +

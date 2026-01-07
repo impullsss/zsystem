@@ -16,6 +16,26 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   if (!game.user.isGM) return; // Только ГМ обрабатывает логику
   
   const flags = message.flags?.zsystem;
+
+  if (flags?.transferItem) {
+    const { sourceUuid, targetActorUuid } = flags.transferItem;
+    
+    // fromUuid работает и с простыми ID, и с полными путями Actor.id или Scene.id.Token.id
+    const item = await fromUuid(sourceUuid);
+    const targetActor = await fromUuid(targetActorUuid);
+
+    if (item && targetActor) {
+        // Если targetActor - это токен, берем его актора
+        const target = targetActor.actor || targetActor;
+        
+        const itemData = item.toObject();
+        await target.createEmbeddedDocuments("Item", [itemData]);
+        await item.delete();
+        
+        console.log(`ZSystem | ГМ переложил ${item.name} в инвентарь ${target.name}`);
+    }
+  }
+
   if (!flags) return;
 
   // --- НОВОЕ: Перемотка Времени (Travel System) ---
@@ -571,6 +591,186 @@ Hooks.on("deleteCombat", async (combat, options, userId) => {
     }
     ui.notifications.info("Бой окончен. Очки действия восстановлены.");
 });
+
+Hooks.on("dropCanvasData", async (canvas, data) => {
+    if (data.type !== "Item") return true;
+
+    const targetToken = canvas.tokens.placeables.find(t => 
+        (data.x >= t.x) && (data.x <= (t.x + t.w)) && (data.y >= t.y) && (data.y <= (t.y + t.h))
+    );
+
+    if (!targetToken || !targetToken.actor) return true;
+
+    const sourceItem = await fromUuid(data.uuid);
+    if (!sourceItem || !sourceItem.actor || sourceItem.actor.uuid === targetToken.actor.uuid) return true;
+
+    const sourceActor = sourceItem.actor;
+    const targetActor = targetToken.actor;
+
+    // Проверка дистанции
+    const sourceToken = sourceActor.getActiveTokens()[0];
+    if (sourceToken && canvas.grid.measureDistance(sourceToken, targetToken) > 2.5) {
+        ui.notifications.warn("Слишком далеко!");
+        return false;
+    }
+
+    // ВАЖНО: Вместо того чтобы менять данные самим, 
+    // создаем невидимое сообщение, которое ГМ обработает
+    ChatMessage.create({
+        content: `<i>Система: Передача предмета ${sourceItem.name}...</i>`,
+        whisper: ChatMessage.getWhisperRecipients("GM"),
+        flags: {
+            zsystem: {
+                transferItem: {
+                    sourceUuid: sourceItem.uuid,
+                    targetActorUuid: targetActor.uuid
+                }
+            }
+        }
+    });
+
+    ui.notifications.info(`Запрос на передачу ${sourceItem.name} отправлен.`);
+    return false;
+});
+// Логика действий (вынесем в глобальный класс, чтобы не загромождать хук)
+class ZSystemActions {
+    static async interact() {
+        const myToken = canvas.tokens.controlled[0];
+        if (!myToken) return ui.notifications.warn("Сначала выделите своего персонажа!");
+
+        // Ищем цели в радиусе 3.5 метров
+        const targets = canvas.tokens.placeables.filter(t => {
+            if (t.id === myToken.id || !t.actor) return false;
+            return canvas.grid.measureDistance(myToken, t) <= 3.5;
+        });
+
+        if (targets.length === 0) return ui.notifications.warn("Рядом нет ничего интересного.");
+
+        // Сортировка по дистанции
+        targets.sort((a, b) => canvas.grid.measureDistance(myToken, a) - canvas.grid.measureDistance(myToken, b));
+        const target = targets[0];
+
+        // ВНИМАНИЕ: Если это контейнер или NPC, принудительно открываем лист.
+        // Мы используем render(true), но Foundry v13 может блокировать это без прав.
+        // Если лист не открывается, ГМу нужно поставить права "Observer" для игроков.
+        target.actor.sheet.render(true);
+        ui.notifications.info(`Взаимодействие с ${target.name}`);
+    }
+
+    static async manualSearch() {
+        const myToken = canvas.tokens.controlled[0];
+        if (!myToken) return ui.notifications.warn("Сначала выделите своего персонажа!");
+        
+        const actor = myToken.actor;
+
+        // 1. Выполняем бросок Восприятия
+        // Мы используем существующий метод актора, но нам нужен результат броска
+        const label = "Поиск (Восприятие)";
+        
+        // Повторяем логику броска, чтобы получить доступ к результату (total)
+        const per = actor.system.attributes.per.value;
+        const roll = new Roll("1d10 + @per", { per });
+        await roll.evaluate();
+
+        // Отправляем бросок в чат
+        await roll.toMessage({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor: `<b>${actor.name}</b> внимательно осматривает местность...`
+        });
+
+        const searchResult = roll.total;
+        let foundCount = 0;
+
+        // 2. Ищем скрытые токены на сцене
+        const hiddenTokens = canvas.tokens.placeables.filter(t => t.document.hidden);
+
+        for (let t of hiddenTokens) {
+            const targetActor = t.actor;
+            if (!targetActor) continue;
+
+            const sys = targetActor.system.attributes;
+            // Проверяем, есть ли у объекта параметры сложности обнаружения (DC)
+            const spotDC = sys?.spotDC?.value || 15;
+            const spotRadius = sys?.spotRadius?.value || 5; // Радиус поиска в метрах
+
+            // Проверка дистанции
+            const dist = canvas.grid.measureDistance(myToken, t);
+
+            if (dist <= spotRadius) {
+                // Если бросок выше или равен сложности обнаружения
+                if (searchResult >= spotDC) {
+                    // Раскрываем токен!
+                    await t.document.update({ hidden: false });
+                    
+                    // Визуальный эффект над найденным объектом
+                    canvas.interface.createScrollingText(t.center, "👁️ Найдено!", {
+                        fill: "#ffeb3b",
+                        stroke: 0x000000,
+                        fontSize: 32,
+                        fontWeight: "bold"
+                    });
+                    
+                    foundCount++;
+                }
+            }
+        }
+
+        if (foundCount > 0) {
+            ui.notifications.info(`Вы обнаружили что-то интересное! (${foundCount} шт.)`);
+        } else {
+            // Маленький спецэффект вокруг игрока, чтобы показать радиус поиска
+            this._visualizeSearchRadius(myToken, 5); 
+        }
+    }
+
+    // Вспомогательный метод для красоты
+    static async _visualizeSearchRadius(token, radius) {
+        const templateData = {
+            t: "circle",
+            user: game.user.id,
+            distance: radius,
+            direction: 0,
+            x: token.center.x,
+            y: token.center.y,
+            fillColor: "#512da8",
+            alpha: 0.1,
+            borderColor: "#9575cd"
+        };
+        const doc = (await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]))[0];
+        setTimeout(() => { if (doc) doc.delete(); }, 1500);
+    }
+}
+
+// === 2. ХУК РЕГИСТРАЦИИ (С ПОДДЕРЖКОЙ MONK'S MODULES) ===
+Hooks.on("getSceneControlButtons", (controls) => {
+    const zControl = {
+        name: "zsystem-actions",
+        title: "Действия Выживания",
+        layer: "tokens", 
+        icon: "fas fa-biohazard",
+        visible: true,
+        tools: [
+            {
+                name: "z-interact",
+                title: "Взаимодействовать",
+                icon: "fas fa-hand-paper",
+                button: true, // Это мгновенное действие
+                onClick: () => ZSystemActions.interact()
+            },
+            {
+                name: "z-search",
+                title: "Поиск (Восприятие)",
+                icon: "fas fa-search",
+                button: true, // Это мгновенное действие
+                onClick: () => ZSystemActions.manualSearch()
+            }
+        ]
+    };
+
+    if (Array.isArray(controls)) controls.push(zControl);
+    else controls["zsystem-actions"] = zControl;
+});
+
 
 // === АВТО-ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ПРИ ВЫДЕЛЕНИИ ===
 Hooks.on("controlToken", (token, controlled) => {

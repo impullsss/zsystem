@@ -158,7 +158,8 @@
           "quantity": 1,
           "description": "",
           "category": "",
-          "equipped": false
+          "equipped": false,
+          "favorite": false
         }
       },
       "weapon": {
