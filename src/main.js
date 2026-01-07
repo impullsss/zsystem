@@ -771,6 +771,55 @@ Hooks.on("getSceneControlButtons", (controls) => {
     else controls["zsystem-actions"] = zControl;
 });
 
+Hooks.on("hotbarDrop", (bar, data, slot) => {
+  if (data.type !== "Item") return true;
+  createItemMacro(data, slot);
+  return false;
+});
+
+async function createItemMacro(data, slot) {
+  // Получаем предмет по его UUID
+  const item = await fromUuid(data.uuid);
+  if (!item || item.type !== "weapon") {
+      return ui.notifications.warn("На панель можно выносить только оружие.");
+  }
+
+  // Команда, которую будет исполнять макрос
+  const command = `game.zsystem.rollItemMacro("${item.name}");`;
+  
+  // Проверяем, существует ли уже такой макрос
+  let macro = game.macros.find(m => (m.name === item.name) && (m.command === command));
+  if (!macro) {
+    macro = await Macro.create({
+      name: item.name,
+      type: "script",
+      img: item.img,
+      command: command,
+      flags: { "zsystem.itemMacro": true }
+    });
+  }
+
+  // Назначаем макрос в выбранный слот
+  game.user.assignHotbarMacro(macro, slot);
+}
+
+// Регистрируем глобальный хелпер для макроса в объекте game
+Hooks.once("ready", () => {
+    game.zsystem = game.zsystem || {};
+    game.zsystem.rollItemMacro = (itemName) => {
+        const speaker = ChatMessage.getSpeaker();
+        let actor;
+        if (speaker.token) actor = canvas.tokens.get(speaker.token).actor;
+        if (!actor) actor = game.actors.get(speaker.actor);
+        
+        if (!actor) return ui.notifications.warn("Сначала выберите токен персонажа!");
+
+        const item = actor.items.find(i => i.name === itemName);
+        if (!item) return ui.notifications.warn(`У персонажа ${actor.name} нет предмета "${itemName}"`);
+
+        return actor.performAttack(item.id);
+    };
+});
 
 // === АВТО-ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ПРИ ВЫДЕЛЕНИИ ===
 Hooks.on("controlToken", (token, controlled) => {

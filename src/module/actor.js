@@ -510,38 +510,34 @@ export class ZActor extends Actor {
 
   prepareDerivedData() {
     const system = this.system;
-    // Защита: если данных нет, выходим. 
-    // В V13 это критично для предотвращения TypeError при создании
+    // Защита: если данных нет или это не боевой тип, выходим. 
     if (!system || ["shelter", "container", "vehicle"].includes(this.type)) return;
 
-    // ГАРАНТИРУЕМ наличие объектов перед итерацией
+    // ГАРАНТИРУЕМ наличие объектов
     system.attributes = system.attributes || {};
     system.skills = system.skills || {};
     system.secondary = system.secondary || {};
     system.resources = system.resources || {};
+    system.limbs = system.limbs || {};
 
     const getNum = (val) => {
       const n = Number(val);
       return isNaN(n) ? 0 : n;
     };
 
-    // 1. АТРИБУТЫ (Проверка на существование ключей)
+    // 1. АТРИБУТЫ
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     let spentStats = 0;
     attrKeys.forEach((key) => {
-      // Инициализируем атрибут, если его нет (важно при создании нового чара)
       if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
-      
       const attr = system.attributes[key];
       attr.base = Math.max(1, Math.min(10, getNum(attr.base)));
       attr.value = Math.max(1, attr.base + getNum(attr.mod));
       spentStats += (attr.base - 1);
     });
-    
-    // Инициализируем secondary, если его нет
     system.secondary.spentStats = { value: spentStats };
 
-    // 2. НАВЫКИ (Добавлена проверка на наличие skills)
+    // 2. НАВЫКИ
     let spentSkills = 0;
     const skillConfig = {
       melee: ["str", "agi"],
@@ -556,61 +552,66 @@ export class ZActor extends Actor {
       stealth: ["agi", "per"],
     };
 
-    // Безопасный перебор навыков
     for (const key of Object.keys(skillConfig)) {
       if (!system.skills[key]) system.skills[key] = { points: 0, mod: 0, value: 0, base: 0 };
-      
       const skill = system.skills[key];
       const s = system.attributes;
       const cfg = skillConfig[key];
 
-      // Расчет базы (с проверкой на наличие атрибутов)
       try {
-          if (cfg === "int4") {
-            skill.base = (s.int?.value || 1) * 4;
-          } else if (cfg[1] === "max_str_agi") {
-            skill.base = (s.int?.value || 1) + Math.max(s.str?.value || 1, s.agi?.value || 1);
-          } else if (cfg[1] === "max_vig_int") {
-            skill.base = (s.per?.value || 1) + Math.max(s.vig?.value || 1, s.int?.value || 1);
-          } else {
-            skill.base = (s[cfg[0]]?.value || 1) + (s[cfg[1]]?.value || 1);
-          }
-      } catch (e) {
-          skill.base = 2; // Фоллбэк, если статы еще не готовы
-      }
+          if (cfg === "int4") skill.base = (s.int?.value || 1) * 4;
+          else if (cfg[1] === "max_str_agi") skill.base = (s.int?.value || 1) + Math.max(s.str?.value || 1, s.agi?.value || 1);
+          else if (cfg[1] === "max_vig_int") skill.base = (s.per?.value || 1) + Math.max(s.vig?.value || 1, s.int?.value || 1);
+          else skill.base = (s[cfg[0]]?.value || 1) + (s[cfg[1]]?.value || 1);
+      } catch (e) { skill.base = 2; }
 
       const invested = getNum(skill.points);
       const modifier = getNum(skill.mod);
       spentSkills += invested;
-
       skill.value = Math.max(0, Math.min(100, skill.base + invested + modifier));
     }
     system.secondary.spentSkills = { value: spentSkills };
 
-    // 3. HP / AP (Безопасная инициализация внутренних объектов)
+    // 3. HP / AP
     if (!system.resources.hp) system.resources.hp = { value: 10, max: 10, penalty: 0 };
     if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
 
-    // Теперь расчет будет безопасным
     const vigValue = system.attributes.vig?.value || 1;
     const baseMaxHP = 70 + (vigValue - 1) * 10;
-    
-    system.resources.hp.max = Math.max(
-      10,
-      baseMaxHP - getNum(system.resources.hp.penalty)
-    );
+    system.resources.hp.max = Math.max(10, baseMaxHP - getNum(system.resources.hp.penalty));
 
     const agiValue = system.attributes.agi?.value || 1;
     const baseAP = 7 + Math.ceil((agiValue - 1) / 2);
     const encumbrance = system.secondary.isOverburdened ? 2 : 0;
-    
-    system.resources.ap.max = Math.max(
-      0,
-      baseAP +
-        getNum(system.resources.ap.bonus) +
-        getNum(system.resources.ap.effect) -
-        encumbrance
-    );
+    system.resources.ap.max = Math.max(0, baseAP + getNum(system.resources.ap.bonus) + getNum(system.resources.ap.effect) - encumbrance);
+
+    // --- 4. КОНЕЧНОСТИ (Твоя математика распределения) ---
+    const totalHP = system.resources.hp.max;
+    const setLimb = (part, percent) => {
+        // Если объекта конечности нет - создаем
+        if (!system.limbs[part]) system.limbs[part] = { value: 0, max: 0, penalty: 0 };
+        const limb = system.limbs[part];
+        
+        // Считаем Максимум по твоим процентам
+        limb.max = Math.max(1, Math.floor(totalHP * percent) - getNum(limb.penalty));
+
+        // Если текущее значение равно 0 или 10 (дефолт), и мы только создали персонажа
+        // Мы НЕ ставим значение здесь напрямую через updates, мы просто готовим данные для отображения
+        // Но чтобы на листе не было 0/130, приравняем отображаемое значение к максу, если оно пустое
+        if (limb.value === 0 || limb.value === null) {
+            limb.value = limb.max;
+        }
+
+        // Ограничиваем текущее значение максимумом
+        if (limb.value > limb.max) limb.value = limb.max;
+    };
+
+    setLimb("head", 0.2);
+    setLimb("torso", 0.45);
+    setLimb("lArm", 0.15);
+    setLimb("rArm", 0.15);
+    setLimb("lLeg", 0.2);
+    setLimb("rLeg", 0.2);
   }
 
   hasStatusEffect(statusId) {

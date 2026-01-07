@@ -116,7 +116,7 @@ export class ZCharacterCreator extends FormApplication {
             statsSum += val;
             data.statsList.push({ key, label: labels[key], value: val });
         }
-        data.statsPointsLeft = 33 - statsSum;
+        data.statsPointsLeft = 33 - statsSum; // Остаток от 33
         data.isStatsValid = (data.statsPointsLeft === 0);
 
         // 3. Skills
@@ -126,11 +126,13 @@ export class ZCharacterCreator extends FormApplication {
         const checkData = { ...this.state.attributes };
 
         for (let [key, conf] of Object.entries(skillConfig)) {
-            const added = this.state.skills[key];
+            const added = this.state.skills[key] || 0;
             
-            // Расчет стоимости для creation (простой или прогрессивный - мы решили прогрессивный)
+            // Расчет прогрессивной стоимости
             let cost = 0;
-            for(let i=0; i<added; i++) cost += this._getSkillCost(conf.base + i);
+            for(let i=0; i<added; i++) {
+                cost += this._getSkillCost(conf.base + i);
+            }
             spentSP += cost;
 
             const total = conf.base + added;
@@ -142,7 +144,10 @@ export class ZCharacterCreator extends FormApplication {
             });
         }
         data.skillPointsLeft = 100 - spentSP;
+        data.isSkillsValid = (data.skillPointsLeft === 0);
         data.canProceedSkills = data.skillPointsLeft >= 0;
+
+        data.canFinish = data.bgValid && data.isStatsValid && data.isSkillsValid;
 
         // 4. Perks (Step 4)
         if (this.state.step === 4) {
@@ -498,15 +503,29 @@ export class ZCharacterCreator extends FormApplication {
       const itemsToCreate = [];
 
       if (this.isCreation) {
-          // ЛОГИКА СОЗДАНИЯ (Старая)
-          updates["system.secondary.xp.value"] = 0;
-          updates["system.secondary.xp.spent"] = 0;
-          updates["system.secondary.perkPoints.value"] = this.state.startPP - (this.state.selectedPerk ? 1 : 0);
-          updates["flags.zsystem.isCreated"] = true;
-
+          // 1. Применяем Характеристики и Навыки
           for (let [k, v] of Object.entries(this.state.attributes)) updates[`system.attributes.${k}.base`] = v;
           for (let [k, v] of Object.entries(this.state.skills)) updates[`system.skills.${k}.points`] = v;
 
+          // 2. Инициализация здоровья (Запись в БД)
+          // Мы считаем макс ХП здесь, чтобы записать его в текущее значение (value)
+          const vig = this.state.attributes.vig;
+          const maxHP = 70 + (vig - 1) * 10;
+          
+          updates["system.resources.hp.value"] = maxHP;
+
+          // Расчет конечностей для записи в базу по твоим формулам
+          updates["system.limbs.head.value"] = Math.floor(maxHP * 0.2);
+          updates["system.limbs.torso.value"] = Math.floor(maxHP * 0.45);
+          updates["system.limbs.lArm.value"] = updates["system.limbs.rArm.value"] = Math.floor(maxHP * 0.15);
+          updates["system.limbs.lLeg.value"] = updates["system.limbs.rLeg.value"] = Math.floor(maxHP * 0.2);
+
+          // 3. Остальные флаги
+          updates["system.secondary.xp.value"] = 0;
+          updates["system.secondary.perkPoints.value"] = this.state.startPP - (this.state.selectedPerk ? 1 : 0);
+          updates["flags.zsystem.isCreated"] = true;
+
+          // Предыстории и перки
           for (let id of this.state.selectedBackgrounds) {
               const item = game.items.get(id);
               if (item) itemsToCreate.push(item.toObject());
@@ -515,7 +534,6 @@ export class ZCharacterCreator extends FormApplication {
               const item = game.items.get(this.state.selectedPerk);
               if (item) itemsToCreate.push(item.toObject());
           }
-
       } else {
           // ЛОГИКА ПРОКАЧКИ (Новая)
           

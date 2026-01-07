@@ -17,32 +17,32 @@
             
             <!-- SIDEBAR -->
             <div class="creator-sidebar">
-                <div class="step-btn {{#if (eq step 1)}}active{{/if}}" data-step="1">
-                    <span>1. Досье</span>
-                    <span class="step-status" style="color:{{#if bgValid}}green{{else}}#d84315{{/if}}">
-                        {{#if bgValid}}OK{{else}}{{bgCount}}/2{{/if}}
-                    </span>
-                </div>
-                
-                <div class="step-btn {{#if (eq step 2)}}active{{/if}}" data-step="2">
-                    <span>2. Характеристики</span>
-                    <span class="step-status" style="color:{{#if isStatsValid}}green{{else}}#d84315{{/if}}">
-                        {{#if isStatsValid}}OK{{else}}{{statsPointsLeft}}{{/if}}
-                    </span>
-                </div>
-                
-                <div class="step-btn {{#if (eq step 3)}}active{{/if}}" data-step="3">
-                    <span>3. Тренировка</span>
-                    <span class="step-status" style="color:{{#if canProceedSkills}}green{{else}}#d84315{{/if}}">
-                        {{skillPointsLeft}}
-                    </span>
-                </div>
-                
-                <div class="step-btn {{#if (eq step 4)}}active{{/if}}" data-step="4">
-                    <span>4. Особенности</span>
-                    {{#if (and (eq step 4) (lt ppLeft 1))}}<i class="fas fa-check step-status" style="color:green"></i>{{/if}}
-                </div>
-            </div>
+    <div class="step-btn {{#if (eq step 1)}}active{{/if}}" data-step="1">
+        <span>1. Досье</span>
+        <span class="step-status">
+            {{#if bgValid}}✅{{else}}{{bgCount}}/2{{/if}}
+        </span>
+    </div>
+    
+    <div class="step-btn {{#if (eq step 2)}}active{{/if}}" data-step="2">
+        <span>2. Характеристики</span>
+        <span class="step-status" style="color:{{#if isStatsValid}}green{{else}}#d84315{{/if}}">
+            {{#if isStatsValid}}✅{{else}}{{statsPointsLeft}}{{/if}}
+        </span>
+    </div>
+    
+    <div class="step-btn {{#if (eq step 3)}}active{{/if}}" data-step="3">
+        <span>3. Тренировка</span>
+        <span class="step-status" style="color:{{#if isSkillsValid}}green{{else}}#d84315{{/if}}">
+            {{#if isSkillsValid}}✅{{else}}{{skillPointsLeft}}{{/if}}
+        </span>
+    </div>
+    
+    <div class="step-btn {{#if (eq step 4)}}active{{/if}}" data-step="4">
+        <span>4. Особенности</span>
+        {{#if canFinish}}<i class="fas fa-check-circle" style="color:green; margin-left:5px;"></i>{{/if}}
+    </div>
+</div>
 
             <!-- CONTENT -->
             <div class="step-content">
@@ -174,26 +174,24 @@
 
         <!-- FOOTER (Вынесен наружу!) -->
         <div class="creator-footer">
-            {{#if (gt step 1)}} 
-                <button type="button" class="z-btn" data-action="prev">НАЗАД</button> 
-            {{else}}
-                <div style="width:120px;"></div> <!-- Пустое место для выравнивания -->
-            {{/if}}
-            
-            {{#if (lt step 4)}}
-                {{#if (and (eq step 1) (not bgValid))}} 
-                    <button type="button" class="z-btn" disabled>ДАЛЕЕ (2)</button>
-                {{else}}{{#if (and (eq step 2) (not isStatsValid))}} 
-                    <button type="button" class="z-btn" disabled>ДАЛЕЕ ({{statsPointsLeft}})</button>
-                {{else}}{{#if (and (eq step 3) (not canProceedSkills))}} 
-                    <button type="button" class="z-btn" disabled>ДАЛЕЕ</button>
-                {{else}} 
-                    <button type="button" class="z-btn" data-action="next">ДАЛЕЕ</button>
-                {{/if}}{{/if}}{{/if}}
-            {{else}}
-                <button type="button" class="z-btn" data-action="finish" style="background:#2e7d32;">ЗАВЕРШИТЬ</button>
-            {{/if}}
-        </div>
+    {{!-- Кнопки навигации (Назад/Далее) остаются как были --}}
+    {{#if (gt step 1)}} 
+        <button type="button" class="z-btn" data-action="prev">НАЗАД</button> 
+    {{else}}
+        <div style="width:120px;"></div>
+    {{/if}}
+    
+    {{#if (lt step 4)}}
+        <button type="button" class="z-btn" data-action="next">ДАЛЕЕ</button>
+    {{else}}
+        {{!-- КНОПКА ЗАВЕРШИТЬ С ВАЛИДАЦИЕЙ --}}
+        <button type="button" class="z-btn" data-action="finish" 
+                style="background:{{#if canFinish}}#2e7d32{{else}}#777{{/if}};"
+                {{#unless canFinish}}disabled title="Распределите все очки (33 статов, 100 навыков) и выберите 2 предыстории!"{{/unless}}>
+            ЗАВЕРШИТЬ
+        </button>
+    {{/if}}
+</div>
 
     {{else}}
         <!-- ====================== LEVEL UP MODE ====================== -->
