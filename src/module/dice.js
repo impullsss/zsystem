@@ -445,11 +445,17 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     // --- РАСХОД ---
     let isThrowingAction = (attack.mode === 'throw') || (item.system.isThrowing && item.system.weaponType !== 'melee');
+    const spentBullets = Number(attack.bullets) || (item.system.ammoType ? 1 : 0);
+    
     if (!isThrowingAction && item.system.ammoType) {
         const curMag = Number(item.system.mag.value) || 0;
-        let ammoCost = attack.name.match(/burst|очередь/i) ? 3 : 1;
-        if (curMag < ammoCost) return ui.notifications.warn("Нет патронов.");
-        await item.update({ "system.mag.value": curMag - ammoCost });
+        
+        if (curMag < spentBullets) {
+            return ui.notifications.warn(`Недостаточно патронов! Нужно: ${spentBullets}, в магазине: ${curMag}`);
+        }
+        
+        // Списываем патроны
+        await item.update({ "system.mag.value": curMag - spentBullets });
     }
     await actor.update({"system.resources.ap.value": curAP - apCost});
 
@@ -499,6 +505,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     // --- ЧАТ ---
     const headerInfo = (targetToken ? targetToken.name : item.name) + evasionMsg + coverLabel + rangeLabel + interventionLabel;
     const cardHtml = _getSlotMachineHTML(headerInfo, totalChance, roll.total, resultType);
+    let ammoInfo = spentBullets > 0 ? `<div style="font-size:0.8em; color:#777;">Потрачено патронов: ${spentBullets}</div>` : "";
     
     // Кнопка для ГМа при "ударе в воздух"
     let gmApplyButton = "";
@@ -508,7 +515,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
-        content: `${cardHtml}${dmgDisplay}${noiseHtml}${gmApplyButton}<div class="z-ap-spent">-${apCost} AP</div>`,
+        content: `${cardHtml}${dmgDisplay}${noiseHtml}${ammoInfo}${gmApplyButton}<div class="z-ap-spent">-${apCost} AP</div>`,
         flags: { zsystem: { noiseAdd: finalNoise, damageData: damageDataForGM } }
     }, { rollMode: rollMode });
 

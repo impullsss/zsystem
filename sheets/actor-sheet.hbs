@@ -396,8 +396,11 @@
                             {{/if}}
                             <!-- Кнопка Перезарядки (ЕСЛИ ЕСТЬ AMMO TYPE) -->
                             {{#if (and (eq item.type "weapon") item.system.ammoType)}}
-                                <a class="item-reload" title="Перезарядка"><i class="fas fa-sync" style="color:#1565c0;"></i></a>
-                            {{/if}}
+    <div style="font-size: 0.7em; font-weight: bold; margin-right: 5px; color: {{#if (lt item.system.mag.value 1)}}red{{else}}#333{{/if}};">
+        {{item.system.mag.value}} / {{item.system.mag.max}}
+    </div>
+    <a class="item-reload" title="Перезарядка"><i class="fas fa-sync" style="color:#1565c0;"></i></a>
+{{/if}}
 
                             {{#if (eq item.type "weapon")}}<a class="item-roll" title="Атака"><i class="fas fa-crosshairs" style="color:#333;"></i></a>{{/if}}
                             <a class="item-edit" title="Редактировать"><i class="fas fa-edit" style="color:#333;"></i></a>
