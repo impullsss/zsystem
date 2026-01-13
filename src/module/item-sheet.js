@@ -1,5 +1,5 @@
 import { GLOBAL_STATUSES } from "./constants.js";
-
+import { AMMO_CALIBRES } from "./constants.js";
 export class ZItemSheet extends ItemSheet {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
@@ -16,6 +16,12 @@ export class ZItemSheet extends ItemSheet {
   getData() {
     const context = super.getData();
     context.system = this.item.system;
+    context.ammoCalibres = AMMO_CALIBRES;
+    const currentAmmo = this.item.system.ammoType;
+    const isStandard = Object.keys(AMMO_CALIBRES).includes(currentAmmo);
+    context.ammoSelectorValue = isStandard ? currentAmmo : "other";
+    context.showCustomAmmoInput = !isStandard || currentAmmo === "other";
+    context.isCustomAmmo = currentAmmo && !Object.keys(AMMO_CALIBRES).includes(currentAmmo);
 
     // СТАНДАРТНЫЕ СПИСКИ
     context.weaponTypes = { melee: "Ближнее", ranged: "Дальнее" };
@@ -278,6 +284,17 @@ export class ZItemSheet extends ItemSheet {
         
         await effect.update({ changes: newChanges });
     });
+
+    html.find('.ammo-selector').change(async ev => {
+    const val = ev.target.value;
+    if (val === "other") {
+        // Просто перерисовываем, чтобы появилось поле ввода
+        await this.item.update({"system.ammoType": "other"});
+    } else {
+        // Записываем стандартное значение
+        await this.item.update({"system.ammoType": val});
+    }
+});
 
   }
 }

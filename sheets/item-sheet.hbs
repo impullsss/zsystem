@@ -133,9 +133,25 @@
                 
                 <!-- ПАТРОНЫ И МАГАЗИН -->
                 <div class="form-group">
-                    <label>Патроны (тип)</label>
-                    <input type="text" name="system.ammoType" value="{{system.ammoType}}" placeholder="Напр: 9mm"/>
-                </div>
+    <label>Калибр патронов</label>
+    <div class="flexrow" style="gap:5px;">
+        <!-- Селект БЕЗ name (чтобы не сохранялся автоматически как ammoType) -->
+        <select class="ammo-selector" style="flex:2;">
+            {{#select ammoSelectorValue}}
+                {{#each ammoCalibres as |label key|}}
+                    <option value="{{key}}">{{label}}</option>
+                {{/each}}
+            {{/select}}
+        </select>
+    </div>
+</div>
+
+{{#if showCustomAmmoInput}}
+<div class="form-group" style="background: rgba(0,0,0,0.05); padding: 5px; border: 1px dashed #777;">
+    <label>Впишите калибр:</label>
+    <input type="text" name="system.ammoType" value="{{system.ammoType}}" placeholder="Напр: .338 Lapua"/>
+</div>
+{{/if}}
 
                 <div class="form-group"><label>Емкость Маг.</label><input type="number" name="system.mag.max" value="{{system.mag.max}}"/></div>
                 <div class="form-group"><label>В стволе</label><input type="number" name="system.mag.value" value="{{system.mag.value}}"/></div>

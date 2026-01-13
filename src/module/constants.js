@@ -255,3 +255,15 @@ export const PANIC_STAGES = {
     description: "Персонаж впал в ступор или истерику. Теряет ход."
   }
 };
+
+export const AMMO_CALIBRES = {
+    "none": "Нет / Не требуется",
+    "9mm": "9mm Parabellum",
+    "45acp": ".45 ACP",
+    "556": "5.56x45mm NATO",
+    "762": "7.62x39mm Soviet",
+    "12g": "12 Gauge (Дробь)",
+    "22lr": ".22 Long Rifle",
+    "bolt": "Болт / Стрела",
+    "other": "-- Другой (Вписать свой) --"
+};
