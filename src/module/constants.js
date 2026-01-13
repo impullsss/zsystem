@@ -220,3 +220,38 @@ export const INFECTION_STAGES = {
     description: "Организм отказывает. Смерть близка.",
   },
 };
+
+export const PANIC_STAGES = {
+  anxious: {
+    id: "panic-anxious",
+    name: "Тревога (Anxious)",
+    icon: "icons/svg/ some-anxious-icon.svg", // Выбери иконку
+    statuses: ["panic-anxious"],
+    changes: [
+      { key: "system.skills.ranged.mod", mode: 2, value: -10 },
+      { key: "system.skills.melee.mod", mode: 2, value: -10 }
+    ],
+    description: "Персонаж на взводе. Точность снижена на 10%."
+  },
+  panicked: {
+    id: "panic-panicked",
+    name: "Паника (Panicked)",
+    icon: "icons/svg/terror.svg",
+    statuses: ["panic-panicked"],
+    changes: [
+      { key: "system.resources.ap.max", mode: 2, value: -4 },
+      { key: "system.secondary.evasion.value", mode: 2, value: -20 }
+    ],
+    description: "Сильный страх. -4 AP, персонаж не может подходить ближе к врагам."
+  },
+  breaking: {
+    id: "panic-breaking",
+    name: "Срыв (Breaking Point)",
+    icon: "icons/svg/skull.svg",
+    statuses: ["panic-breaking"],
+    changes: [
+        { key: "system.resources.ap.max", mode: 5, value: 0 } 
+    ],
+    description: "Персонаж впал в ступор или истерику. Теряет ход."
+  }
+};

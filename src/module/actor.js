@@ -537,6 +537,33 @@ export class ZActor extends Actor {
     });
     system.secondary.spentStats = { value: spentStats };
 
+    const s = system.attributes;
+    
+    // Инициализируем объекты, если их нет
+    if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
+    if (!system.secondary.bravery) system.secondary.bravery = { value: 0 }; // Храбрость
+    if (!system.secondary.tenacity) system.secondary.tenacity = { value: 0 };
+    if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0 };
+    if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };
+
+    // Расчеты (Математика Dead State)
+    system.secondary.evasion.value = (s.agi.value * 2); 
+    system.secondary.bravery.value = (s.per.value + s.cha.value);
+    system.secondary.tenacity.value = (s.vig.value + s.str.value);
+    
+    // Переносимый вес: Сила * 5 + 20 кг
+    system.secondary.carryWeight.max = (s.str.value * 5) + 20;
+
+    // Расчет текущего веса (сумма всех предметов)
+    let totalWeight = 0;
+    this.items.forEach(item => {
+        totalWeight += (getNum(item.system.weight) * getNum(item.system.quantity || 1));
+    });
+    system.secondary.carryWeight.value = Math.round(totalWeight * 10) / 10;
+    
+    // Флаг перегруза
+    system.secondary.isOverburdened = system.secondary.carryWeight.value > system.secondary.carryWeight.max;
+
     // 2. НАВЫКИ
     let spentSkills = 0;
     const skillConfig = {
@@ -810,20 +837,75 @@ export class ZActor extends Actor {
   }
 
   async checkPanic(damageAmount) {
-    if (
-      this.hasStatusEffect("panic") ||
-      this.hasStatusEffect("dead") ||
-      this.hasStatusEffect("status-unconscious")
-    )
-      return;
-    const bravery = this.system.secondary.bravery.value || 0;
-    const tenacity = this.system.secondary.tenacity.value || 0;
+    // 1. Защита от мертвых, бессознательных или уже в глубоком срыве
+    if (this.hasStatusEffect("dead") || 
+        this.hasStatusEffect("status-unconscious") || 
+        this.hasStatusEffect("panic-breaking")) return;
+
+    // 2. Безопасное получение характеристик (V13 Optional Chaining)
+    const bravery = this.system.secondary?.bravery?.value || 0;
+    const tenacity = this.system.secondary?.tenacity?.value || 0;
+
+    // 3. Условие: урон должен быть больше Стойкости
     if (damageAmount > tenacity) {
       const roll = new Roll("1d100");
       await roll.evaluate();
+      
       const saveTarget = bravery * 5;
-      if (roll.total > saveTarget) await Dice.rollPanicTable(this);
+
+      // Визуализация броска в консоль для дебага ГМа
+      console.log(`ZSystem | Panic Check for ${this.name}: Roll ${roll.total} vs Target ${saveTarget}`);
+
+      if (roll.total > saveTarget) {
+        // ОПРЕДЕЛЯЕМ СТАДИЮ
+        let stage = "anxious";
+
+        // Если урон критический (больше половины текущих ХП) — сразу паника
+        if (damageAmount > (this.system.resources.hp.value / 2)) {
+            stage = "panicked";
+        }
+
+        // Прогрессия: Тревога -> Паника -> Срыв
+        if (this.hasStatusEffect("panic-anxious")) stage = "panicked";
+        else if (this.hasStatusEffect("panic-panicked")) stage = "breaking";
+
+        // Вызываем новый метод наложения
+        await this._applyPanicStage(stage, roll.total, saveTarget);
+      }
     }
+  }
+
+  async _applyPanicStage(stage, rollResult, target) {
+    // PANIC_STAGES должен быть импортирован из constants.js
+    const { PANIC_STAGES } = await import("./constants.js");
+    const effectData = PANIC_STAGES[stage];
+    
+    if (!effectData) return;
+
+    // Чистим старые эффекты паники
+    const oldIds = this.effects
+        .filter(e => ["panic-anxious", "panic-panicked", "panic-breaking"].some(s => e.statuses.has(s)))
+        .map(e => e.id);
+    
+    if (oldIds.length) await this.deleteEmbeddedDocuments("ActiveEffect", oldIds);
+
+    // Создаем новый
+    await this.createEmbeddedDocuments("ActiveEffect", [foundry.utils.deepClone(effectData)]);
+
+    // Чат-карточка
+    ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this }),
+      content: `
+        <div class="z-chat-card" style="border-left: 4px solid #7e57c2;">
+            <div class="z-card-header">ПРОВЕРКА ХРАБРОСТИ</div>
+            <div style="text-align:center; font-size:1.2em;"><b>ПРОВАЛ</b></div>
+            <div style="font-size:0.9em; margin:5px 0;">Результат: ${rollResult} (Цель: ${target})</div>
+            <hr>
+            <div style="color:#d32f2f; font-weight:bold; text-align:center;">
+                <i class="fas fa-exclamation-triangle"></i> СОСТОЯНИЕ: ${effectData.name}
+            </div>
+        </div>`
+    });
   }
 
   // --- ЛЕЧЕНИЕ ---
