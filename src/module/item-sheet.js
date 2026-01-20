@@ -80,22 +80,30 @@ export class ZItemSheet extends ItemSheet {
     }));
 
     context.bonusOptions = {
-        "system.attributes.str.mod": "Сила (STR)",
-        "system.attributes.agi.mod": "Ловкость (AGI)",
-        "system.attributes.vig.mod": "Живучесть (VIG)",
-        "system.attributes.per.mod": "Восприятие (PER)",
-        "system.attributes.int.mod": "Интеллект (INT)",
-        "system.attributes.cha.mod": "Харизма (CHA)",
-        "system.resources.hp.max": "Макс. Здоровье (HP)",
-        "system.resources.ap.bonus": "Доп. Очки Действия (AP)",
-        "system.secondary.carryWeight.max": "Лимит Веса (+кг)",
-        "system.secondary.evasion.value": "Уклонение (%)",
-        "system.secondary.naturalAC.value": "Природная Броня",
-        // Навыки (Очки обучения)
-        "system.skills.melee.mod": "Навык: Ближний бой",
-        "system.skills.ranged.mod": "Навык: Стрельба",
-        "system.skills.stealth.mod": "Навык: Скрытность"
-    };
+    "system.attributes.str.mod": "Сила (STR)",
+    "system.attributes.agi.mod": "Ловкость (AGI)",
+    "system.attributes.vig.mod": "Живучесть (VIG)",
+    "system.attributes.per.mod": "Восприятие (PER)",
+    "system.attributes.int.mod": "Интеллект (INT)",
+    "system.attributes.cha.mod": "Харизма (CHA)",
+    "system.resources.hp.max": "Макс. Здоровье (HP)",
+    "system.resources.ap.bonus": "Доп. Очки Действия (AP)",
+    "system.secondary.carryWeight.mod": "Лимит Веса (+кг)",
+    "system.secondary.evasion.mod": "Уклонение (%)",
+    "system.secondary.naturalAC.mod": "Природная Броня",
+    "system.secondary.meleeDamage.mod": "Доп. урон (Ближний бой)", // НОВОЕ
+    // ВСЕ НАВЫКИ
+    "system.skills.melee.mod": "Навык: Ближний бой",
+    "system.skills.ranged.mod": "Навык: Стрельба",
+    "system.skills.science.mod": "Навык: Наука",
+    "system.skills.mechanical.mod": "Навык: Механика",
+    "system.skills.medical.mod": "Навык: Медицина",
+    "system.skills.diplomacy.mod": "Навык: Дипломатия",
+    "system.skills.leadership.mod": "Навык: Лидерство",
+    "system.skills.survival.mod": "Навык: Выживание",
+    "system.skills.athletics.mod": "Навык: Атлетика",
+    "system.skills.stealth.mod": "Навык: Скрытность"
+};
     const effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));
     context.perkBonuses = effect ? effect.changes : [];
 

@@ -160,10 +160,10 @@
                                 <div class="perk-desc" style="margin-bottom:5px;">{{{perk.system.description}}}</div>
                                 
                                 {{#if perk.system.requirements}}
-                                <div style="font-size:0.8em; font-weight:bold; color:{{#if perk.reqMet}}green{{else}}red{{/if}}">
-                                    Треб: {{perk.system.requirements}} {{#if perk.reqMet}}<i class="fas fa-check"></i>{{else}}<i class="fas fa-times"></i>{{/if}}
-                                </div>
-                                {{/if}}
+<div style="font-size:0.8em; font-weight:bold; color:{{#if perk.reqMet}}green{{else}}red{{/if}}">
+    Треб: {{perk.system.displayRequirements}} {{#if perk.reqMet}}<i class="fas fa-check"></i>{{else}}<i class="fas fa-times"></i>{{/if}}
+</div>
+{{/if}}
                                 {{#unless perk.canAfford}}<div style="color:red; font-size:0.8em; font-weight:bold;">Дорого</div>{{/unless}}
                             </div>
                         {{/each}}

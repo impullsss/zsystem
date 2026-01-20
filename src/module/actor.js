@@ -513,7 +513,7 @@ export class ZActor extends Actor {
     // Защита: если данных нет или это не боевой тип, выходим. 
     if (!system || ["shelter", "container", "vehicle"].includes(this.type)) return;
 
-    // ГАРАНТИРУЕМ наличие объектов
+    // ГАРАНТИРУЕМ наличие всех объектов
     system.attributes = system.attributes || {};
     system.skills = system.skills || {};
     system.secondary = system.secondary || {};
@@ -525,36 +525,52 @@ export class ZActor extends Actor {
       return isNaN(n) ? 0 : n;
     };
 
-    // 1. АТРИБУТЫ
+    // --- 1. АТРИБУТЫ (ОСНОВНЫЕ) ---
     const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
     let spentStats = 0;
     attrKeys.forEach((key) => {
       if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
       const attr = system.attributes[key];
       attr.base = Math.max(1, Math.min(10, getNum(attr.base)));
+      // Итоговое значение атрибута = База + Модификатор (от перков/эффектов)
       attr.value = Math.max(1, attr.base + getNum(attr.mod));
       spentStats += (attr.base - 1);
     });
     system.secondary.spentStats = { value: spentStats };
 
     const s = system.attributes;
-    
-    // Инициализируем объекты, если их нет
-    if (!system.secondary.evasion) system.secondary.evasion = { value: 0 };
-    if (!system.secondary.bravery) system.secondary.bravery = { value: 0 }; // Храбрость
-    if (!system.secondary.tenacity) system.secondary.tenacity = { value: 0 };
-    if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0 };
-    if (!system.secondary.naturalAC) system.secondary.naturalAC = { value: 0 };
 
-    // Расчеты (Математика Dead State)
-    system.secondary.evasion.value = (s.agi.value * 2); 
-    system.secondary.bravery.value = (s.per.value + s.cha.value);
-    system.secondary.tenacity.value = (s.vig.value + s.str.value);
+    // --- 2. ИНИЦИАЛИЗАЦИЯ ВТОРИЧНЫХ ХАРАКТЕРИСТИК ---
+    // Важно: инициализируем .mod, чтобы перки могли в него писать
+    const secondaryKeys = ["evasion", "bravery", "tenacity", "naturalAC", "meleeDamage"];
+    secondaryKeys.forEach(key => {
+        if (!system.secondary[key]) system.secondary[key] = { value: 0, mod: 0 };
+        if (system.secondary[key].mod === undefined) system.secondary[key].mod = 0;
+    });
+
+    if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0, mod: 0 };
+
+    // --- 3. РАСЧЕТЫ БАЗОВЫХ ЗНАЧЕНИЙ (МАТЕМАТИКА) ---
     
+    // Уклонение: Ловкость * 2
+    const baseEvasion = (s.agi.value * 2);
+    // Храбрость: Восприятие + Харизма
+    const baseBravery = (s.per.value + s.cha.value);
+    // Стойкость: Живучесть + Сила
+    const baseTenacity = (s.vig.value + s.str.value);
+    // Природная броня: 1 за каждые 2 Живучести
+    const baseNaturalAC = Math.floor(s.vig.value / 2);
     // Переносимый вес: Сила * 5 + 20 кг
-    system.secondary.carryWeight.max = (s.str.value * 5) + 20;
+    const baseCarryMax = (s.str.value * 5) + 20;
 
-    // Расчет текущего веса (сумма всех предметов)
+    // ПРИМЕНЯЕМ: Итоговое значение = Математика + Модификатор от перков
+    system.secondary.evasion.value = baseEvasion + getNum(system.secondary.evasion.mod);
+    system.secondary.bravery.value = baseBravery + getNum(system.secondary.bravery.mod);
+    system.secondary.tenacity.value = baseTenacity + getNum(system.secondary.tenacity.mod);
+    system.secondary.naturalAC.value = baseNaturalAC + getNum(system.secondary.naturalAC.mod);
+    system.secondary.carryWeight.max = baseCarryMax + getNum(system.secondary.carryWeight.mod);
+
+    // Расчет текущего веса предметов
     let totalWeight = 0;
     this.items.forEach(item => {
         totalWeight += (getNum(item.system.weight) * getNum(item.system.quantity || 1));
@@ -564,7 +580,7 @@ export class ZActor extends Actor {
     // Флаг перегруза
     system.secondary.isOverburdened = system.secondary.carryWeight.value > system.secondary.carryWeight.max;
 
-    // 2. НАВЫКИ
+    // --- 4. НАВЫКИ ---
     let spentSkills = 0;
     const skillConfig = {
       melee: ["str", "agi"],
@@ -582,7 +598,6 @@ export class ZActor extends Actor {
     for (const key of Object.keys(skillConfig)) {
       if (!system.skills[key]) system.skills[key] = { points: 0, mod: 0, value: 0, base: 0 };
       const skill = system.skills[key];
-      const s = system.attributes;
       const cfg = skillConfig[key];
 
       try {
@@ -599,37 +614,24 @@ export class ZActor extends Actor {
     }
     system.secondary.spentSkills = { value: spentSkills };
 
-    // 3. HP / AP
+    // --- 5. HP / AP ---
     if (!system.resources.hp) system.resources.hp = { value: 10, max: 10, penalty: 0 };
     if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
 
-    const vigValue = system.attributes.vig?.value || 1;
-    const baseMaxHP = 70 + (vigValue - 1) * 10;
+    const baseMaxHP = 70 + (s.vig.value - 1) * 10;
     system.resources.hp.max = Math.max(10, baseMaxHP - getNum(system.resources.hp.penalty));
 
-    const agiValue = system.attributes.agi?.value || 1;
-    const baseAP = 7 + Math.ceil((agiValue - 1) / 2);
-    const encumbrance = system.secondary.isOverburdened ? 2 : 0;
-    system.resources.ap.max = Math.max(0, baseAP + getNum(system.resources.ap.bonus) + getNum(system.resources.ap.effect) - encumbrance);
+    const baseAP = 7 + Math.ceil((s.agi.value - 1) / 2);
+    const encumbrancePenalty = system.secondary.isOverburdened ? 2 : 0;
+    system.resources.ap.max = Math.max(0, baseAP + getNum(system.resources.ap.bonus) + getNum(system.resources.ap.effect) - encumbrancePenalty);
 
-    // --- 4. КОНЕЧНОСТИ (Твоя математика распределения) ---
+    // --- 6. КОНЕЧНОСТИ ---
     const totalHP = system.resources.hp.max;
     const setLimb = (part, percent) => {
-        // Если объекта конечности нет - создаем
         if (!system.limbs[part]) system.limbs[part] = { value: 0, max: 0, penalty: 0 };
         const limb = system.limbs[part];
-        
-        // Считаем Максимум по твоим процентам
         limb.max = Math.max(1, Math.floor(totalHP * percent) - getNum(limb.penalty));
-
-        // Если текущее значение равно 0 или 10 (дефолт), и мы только создали персонажа
-        // Мы НЕ ставим значение здесь напрямую через updates, мы просто готовим данные для отображения
-        // Но чтобы на листе не было 0/130, приравняем отображаемое значение к максу, если оно пустое
-        if (limb.value === 0 || limb.value === null) {
-            limb.value = limb.max;
-        }
-
-        // Ограничиваем текущее значение максимумом
+        if (limb.value === 0 || limb.value === null) limb.value = limb.max;
         if (limb.value > limb.max) limb.value = limb.max;
     };
 

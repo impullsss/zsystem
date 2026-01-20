@@ -86,6 +86,26 @@ export class ZCharacterCreator extends FormApplication {
 
   // --- ПОДГОТОВКА ДАННЫХ ---
   async getData() {
+
+    const labelMap = {
+        "str": "Сила", "agi": "Ловкость", "vig": "Живучесть", "per": "Восприятие", "int": "Интеллект", "cha": "Харизма",
+        "melee": "Ближний бой", "ranged": "Стрельба", "science": "Наука", "mechanical": "Механика",
+        "medical": "Медицина", "survival": "Выживание", "athletics": "Атлетика", "stealth": "Скрытность",
+        "leadership": "Лидерство", "diplomacy": "Дипломатия"
+    };
+
+    // Вспомогательная функция для перевода строки требований
+    const translateReqs = (reqString) => {
+        if (!reqString) return "";
+        let translated = reqString;
+        for (let [eng, rus] of Object.entries(labelMap)) {
+            // Используем регулярное выражение, чтобы заменить только целые слова
+            const regex = new RegExp(`\\b${eng}\\b`, 'gi');
+            translated = translated.replace(regex, rus);
+        }
+        return translated;
+    };
+
     const data = {
         actor: this.actor,
         isCreation: this.isCreation,
@@ -152,14 +172,23 @@ export class ZCharacterCreator extends FormApplication {
         // 4. Perks (Step 4)
         if (this.state.step === 4) {
             const perkItems = game.items.filter(i => i.type === 'perk' && ['general', 'skill'].includes(i.system.subtype));
+            const skillConfig = this._getSkillConfig(this.state.attributes);
+            const checkData = { ...this.state.attributes };
+            for (let [key, conf] of Object.entries(skillConfig)) {
+        // Важное исправление: считаем Итоговое значение (База + Вложено)
+        checkData[key] = conf.base + (this.state.skills[key] || 0);
+    }
+    
             data.ppLeft = this.state.startPP - (this.state.selectedPerk ? 1 : 0);
             
             data.availablePerks = perkItems.map(i => {
                 const reqMet = this._checkRequirements(i.system.requirements, checkData);
+                const systemCopy = foundry.utils.deepClone(i.system);
+                systemCopy.displayRequirements = translateReqs(i.system.requirements);
                 const cost = i.system.xpCost || 1;
                 const canAfford = cost <= this.state.startPP;
                 return {
-                    id: i.id, name: i.name, img: i.img, system: i.system, cost,
+                    id: i.id, name: i.name, img: i.img, system: systemCopy, cost,
                     reqMet, canAfford, disabled: !reqMet || !canAfford,
                     selected: (this.state.selectedPerk === i.id)
                 };
@@ -220,23 +249,27 @@ export class ZCharacterCreator extends FormApplication {
         
         const allPerks = game.items.filter(i => i.type === 'perk' && ['general', 'skill'].includes(i.system.subtype));
         
-        data.shopPerks = allPerks.filter(i => !this.actor.items.some(ai => ai.name === i.name)) // Не показывать купленные
-            .map(i => {
-                const reqMet = this._checkRequirements(i.system.requirements, checkData);
-                const cost = i.system.xpCost || 1;
-                const canAfford = currentPP >= cost;
-                
-                // Проверяем, выбран ли он в этой сессии
-                const isSelected = this.state.selectedPerk === i.id; // В LevelUp можно купить только 1 за раз (для простоты) или массив?
-                // Давай пока сделаем покупку поштучно: нажал -> купил -> списалось -> окно обновилось.
-                // Но лучше через "Корзину" (state.selectedPerks array).
-                // Для простоты реализации сейчас: Список доступных. Кнопка "Купить".
-                
-                return {
-                    id: i.id, name: i.name, img: i.img, system: i.system, cost,
-                    reqMet, canAfford, disabled: !reqMet || !canAfford
-                };
-            });
+        data.shopPerks = allPerks.filter(i => !this.actor.items.some(ai => ai.name === i.name))
+    .map(i => {
+        const reqMet = this._checkRequirements(i.system.requirements, checkData);
+        const cost = i.system.xpCost || 1;
+        const canAfford = currentPP >= cost;
+        
+        // --- ДОБАВЛЕНО: Перевод требований ---
+        const systemCopy = foundry.utils.deepClone(i.system);
+        systemCopy.displayRequirements = translateReqs(i.system.requirements);
+
+        return {
+            id: i.id, 
+            name: i.name, 
+            img: i.img, 
+            system: systemCopy, // Используем копию с переводом
+            cost,
+            reqMet, 
+            canAfford, 
+            disabled: !reqMet || !canAfford
+        };
+    });
             
         // Г. Характеристики (Тренировка)
         // Показываем текущие и кнопку повышения
@@ -584,40 +617,48 @@ export class ZCharacterCreator extends FormApplication {
 
   // Парсер требований (Тот же)
   _checkRequirements(reqString, data) {
-      if (!reqString || typeof reqString !== 'string') return true;
-      const map = {
-          "сила": "str", "str": "str", "strength": "str",
-          "ловкость": "agi", "agi": "agi", "agility": "agi",
-          "живучесть": "vig", "vig": "vig",
-          "восприятие": "per", "per": "per",
-          "интеллект": "int", "int": "int",
-          "харизма": "cha", "cha": "cha",
-          "ближний": "melee", "melee": "melee",
-          "стрельба": "ranged", "ranged": "ranged",
-          "наука": "science",
-          "механика": "mechanical", "mech": "mechanical",
-          "медицина": "medical", "med": "medical",
-          "дипломатия": "diplomacy",
-          "лидерство": "leadership",
-          "выживание": "survival",
-          "атлетика": "athletics",
-          "скрытность": "stealth"
-      };
-      const parts = reqString.toLowerCase().replace(/,/g, ' ').split(/\s+/).filter(p => p);
-      for (let i = 0; i < parts.length - 1; i++) {
-          const keyRaw = parts[i];
-          const valRaw = parseInt(parts[i+1]);
-          if (!isNaN(valRaw)) {
-              let dataKey = null;
-              for (let [syn, k] of Object.entries(map)) { if (keyRaw === syn) { dataKey = k; break; } }
-              if (dataKey && typeof data[dataKey] !== 'undefined') {
-                  if (data[dataKey] < valRaw) return false;
-                  i++; 
-              }
-          }
-      }
-      return true;
-  }
+    if (!reqString || typeof reqString !== 'string' || reqString.trim() === "") return true;
+
+    const map = {
+        "str": "str", "сила": "str",
+        "agi": "agi", "ловкость": "agi",
+        "vig": "vig", "живучесть": "vig",
+        "per": "per", "восприятие": "per",
+        "int": "int", "интеллект": "int",
+        "cha": "cha", "харизма": "cha",
+        "melee": "melee", "ближний бой": "melee", "ближний": "melee",
+        "ranged": "ranged", "стрельба": "ranged",
+        "science": "science", "наука": "science",
+        "mechanical": "mechanical", "механика": "mechanical",
+        "medical": "medical", "медицина": "medical",
+        "survival": "survival", "выживание": "survival",
+        "athletics": "athletics", "атлетика": "athletics",
+        "stealth": "stealth", "скрытность": "stealth",
+        "leadership": "leadership", "лидерство": "leadership",
+        "diplomacy": "diplomacy", "дипломатия": "diplomacy"
+    };
+
+    const parts = reqString.toLowerCase().replace(/,/g, ' ').split(/\s+/).filter(p => p);
+    
+    // Перебираем по парам: "механика", "60"
+    for (let i = 0; i < parts.length; i += 2) {
+        let keyRaw = parts[i];
+        // Если название навыка состоит из двух слов (ближний бой), пробуем склеить
+        if (keyRaw === "ближний" && parts[i+1] === "бой") {
+            keyRaw = "ближний бой";
+            i++; // Сдвигаем индекс, так как использовали доп. слово
+        }
+
+        const valRaw = parseInt(parts[i+1]);
+        if (keyRaw && !isNaN(valRaw)) {
+            const dataKey = map[keyRaw];
+            if (dataKey && typeof data[dataKey] !== 'undefined') {
+                if (data[dataKey] < valRaw) return false;
+            }
+        }
+    }
+    return true;
+}
 
   async _updateObject(event, formData) { return; }
 }

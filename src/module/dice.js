@@ -220,7 +220,7 @@ function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modi
     
     let evasionMod = 0;
     if (!targetToken.actor?.hasStatusEffect("prone")) {
-        evasionMod = -((targetToken.actor?.system.secondary?.evasion?.value || 0) * 3);
+        evasionMod = -((targetToken.actor?.system.secondary?.evasion?.value || 0));
     }
 
     const total = Math.max(0, skillVal + atkMod + aimMod + coverPen + rangePen + intervPen + evasionMod + modifier);
