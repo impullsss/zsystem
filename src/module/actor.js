@@ -651,6 +651,42 @@ export class ZActor extends Actor {
 
   async onTurnStart() {
     let maxAP = this.system.resources.ap.max;
+    await this.setFlag("zsystem", "turnSteps", 0);
+    if (this.hasStatusEffect("immolated")) {
+      const fireRoll = new Roll("1d6");
+      await fireRoll.evaluate();
+      const fireDmg = fireRoll.total;
+      await this.applyDamage(fireDmg, "true", "torso");
+      ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: this }),
+        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg}</div>`,
+      });
+      if (this.type !== "zombie") maxAP = Math.max(0, maxAP - 4);
+    }
+    await this.update({ "system.resources.ap.value": maxAP });
+
+    if (this.hasStatusEffect("bleeding")) {
+      const roll = new Roll("1d5");
+      await roll.evaluate();
+      await this.applyDamage(roll.total, "true", "torso");
+      ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: this }),
+        content: `Кровотечение: -${roll.total} HP`,
+      });
+    }
+    if (this.hasStatusEffect("poisoned")) {
+      const roll = new Roll("1d6");
+      await roll.evaluate();
+      await this.applyDamage(roll.total, "true", "torso");
+      ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: this }),
+        content: `Отравление: -${roll.total} HP`,
+      });
+    }
+    if (this.hasStatusEffect("panic")) await Dice.rollPanicTable(this);
+  }async onTurnStart() {
+    let maxAP = this.system.resources.ap.max;
+    await this.setFlag("zsystem", "turnSteps", 0);
     if (this.hasStatusEffect("immolated")) {
       const fireRoll = new Roll("1d6");
       await fireRoll.evaluate();

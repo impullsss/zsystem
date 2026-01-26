@@ -10,6 +10,7 @@ import { GLOBAL_STATUSES } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 import { ZVehicleSheet } from "./module/vehicle-sheet.js";
 import { TravelManager } from "./module/travel.js";
+import { PerkLogic } from "./module/perk-logic.js"; 
 
 // Глобальный перехватчик: только ГМ исполняет команды
 Hooks.on("createChatMessage", async (message, options, userId) => {
@@ -505,52 +506,67 @@ Hooks.on("canvasReady", () => {
 });
 
 Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
-    // 1. Если это не перемещение — игнорируем
+    // 1. Проверка движения
     if (changes.x === undefined && changes.y === undefined) return true;
     
-    // 2. ГМ всегда может двигать
-    if (game.user.isGM) return true;
+    // 2. Инициатор
+    if (game.user.id !== userId) return true;
 
-    // 3. Проверка настройки "Ограничить движение"
-    const isRestrictEnabled = game.settings.get("zsystem", "restrictMovement");
-    
-    if (isRestrictEnabled && game.combat && game.combat.active) {
-        const combatant = game.combat.combatant;
-        
-        // ВАЖНО: Проверяем, находится ли токен в текущем бою и его ли сейчас ход
-        // Если токен в бою, но ID комбатанта не совпадает с этим токеном
-        if (tokenDoc.inCombat && combatant && combatant.tokenId !== tokenDoc.id) {
-            ui.notifications.warn(`Сейчас не ваш ход! Ходит: ${combatant.name}`);
-            return false; // Жесткая остановка обновления в Foundry
-        }
-    }
+    // 3. Проверка боя
+    const inCombat = tokenDoc.inCombat || (game.combat?.active && game.combat.combatants.some(c => c.tokenId === tokenDoc.id));
+    if (!inCombat) return true;
 
-    // --- Логика расхода AP (оставляем твою рабочую версию) ---
+    // 4. ГМ (УБРАНО для тестов, чтобы у тебя тоже списывалось)
+    // if (game.user.isGM) return true; 
+
     const actor = tokenDoc.actor;
-    if (!actor || !tokenDoc.inCombat) return true;
+    if (!actor) return true;
 
-    const size = canvas.grid.size;
-    const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x) / size;
-    const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y) / size;
-    const squaresMoved = Math.max(Math.round(dx), Math.round(dy));
+    // 5. Расчет клеток
+    const gridSize = canvas.dimensions.size; 
+    const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x);
+    const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y);
+    const squaresMoved = Math.max(Math.round(dx / gridSize), Math.round(dy / gridSize));
+
     if (squaresMoved <= 0) return true;
 
-    let costPerSquare = 1;
-    if (actor.hasStatusEffect("prone")) costPerSquare += 1;
-    if (actor.hasStatusEffect("overburdened")) costPerSquare = Math.max(costPerSquare, 2);
-    if (actor.hasStatusEffect("stealth")) costPerSquare = Math.max(costPerSquare, 2);
+    // 6. РАСЧЕТ СТОИМОСТИ (Синхронно)
+    // ВАЖНО: берем turnSteps без await через getFlag
+    let stepsCounter = actor.getFlag("zsystem", "turnSteps") || 0;
+    let totalAPCost = 0;
 
-    const totalCost = squaresMoved * costPerSquare;
-    const curAP = actor.system.resources.ap.value;
+    for (let i = 1; i <= squaresMoved; i++) {
+        stepsCounter++;
+        
+        let singleStepCost = 1;
+        if (actor.hasStatusEffect("prone")) singleStepCost = 2;
+        if (actor.hasStatusEffect("overburdened")) singleStepCost = 2;
+        if (actor.hasStatusEffect("stealth")) singleStepCost = 2;
 
-    if (curAP < totalCost) {
-        ui.notifications.warn(`Недостаточно AP. Нужно ${totalCost}, есть ${curAP}.`);
-        return false; 
+        // Вызов PerkLogic (должен быть тоже синхронным!)
+        try {
+            singleStepCost = PerkLogic.onGetStepCost(actor, singleStepCost, stepsCounter);
+        } catch (e) { console.error("PerkLogic Error:", e); }
+
+        totalAPCost += singleStepCost;
     }
 
-    // Если всё ок, списываем AP. 
-    // В V13 изменения в preUpdate лучше делать через changes, но для AP мы делаем прямой update
-    actor.update({ "system.resources.ap.value": curAP - totalCost });
+    const currentAP = Number(actor.system.resources.ap.value) || 0;
+
+    // 7. Проверка лимита
+    if (currentAP < totalAPCost) {
+        ui.notifications.warn(`Недостаточно AP! Нужно: ${totalAPCost}, есть: ${currentAP}`);
+        return false; // Блокируем ход СИНХРОННО
+    }
+
+    // 8. ПРИМЕНЕНИЕ
+    // Обновляем актора и записываем флаг за один раз
+    actor.update({ 
+        "system.resources.ap.value": currentAP - totalAPCost,
+        "flags.zsystem.turnSteps": stepsCounter
+    });
+
+    console.log(`ZSystem | Шаг: ${squaresMoved} кл. Цена: ${totalAPCost} AP. Всего шагов: ${stepsCounter}`);
 
     return true;
 });

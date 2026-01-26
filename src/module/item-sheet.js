@@ -53,7 +53,7 @@ export class ZItemSheet extends ItemSheet {
       this.item.system.weaponType === "melee" &&
       this.item.system.isThrowing;
 
-    context.isCategoryEditable = !["weapon", "armor"].includes(this.item.type);
+    context.isCategoryEditable = !["weapon", "armor", "perk"].includes(this.item.type);
     
     // --- ЛОГИКА ДЛЯ ПЕРКОВ ---
     if (this.item.type === 'perk') {

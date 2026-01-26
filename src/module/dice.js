@@ -1,5 +1,6 @@
 import { NoiseManager } from "./noise.js"; 
 import { GLOBAL_STATUSES } from "./constants.js";
+import { PerkLogic } from "./perk-logic.js";
 
 let aimingHandler = null;
 
@@ -488,8 +489,23 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
             formula += s >= req ? ` + ${s - req}` : ` * 0.5`;
         }
         
-        const rDmg = await new Roll(formula, actor.getRollData()).evaluate();
-        dmgAmount = Math.max(1, rDmg.total);
+        let rDmg = await new Roll(formula, actor.getRollData()).evaluate();
+        let finalDmg = rDmg.total; // Временно сохраняем базу
+
+        try {
+            if (targetToken?.actor) {
+                finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
+            }
+        } catch (e) { console.error("Perk Error:", e); }
+
+        // --- ПРИМЕНЯЕМ ЛОГИКУ ПЕРКОВ ---
+        if (targetToken?.actor) {
+            finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
+        }
+        
+        // Теперь используем именно finalDmg (с учетом бонусов)
+        dmgAmount = Math.max(1, Math.floor(finalDmg));
+        
         dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН ${resultType === "crit-success"?"(КРИТ!)":""}</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
         if (targetToken) {
