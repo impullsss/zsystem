@@ -267,10 +267,19 @@
                 </div>
 
                 <!-- КЛЮЧ ПРОГРАММНОЙ ЛОГИКИ (ВОТ ОН!) -->
-                <div class="form-group">
-                    <label style="color: #0d47a1; font-weight: bold;">Ключ логики (ID)</label>
-                    <input type="text" name="system.logicKey" value="{{system.logicKey}}" placeholder="Напр: runner"/>
-                </div>
+                <div class="grid grid-2col">
+    <div class="form-group">
+        <label style="color: #0d47a1; font-weight: bold;">Ключ логики (ID)</label>
+        <input type="text" name="system.logicKey" value="{{system.logicKey}}" placeholder="Напр: runner"/>
+    </div>
+    <div class="form-group">
+        <label style="color: #2e7d32; font-weight: bold;">Значение (Value)</label>
+        <input type="number" name="system.logicValue" value="{{system.logicValue}}" placeholder="Напр: 4"/>
+    </div>
+</div>
+<p class="notes" style="font-size: 0.8em; margin-top: -5px; margin-bottom: 10px;">
+    <i>Runner: значение = каждый какой шаг бесплатен. Butcher: значение = бонус к урону.</i>
+</p>
             </div>
 
             <!-- СТОИМОСТЬ -->

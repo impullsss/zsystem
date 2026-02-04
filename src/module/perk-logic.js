@@ -1,38 +1,27 @@
-// src/module/perk-logic.js
-
 export class PerkLogic {
     /**
-     * Универсальная проверка наличия перка
+     * Теперь возвращает сам объект перка, чтобы мы могли вытащить из него данные
      */
-    static has(actor, identifier) {
-        if (!actor || !actor.items) return false;
-        
-        // Ищем перк
-        const perk = actor.items.find(i => 
+    static getPerk(actor, identifier) {
+        if (!actor || !actor.items) return null;
+        return actor.items.find(i => 
             i.type === "perk" && 
             (i.system.logicKey === identifier || i.name.toLowerCase() === identifier.toLowerCase())
         );
-
-        if (perk) {
-            // Если нашли - пишем в консоль один раз для отладки
-            console.log(`PerkLogic | Найден перк: ${perk.name} (ID: ${perk.id})`);
-            return true;
-        }
-        
-        return false;
     }
 
     /**
      * ЛОГИКА ДВИЖЕНИЯ
      */
     static onGetStepCost(actor, baseCost, stepNumber) {
-        // Проверяем наличие Бегуна
-        const isRunner = this.has(actor, "runner");
+        const perk = this.getPerk(actor, "runner");
 
-        if (isRunner) {
-            // Каждая 4-я клетка бесплатно
-            if (stepNumber > 0 && stepNumber % 4 === 0) {
-                console.log(`PerkLogic | Сработал БЕГУН! Шаг №${stepNumber} стоит 0 AP.`);
+        if (perk) {
+            // Читаем значение из интерфейса. Если пусто - по умолчанию 4.
+            const interval = Number(perk.system.logicValue) || 4;
+            
+            if (stepNumber > 0 && stepNumber % interval === 0) {
+                console.log(`PerkLogic | БЕГУН (${perk.name}): шаг №${stepNumber} бесплатен (интервал: ${interval}).`);
                 return 0;
             }
         }
@@ -40,12 +29,20 @@ export class PerkLogic {
         return baseCost;
     }
 
+    /**
+     * ЛОГИКА БОЯ
+     */
     static onApplyDamage(attacker, target, damage, weapon) {
         let finalDamage = damage;
-        if (this.has(attacker, "butcher") && target.hasStatusEffect("bleeding")) {
-            finalDamage += 5;
-            console.log("PerkLogic | Мясник +5 урона");
+        const perk = this.getPerk(attacker, "butcher");
+
+        if (perk && target.hasStatusEffect("bleeding")) {
+            // Читаем бонус из интерфейса. Если пусто - по умолчанию 5.
+            const bonus = Number(perk.system.logicValue) || 5;
+            finalDamage += bonus;
+            console.log(`PerkLogic | МЯСНИК: +${bonus} урона по цели с кровотечением.`);
         }
+
         return finalDamage;
     }
 }

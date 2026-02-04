@@ -390,155 +390,140 @@ export async function performAttack(actor, itemId) {
 
 // === ИСПОЛНЕНИЕ АТАКИ ===
 async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll") {
+    console.log("ZSystem | [CHECKPOINT 1] Вход в атаку:", item.name);
+
+    // 1. ОПРЕДЕЛЯЕМ ТОКЕНЫ
+    const sourceToken = actor.getActiveTokens()[0]; 
+    const targets = Array.from(game.user.targets);
+    const targetToken = targets.length > 0 ? targets[0] : null;
+
+    if (!sourceToken) return ui.notifications.error("Токен атакующего не найден!");
+
+    // 2. ПРОВЕРКА РЕСУРСОВ
     const apCost = Number(attack.ap) || 0;
-    const curAP = Number(actor.system.resources.ap.value);
+    const curAP = Number(actor.system.resources.ap.value) || 0;
     if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP`);
 
-    // --- SMART TARGETING ---
-    let targets = Array.from(game.user.targets);
-    let targetToken = targets.length > 0 ? targets[0] : null;
-    let sourceToken = actor.getActiveTokens()[0]; 
+    console.log("ZSystem | [CHECKPOINT 2] AP проверено. Списание патронов...");
 
-    let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
+    // 3. РАСХОД ПАТРОНОВ (Более безопасный расчет)
+    const isThrowingAction = (attack.mode === 'throw' || item.system.isThrowing === true);
+    const spentBullets = parseInt(attack.bullets) || (item.system.ammoType ? 1 : 0);
+    
+    if (!isThrowingAction && item.system.ammoType) {
+        const curMag = parseInt(item.system.mag.value) || 0;
+        if (curMag < spentBullets) {
+            console.log("ZSystem | Ошибка: Мало патронов");
+            return ui.notifications.warn(`Недостаточно патронов! Нужно: ${spentBullets}`);
+        }
+        await item.update({ "system.mag.value": Math.max(0, curMag - spentBullets) });
+    }
+
+    // Списываем AP
+    await actor.update({"system.resources.ap.value": Math.max(0, curAP - apCost)});
+    
+    console.log("ZSystem | [CHECKPOINT 3] Ресурсы списаны. Запуск анимации...");
+
+    // 4. ЗАПУСК АНИМАЦИИ (ПРИНУДИТЕЛЬНО)
+    try {
+        const aaModule = game.modules.get("automated-animations");
+        // Пробуем разные варианты API для V13
+        const aaApi = aaModule?.api || window.AutoAnimations?.api || window.AutomatedAnimations;
+        
+        if (aaApi && typeof aaApi.playAnimation === "function") {
+            console.log("ZSystem | [ANIMATION] Вызов API A-A...");
+            aaApi.playAnimation(sourceToken, item, { targets: targets });
+        } else {
+            console.warn("ZSystem | [ANIMATION] API Automated Animations не найдено. Пробую Hook...");
+            Hooks.callAll("AutomatedAnimations-Workflow", sourceToken, item, { targets: targets });
+        }
+    } catch (err) {
+        console.error("ZSystem | Ошибка в блоке анимации:", err);
+    }
+
+    console.log("ZSystem | [CHECKPOINT 4] Расчет попадания...");
+
+    // 5. РАСЧЕТ ПОПАДАНИЯ (Smart Targeting)
+    let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : (isThrowingAction ? 'athletics' : 'melee');
     const skillVal = actor.system.skills[skillType]?.value || 0;
     const atkMod = Number(attack.mod) || 0;
     const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
     
-    let coverPenalty = 0, coverLabel = "", rangePenalty = 0, rangeLabel = "", interventionPenalty = 0, interventionLabel = "", evasionMod = 0, evasionMsg = "", targetName = "Нет цели";
+    let coverPenalty = 0, coverLabel = "", rangePenalty = 0, rangeLabel = "", interventionPenalty = 0, evasionMod = 0, targetName = "Нет цели";
 
-    if (targetToken && sourceToken) {
+    if (targetToken) {
         targetName = targetToken.name;
         const dist = canvas.grid.measureDistance(sourceToken, targetToken);
         const weaponReach = Number(item.system.range) || 1.5;
 
-        // --- ПРОВЕРКА ДИСТАНЦИИ MELEE ---
-        if (skillType === 'melee') {
-            if (dist > weaponReach) {
-                return ui.notifications.warn(`Слишком далеко! (Дист: ${dist.toFixed(1)}м, Оружие: ${weaponReach}м)`);
-            }
-            coverLabel = " [Вплотную]"; // Игнорируем укрытия в Melee
-        } else {
+        if (skillType === 'melee' && dist > weaponReach) return ui.notifications.warn(`Слишком далеко!`);
+        
+        if (skillType === 'ranged') {
             const coverData = _calculateCover(sourceToken, targetToken);
             coverPenalty = coverData.penalty;
             coverLabel = coverData.label ? ` [${coverData.label} ${coverData.penalty}]` : "";
             if (coverPenalty <= -1000) return ui.notifications.error("Цель за преградой!");
-        }
 
-        // Дальность (для Ranged)
-        const rangeData = _calculateRangePenalty(item, dist);
-        rangePenalty = rangeData.penalty;
-        rangeLabel = rangeData.label ? ` [${rangeData.label} ${rangeData.penalty}]` : "";
+            const rangeData = _calculateRangePenalty(item, dist);
+            rangePenalty = rangeData.penalty;
+            rangeLabel = rangeData.label ? ` [${rangeData.label} ${rangeData.penalty}]` : "";
 
-        // Помехи (Только стрельба)
-        if (item.system.weaponType === 'ranged') {
             const obstacles = _checkInterveningTokens(sourceToken, targetToken);
             interventionPenalty = obstacles.length * -20;
-            if (obstacles.length > 0) interventionLabel = ` [Помеха x${obstacles.length}]`;
         }
 
-        // Уклонение
         if (!targetToken.actor?.hasStatusEffect("prone")) {
-            const ev = targetToken.actor?.system.secondary?.evasion?.value || 0;
-            evasionMod = -(ev * 3);
-            if (evasionMod !== 0) evasionMsg = ` [Eva ${evasionMod}%]`;
+            evasionMod = -(targetToken.actor?.system.secondary?.evasion?.value || 0);
         }
     }
 
-    // --- РАСХОД ---
-    let isThrowingAction = (attack.mode === 'throw') || (item.system.isThrowing && item.system.weaponType !== 'melee');
-    const spentBullets = Number(attack.bullets) || (item.system.ammoType ? 1 : 0);
-    
-    if (!isThrowingAction && item.system.ammoType) {
-        const curMag = Number(item.system.mag.value) || 0;
-        
-        if (curMag < spentBullets) {
-            return ui.notifications.warn(`Недостаточно патронов! Нужно: ${spentBullets}, в магазине: ${curMag}`);
-        }
-        
-        // Списываем патроны
-        await item.update({ "system.mag.value": curMag - spentBullets });
-    }
-    await actor.update({"system.resources.ap.value": curAP - apCost});
-
-    // --- БРОСОК ---
+    // 6. БРОСОК
     const totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + interventionPenalty + modifier);
     const roll = await new Roll("1d100").evaluate();
-
-    const isStealth = actor.hasStatusEffect("stealth");
-    const critThreshold = 5 + (Number(item.system.critChance) || 0) + (isStealth ? 5 : 0);
-
-    let resultType = "fail";
-    if (roll.total <= critThreshold) resultType = "crit-success";
-    else if (roll.total <= totalChance) resultType = "success";
-    else if (roll.total >= 96) resultType = "crit-fail";
-
+    const resultType = _calcResult(roll.total, totalChance);
     const isHit = resultType.includes("success");
-    if (targetToken && sourceToken) _drawTracer(sourceToken, targetToken, isHit);
+    
+    if (targetToken) _drawTracer(sourceToken, targetToken, isHit);
 
-    // --- УРОН ---
+    // 7. УРОН
     let dmgAmount = 0, dmgDisplay = "";
     const damageDataForGM = []; 
 
     if (isHit) {
         let formula = attack.dmg || "0";
-        if (resultType === "crit-success") formula = `ceil((${formula}) * ${(Number(item.system.critMult) || 1.5)})`;
-        
-        if (skillType === 'melee' && !isThrowingAction) {
-            const s = actor.system.attributes.str.value;
-            const req = item.system.strReq || 1;
-            formula += s >= req ? ` + ${s - req}` : ` * 0.5`;
-        }
+        if (resultType === "crit-success") formula = `ceil((${formula}) * 1.5)`;
         
         let rDmg = await new Roll(formula, actor.getRollData()).evaluate();
-        let finalDmg = rDmg.total; // Временно сохраняем базу
+        let finalDmg = rDmg.total;
 
-        try {
-            if (targetToken?.actor) {
-                finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
-            }
-        } catch (e) { console.error("Perk Error:", e); }
-
-        // --- ПРИМЕНЯЕМ ЛОГИКУ ПЕРКОВ ---
-        if (targetToken?.actor) {
+        if (targetToken?.actor && typeof PerkLogic !== "undefined") {
             finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
         }
         
-        // Теперь используем именно finalDmg (с учетом бонусов)
         dmgAmount = Math.max(1, Math.floor(finalDmg));
-        
-        dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН ${resultType === "crit-success"?"(КРИТ!)":""}</div><div class="dmg-val">${dmgAmount}</div></div>`;
+        dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
         if (targetToken) {
             damageDataForGM.push({ uuid: targetToken.document.uuid, amount: dmgAmount, type: item.system.damageType||"blunt", limb: location });
         }
     }
 
-    // --- ШУМ ---
-    let baseNoise = (Number(item.system.noise)||0) + (Number(attack.noise)||0);
-    const finalNoise = Math.max(0, actor.hasStatusEffect("stealth") ? Math.ceil(baseNoise / 2) : baseNoise);
-    const noiseHtml = finalNoise > 0 ? `<div class="z-noise-alert">🔊 Шум: +${finalNoise}</div>` : "";
-
-    // --- ЧАТ ---
-    const headerInfo = (targetToken ? targetToken.name : item.name) + evasionMsg + coverLabel + rangeLabel + interventionLabel;
-    const cardHtml = _getSlotMachineHTML(headerInfo, totalChance, roll.total, resultType);
-    let ammoInfo = spentBullets > 0 ? `<div style="font-size:0.8em; color:#777;">Потрачено патронов: ${spentBullets}</div>` : "";
+    // 8. ЧАТ
+    const cardHtml = _getSlotMachineHTML(targetName, totalChance, roll.total, resultType);
+    let ammoInfo = (spentBullets > 0 && item.system.ammoType) ? `<div style="font-size:0.8em; color:#777;">Потрачено патронов: ${spentBullets}</div>` : "";
     
-    // Кнопка для ГМа при "ударе в воздух"
-    let gmApplyButton = "";
-    if (!targetToken && isHit) {
-        gmApplyButton = `<button class="z-apply-damage" data-damage="${dmgAmount}" data-type="${item.system.damageType}" data-limb="${location}">Применить урон к цели</button>`;
-    }
-
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
-        content: `${cardHtml}${dmgDisplay}${noiseHtml}${ammoInfo}${gmApplyButton}<div class="z-ap-spent">-${apCost} AP</div>`,
-        flags: { zsystem: { noiseAdd: finalNoise, damageData: damageDataForGM } }
+        content: `${cardHtml}${dmgDisplay}${ammoInfo}<div class="z-ap-spent">-${apCost} AP</div>`,
+        flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageDataForGM } }
     }, { rollMode: rollMode });
 
     if (isThrowingAction) {
         const qty = Number(item.system.quantity) || 1;
         if (qty > 1) await item.update({"system.quantity": qty - 1}); else await item.delete();
     }
+    
+    console.log("ZSystem | [FINISH] Атака завершена успешно.");
 }
 
 /**
