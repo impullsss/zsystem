@@ -946,12 +946,21 @@ export class ZActor extends Actor {
     });
   }
 
-  // --- ЛЕЧЕНИЕ ---
+// --- ЛЕЧЕНИЕ (ОБНОВЛЕНО: GM DELEGATION) ---
   async useMedicine(item) {
+    // 1. Выбор цели
     const targets = Array.from(game.user.targets);
-    if (targets.length === 0) return ui.notifications.warn("Выберите цель!");
-    const targetActor = targets[0].actor;
+    if (targets.length === 0) return ui.notifications.warn("Выберите цель (Target)!");
+    const targetToken = targets[0];
+    const targetActor = targetToken.actor;
 
+    // Проверка дистанции (опционально, но полезно)
+    const myToken = this.getActiveTokens()[0];
+    if (myToken && canvas.grid.measureDistance(myToken, targetToken) > 2) {
+        return ui.notifications.warn("Слишком далеко для лечения!");
+    }
+
+    // 2. Сбор опций (Конечности цели)
     const limbs = {
       torso: "Торс (ОБЩ)",
       head: "Голова",
@@ -966,72 +975,133 @@ export class ZActor extends Actor {
       options += `<option value="${k}">${v} (${lData.value}/${lData.max})</option>`;
     }
 
+    // 3. Диалог
     new Dialog({
       title: `Лечение: ${item.name}`,
       content: `<form><div class="form-group"><label>Лечить зону:</label><select id="limb-select">${options}</select></div></form>`,
       buttons: {
         heal: {
           label: "Применить",
+          icon: '<i class="fas fa-heartbeat"></i>',
           callback: async (html) => {
             const limbKey = html.find("#limb-select").val();
-            await this._applyMedicineLogic(targetActor, item, limbKey);
+            
+            // 4. СПИСАНИЕ ПРЕДМЕТА (Делает игрок, т.к. это его инвентарь)
+            const itemData = item.toObject(); // Сохраняем данные перед удалением
+            await this._consumeItem(item);
+
+            // 5. ОТПРАВКА ЗАПРОСА ГМУ
+            // Мы передаем все данные, необходимые для расчета
+            ChatMessage.create({
+                content: `<i>Применяет ${item.name} на ${targetActor.name}...</i>`,
+                flags: {
+                    zsystem: {
+                        type: "heal",
+                        healerUuid: this.uuid,
+                        targetUuid: targetActor.uuid,
+                        itemData: itemData,
+                        limbKey: limbKey
+                    }
+                }
+            });
           },
         },
       },
     }).render(true);
   }
 
-  async _applyMedicineLogic(targetActor, item, limbKey) {
-    if (item.system.isAntibiotic) {
-      const inf = targetActor.system.resources.infection;
+  // ЭТОТ МЕТОД ТЕПЕРЬ ВЫЗЫВАЕТСЯ ТОЛЬКО ГМОМ (через main.js)
+  async applyMedicineLogic(healer, itemData, limbKey) {
+    const report = [];
+
+    // А. Антибиотик
+    if (itemData.system.isAntibiotic) {
+      const inf = this.system.resources.infection;
       if (inf.active || inf.stage > 0) {
-        await targetActor.update({
+        const newStage = Math.max(0, inf.stage - 1);
+        await this.update({
           "system.resources.infection.active": false,
-          "system.resources.infection.stage": Math.max(0, inf.stage - 1),
+          "system.resources.infection.stage": newStage,
         });
-        ui.notifications.info("Инфекция снижена.");
-        await this._consumeItem(item);
-        return;
+        report.push(`<span style="color:blue;">🦠 Инфекция снижена (Ст. ${newStage})</span>`);
+        return this._reportHealing(healer, report);
       }
     }
 
-    const medSkill = this.system.skills.medical.value || 0;
+    // Б. Расчет лечения
+    // Берем навык лекаря (если лекарь передан)
+    const medSkill = healer ? (healer.system.skills.medical.value || 0) : 0;
     const skillBonus = Math.floor(medSkill / 5);
-    const baseHeal = Number(item.system.healAmount) || 0;
+    const baseHeal = Number(itemData.system.healAmount) || 0;
+    
+    // Итоговое лечение
     const totalHeal = baseHeal + skillBonus;
-    const penaltyIncrease = Math.max(5, baseHeal - skillBonus);
+    
+    // В. Расчет Штрафа (Penalty) с защитой от переполнения
+    // Формула: чем выше навык, тем меньше штраф.
+    // Если (BaseHeal - SkillBonus) < 0, то штраф 0. Иначе минимум 1.
+    let penaltyIncrease = Math.max(1, baseHeal - skillBonus);
+    
+    // --- FIX: ЗАЩИТА MAX HP CAP ---
+    const res = this.system.resources.hp;
+    const currentHP = res.value;
+    const baseMaxHP = (this.system.attributes.vig.value - 1) * 10 + 70; // Базовая формула Макс ХП
+    const currentPenalty = res.penalty || 0;
 
-    const updates = {};
-    const res = targetActor.system.resources.hp;
-    const newHP = Math.min(res.max, res.value + totalHeal);
-    const newPenalty = (res.penalty || 0) + penaltyIncrease;
+    // Предсказываем новое ХП
+    // Лечение не может превысить (BaseMax - CurrentPenalty)
+    const currentMax = baseMaxHP - currentPenalty;
+    const newHP = Math.min(currentMax, currentHP + totalHeal);
 
-    updates["system.resources.hp.value"] = newHP;
-    updates["system.resources.hp.penalty"] = newPenalty;
-
-    if (targetActor.system.limbs && targetActor.system.limbs[limbKey]) {
-      const lData = targetActor.system.limbs[limbKey];
-      const newLimbPenalty = (lData.penalty || 0) + penaltyIncrease;
-      updates[`system.limbs.${limbKey}.penalty`] = newLimbPenalty;
-      updates[`system.limbs.${limbKey}.value`] = lData.value + totalHeal;
+    // Предсказываем новый штраф
+    // Максимально допустимый штраф = BaseMax - NewHP
+    // (чтобы MaxHP никогда не стал меньше CurrentHP)
+    const maxAllowedPenalty = baseMaxHP - newHP;
+    
+    let newPenalty = currentPenalty + penaltyIncrease;
+    
+    // Если новый штраф слишком велик и опустит МаксХП ниже ТекущегоХП — режем штраф
+    if (newPenalty > maxAllowedPenalty) {
+        newPenalty = maxAllowedPenalty;
+        report.push(`<i>(Штраф ограничен текущим здоровьем)</i>`);
     }
 
-    await targetActor.update(updates);
-    await this._consumeItem(item);
+    const updates = {
+        "system.resources.hp.value": newHP,
+        "system.resources.hp.penalty": newPenalty
+    };
 
-    ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `<div class="z-chat-card">
-                      <div class="z-card-header">ЛЕЧЕНИЕ (${limbKey})</div>
-                      <div>${this.name} лечит ${targetActor.name}.</div>
-                      <div style="color:green; font-weight:bold;">+${totalHeal} HP</div>
-                      ${
-                        penaltyIncrease > 0
-                          ? `<div style="color:red; font-size:0.8em;">-${penaltyIncrease} Max HP (Штраф)</div>`
-                          : ""
-                      }
-                    </div>`,
-    });
+    // Г. Лечение конечности
+    if (this.system.limbs && this.system.limbs[limbKey]) {
+      const lData = this.system.limbs[limbKey];
+      // Конечность тоже не должна иметь макс меньше текущего
+      // Но для простоты пока просто лечим
+      updates[`system.limbs.${limbKey}.value`] = Math.min(lData.max, lData.value + totalHeal);
+    }
+
+    await this.update(updates);
+
+    // Д. Отчет
+    report.push(`<span style="color:green; font-weight:bold;">+${totalHeal} HP</span>`);
+    if (newPenalty > currentPenalty) {
+        report.push(`<span style="color:#d32f2f;">-${newPenalty - currentPenalty} Max HP (Штраф)</span>`);
+    }
+
+    this._reportHealing(healer, report, limbKey, itemData.name);
+  }
+
+  _reportHealing(healer, messages, limb, itemName) {
+      ChatMessage.create({
+          content: `
+            <div class="z-chat-card">
+                <div class="z-card-header">МЕДИЦИНА</div>
+                <div><b>${healer?.name || "???"}</b> использует ${itemName || "предмет"} на <b>${this.name}</b>.</div>
+                ${limb ? `<div style="font-size:0.8em; margin-bottom:5px;">Зона: ${limb}</div>` : ""}
+                <hr>
+                <div>${messages.join("<br>")}</div>
+            </div>
+          `
+      });
   }
 
   // ОТДЫХ

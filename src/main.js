@@ -39,6 +39,22 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
 
   if (!flags) return;
 
+  if (flags.type === "heal") {
+      const { healerUuid, targetUuid, itemData, limbKey } = flags;
+      
+      const healer = await fromUuid(healerUuid);
+      const target = await fromUuid(targetUuid);
+      
+      if (healer && target) {
+          // Вызываем метод НА АКТОРЕ, но исполняет его ГМ (потому что этот код работает у ГМа)
+          // Если target - токен, берем .actor
+          const realTarget = target.actor || target;
+          const realHealer = healer.actor || healer;
+          
+          await realTarget.applyMedicineLogic(realHealer, itemData, limbKey);
+      }
+  }
+
   // --- НОВОЕ: Перемотка Времени (Travel System) ---
   if (flags.advanceTime > 0) {
       await game.time.advance(flags.advanceTime);
