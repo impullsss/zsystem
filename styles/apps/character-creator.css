@@ -11,9 +11,14 @@
 .zsystem.character-creator .window-content {
     background: #f5f5f5;
     padding: 0;
+    height: 100%;
+    overflow: hidden; /* Убираем скролл с самого окна */
+}
+.zsystem.character-creator form {
+    height: 100%;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    overflow: hidden; 
 }
 
 /* --- HEADER --- */
@@ -32,9 +37,10 @@
 
 /* --- BODY (SIDEBAR + CONTENT) --- */
 .creator-body {
-    flex: 1;
-    display: flex;
-    overflow: hidden; /* Чтобы скроллился только контент */
+    flex: 1;          /* Занимает всё доступное место */
+    display: flex;    /* Или grid, зависит от режима */
+    overflow: hidden; /* Скрываем вылезающее содержимое */
+    min-height: 0;    /* Критично для работы скролла внутри Flex-элементов */
     background: url("../assets/paper-texture.png") repeat, #f5f5f5;
 }
 
@@ -187,13 +193,14 @@
 
 /* --- FOOTER --- */
 .creator-footer {
-    flex: 0 0 60px;
+    flex: 0 0 auto; /* Не сжиматься */
     background: #d7ccc8;
     border-top: 2px solid #a1887f;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
+    padding: 10px 20px;
+    z-index: 10;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
 }
 .z-btn {
     padding: 10px 25px;

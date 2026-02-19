@@ -196,14 +196,17 @@
     {{else}}
         <!-- ====================== LEVEL UP MODE ====================== -->
         
-        <div style="background:#37474f; color:#fff; padding:10px; display:flex; justify-content:space-around; font-size:1.2em;">
+        <!-- Верхняя плашка с валютой -->
+        <div style="flex: 0 0 auto; background:#37474f; color:#fff; padding:10px; display:flex; justify-content:space-around; font-size:1.2em; border-bottom: 2px solid #212121;">
             <div><i class="fas fa-graduation-cap"></i> SP: <span style="color:#69f0ae;">{{xpAvailable}}</span></div>
             <div><i class="fas fa-star"></i> PP: <span style="color:#ffab91;">{{ppAvailable}}</span></div>
         </div>
 
-        <div class="creator-body" style="display:grid; grid-template-columns: 1fr 1fr;">
+        <!-- Тело с двумя колонками -->
+        <!-- Добавили overflow:hidden, чтобы скролл был ВНУТРИ панелей, а не снаружи -->
+        <div class="creator-body" style="display:grid; grid-template-columns: 1fr 1fr; overflow:hidden;">
             
-            <!-- LEFT -->
+            <!-- LEFT (Skills) -->
             <div class="panel" style="padding:15px; overflow-y:auto; border-right:2px solid #555;">
                 <h3 style="border-bottom:2px solid #3e2723; margin-bottom:10px;">Тренировка Навыков</h3>
                 <div class="skills-list">
@@ -221,17 +224,14 @@
                         
                         <!-- CONTROLS -->
                         <div style="flex:2; display:flex; align-items:center; justify-content:center; gap:5px;">
-                            <!-- MINUS -->
                             <a class="levelup-skill-ctrl" data-action="minus" data-key="{{skill.key}}" 
                                style="cursor:pointer; color:#d84315; {{#unless skill.canMinus}}opacity:0.3; cursor:default;{{/unless}}">
                                 <i class="fas fa-minus-square"></i>
                             </a>
 
-                            <!-- INPUT (Показывает сколько добавлено в сессии) -->
                             <input type="number" class="skill-input-levelup" data-key="{{skill.key}}" value="{{skill.added}}" 
                                    style="width:40px; text-align:center; font-weight:bold; border:none; border-bottom:2px solid #5d4037; background:transparent;"/>
 
-                            <!-- PLUS -->
                             <a class="levelup-skill-ctrl" data-action="plus" data-key="{{skill.key}}" 
                                style="cursor:pointer; color:#2e7d32; {{#unless skill.canAfford}}opacity:0.3; cursor:default;{{/unless}}"
                                title="Цена: {{skill.nextCost}} SP">
@@ -239,14 +239,13 @@
                             </a>
                         </div>
 
-                        <!-- TOTAL PROJECTED -->
                         <span style="flex:1; text-align:center; font-weight:bold; font-size:1.1em;">{{skill.total}}</span>
                     </div>
                     {{/each}}
                 </div>
             </div>
 
-            <!-- RIGHT -->
+            <!-- RIGHT (Perks & Stats) -->
             <div class="panel" style="padding:15px; overflow-y:auto; background:#eceff1;">
                 <div class="stats-shop" style="margin-bottom:20px;">
                     <h3 style="border-bottom:2px solid #3e2723;">Характеристики (2 PP)</h3>
@@ -286,8 +285,12 @@
             </div>
         </div>
 
-        <div class="creator-footer" style="justify-content:flex-end;">
-            <button type="button" class="z-btn" data-action="finish" style="background:#1565c0;">СОХРАНИТЬ ИЗМЕНЕНИЯ</button>
+        <!-- FOOTER (ЗАКРЕПЛЕННЫЙ) -->
+        <!-- justify-content:flex-start ставит кнопку слева -->
+        <div class="creator-footer" style="justify-content:flex-start;">
+            <button type="button" class="z-btn" data-action="finish" style="background:#1565c0; width: 100%;">
+                <i class="fas fa-save"></i> СОХРАНИТЬ ИЗМЕНЕНИЯ
+            </button>
         </div>
     {{/if}}
 </form>
