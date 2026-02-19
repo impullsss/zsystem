@@ -249,6 +249,43 @@ export class ZItemSheet extends ItemSheet {
         }
     });
 
+    // 1. Добавить эффект к атаке
+    $html.find('.attack-effect-add').click(async ev => {
+        ev.preventDefault();
+        const key = ev.currentTarget.dataset.key;
+        const attack = this.item.system.attacks[key];
+        
+        // ЗАЩИТА: Превращаем в массив, если Foundry вернула объект
+        let currentEffects = attack.effects || [];
+        if (typeof currentEffects === 'object' && !Array.isArray(currentEffects)) {
+            currentEffects = Object.values(currentEffects);
+        }
+        
+        // Добавляем новый пустой эффект
+        const newEffects = [...currentEffects, { id: "", chance: 100 }];
+        
+        await this.item.update({ [`system.attacks.${key}.effects`]: newEffects });
+    });
+
+    // 2. Удалить эффект из атаки
+    $html.find('.attack-effect-delete').click(async ev => {
+        ev.preventDefault();
+        const key = ev.currentTarget.dataset.key;
+        const idx = Number(ev.currentTarget.dataset.idx);
+        const attack = this.item.system.attacks[key];
+        
+        if (!attack.effects) return;
+
+        // ЗАЩИТА: Превращаем в массив перед фильтрацией
+        let currentEffects = attack.effects;
+        if (typeof currentEffects === 'object' && !Array.isArray(currentEffects)) {
+            currentEffects = Object.values(currentEffects);
+        }
+
+        const newEffects = currentEffects.filter((_, i) => i !== idx);
+        await this.item.update({ [`system.attacks.${key}.effects`]: newEffects });
+    });
+
     // Добавить новый бонус в список
     $html.find('.perk-bonus-add').click(async ev => {
         let effect = this.item.effects.find(e => e.getFlag("zsystem", "isMainBonus"));

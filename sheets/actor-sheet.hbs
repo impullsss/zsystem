@@ -399,7 +399,12 @@
     <div style="font-size: 0.7em; font-weight: bold; margin-right: 5px; color: {{#if (lt item.system.mag.value 1)}}red{{else}}#333{{/if}};">
         {{item.system.mag.value}} / {{item.system.mag.max}}
     </div>
-    <a class="item-reload" title="Перезарядка"><i class="fas fa-sync" style="color:#1565c0;"></i></a>
+    
+    <!-- ИЗМЕНЕНИЕ: Добавили тултип с ценой и отображение цены если места хватает -->
+    <a class="item-reload" title="Перезарядка ({{item.system.reloadAP}} AP)">
+        <i class="fas fa-sync" style="color:#1565c0;"></i>
+        <span style="font-size:0.7em; color:#1565c0; font-weight:bold;">{{item.system.reloadAP}} AP</span>
+    </a>
 {{/if}}
 
                             {{#if (eq item.type "weapon")}}<a class="item-roll" title="Атака"><i class="fas fa-crosshairs" style="color:#333;"></i></a>{{/if}}

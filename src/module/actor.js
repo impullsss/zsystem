@@ -1179,7 +1179,7 @@ export class ZActor extends Actor {
     else await ammoItem.update({ "system.quantity": available - toLoad });
     ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `${this.name} перезаряжает ${item.name} (${toLoad} пт.).`,
+      content: `<div>${this.name} перезаряжает ${item.name} (${toLoad} пт.).</div>`,
     });
   }
 

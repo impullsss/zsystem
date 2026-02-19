@@ -93,18 +93,35 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   }
   // --------------------------------
 
-  // 2. УРОН (Без изменений)
+  // 2. УРОН И ЭФФЕКТЫ
   if (flags.damageData && Array.isArray(flags.damageData)) {
-      // ... (твой старый код обработки урона и Undo) ...
       const undoLog = [];
       for (let entry of flags.damageData) {
-        // ...
-        // КОД УРОНА ОСТАВЛЯЕМ КАК БЫЛ В ПРОШЛОМ ШАГЕ
-        // ...
         const doc = await fromUuid(entry.uuid);
         const actor = doc?.actor || doc;
         if (actor) {
+             // 1. Наносим урон
              const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb);
+             
+             // 2. Накладываем эффекты (НОВОЕ)
+             if (entry.effects && entry.effects.length > 0) {
+                 for (let effectId of entry.effects) {
+                     // Ищем данные эффекта в константах
+                     // Важно: GLOBAL_STATUSES должен быть импортирован в main.js
+                     const statusData = Object.values(GLOBAL_STATUSES).find(s => s.id === effectId || s.statuses.includes(effectId));
+                     
+                     if (statusData && !actor.hasStatusEffect(statusData.id)) {
+                         const created = await actor.createEmbeddedDocuments("ActiveEffect", [statusData]);
+                         // Добавляем ID созданного эффекта в лог отмены, чтобы кнопка "Отменить" сняла и его
+                         if (undoData && created.length > 0) {
+                             undoData.createdEffectIds.push(created[0].id);
+                         }
+                         // Уведомление
+                         ui.notifications.info(`${actor.name}: наложен эффект ${statusData.label}`);
+                     }
+                 }
+             }
+
              if (undoData) undoLog.push(undoData);
         }
       }

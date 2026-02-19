@@ -485,11 +485,13 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     
     if (targetToken) _drawTracer(sourceToken, targetToken, isHit);
 
-    // 7. УРОН
+    // 7. УРОН И ЭФФЕКТЫ
     let dmgAmount = 0, dmgDisplay = "";
-    const damageDataForGM = []; 
+    const damageDataForGM = [];
+    const triggeredEffects = []; // Список сработавших эффектов для чата
 
     if (isHit) {
+        // А. Расчет урона
         let formula = attack.dmg || "0";
         if (resultType === "crit-success") formula = `ceil((${formula}) * 1.5)`;
         
@@ -503,8 +505,45 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         dmgAmount = Math.max(1, Math.floor(finalDmg));
         dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
+        // Б. Обработка Эффектов (НОВОЕ)
+        // Поддержка старого формата (если у атаки старое поле .effect)
+        let rawEffects = attack.effects || [];
+        
+        // ЗАЩИТА: Если это объект {0:..., 1:...}, превращаем в массив
+        let effectsList = [];
+        if (Array.isArray(rawEffects)) {
+            effectsList = rawEffects;
+        } else if (typeof rawEffects === 'object') {
+            effectsList = Object.values(rawEffects);
+        }
+
+        // Поддержка старого формата (если вдруг есть старые данные)
+        if (attack.effect && !effectsList.length) {
+            effectsList.push({ id: attack.effect, chance: attack.chance || 100 });
+        }
+
+        // Теперь effectsList точно массив, можно делать for..of
+        for (let eff of effectsList) {
+            if (!eff.id) continue; // Пропускаем пустые
+            
+            const chance = Number(eff.chance) || 100;
+            const rollEffect = Math.random() * 100; // 0..99.99
+            
+            if (rollEffect <= chance) {
+                triggeredEffects.push(eff.id);
+            }
+        }
+        
+        // Сборка данных для ГМа
         if (targetToken) {
-            damageDataForGM.push({ uuid: targetToken.document.uuid, amount: dmgAmount, type: item.system.damageType||"blunt", limb: location });
+            damageDataForGM.push({ 
+                uuid: targetToken.document.uuid, 
+                amount: dmgAmount, 
+                type: item.system.damageType || "blunt", 
+                limb: location,
+                // Передаем массив ID эффектов, которые нужно наложить
+                effects: triggeredEffects 
+            });
         }
     }
 
