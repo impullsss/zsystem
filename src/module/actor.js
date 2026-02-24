@@ -20,39 +20,56 @@ export class ZActor extends Actor {
     }
 
     // Зомби: авто-статы и оружие
-    if (this.type === "zombie") {
+     if (this.type === "zombie") {
       const updates = {};
-      const system = this.system;
-      if (!system.attributes.str || system.attributes.str.value <= 1) {
-        updates["system.attributes"] = {
-          str: { base: 8, value: 8 },
-          agi: { base: 4, value: 4 },
-          vig: { base: 10, value: 10 },
-          per: { base: 5, value: 5 },
-          int: { base: 1, value: 1 },
-          cha: { base: 1, value: 1 },
-        };
-      }
-      if (!system.resources.hp || system.resources.hp.max <= 10) {
-        updates["system.resources.hp"] = { value: 80, max: 80 };
-        updates["system.resources.ap"] = { value: 9, max: 9 };
-        updates["system.limbs"] = {
-          head: { value: 16, max: 16 },
-          torso: { value: 36, max: 36 },
-          lArm: { value: 12, max: 12 },
-          rArm: { value: 12, max: 12 },
-          lLeg: { value: 16, max: 16 },
-          rLeg: { value: 16, max: 16 },
-        };
-      }
-      if (Object.keys(updates).length > 0) await this.update(updates);
+      const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
+      // 1. Генерируем Характеристики
+      // Нам нужны переменные здесь, чтобы сразу посчитать ХП
+      const str = rnd(6, 9);
+      const agi = rnd(1, 3);
+      const vig = rnd(3, 6);
+      const per = rnd(3, 6);
+
+      updates["system.attributes"] = {
+          str: { base: str, value: str },
+          agi: { base: agi, value: agi },
+          vig: { base: vig, value: vig },
+          per: { base: per, value: per },
+          int: { base: 1, value: 1 },
+          cha: { base: 1, value: 1 }
+      };
+
+      // 2. Считаем ХП по формуле (50 + (Vig-1)*10)
+      // Это гарантирует, что Текущее = Максимум
+      const maxHP = 50 + (vig - 1) * 10;
+      
+      updates["system.resources.hp"] = { value: maxHP, max: maxHP };
+      updates["system.resources.ap"] = { value: 9, max: 9 };
+
+      // 3. Конечности (Пропорционально Макс ХП)
+      updates["system.limbs"] = {
+          head: { value: Math.floor(maxHP*0.2), max: Math.floor(maxHP*0.2) },
+          torso: { value: Math.floor(maxHP*0.45), max: Math.floor(maxHP*0.45) },
+          lArm: { value: Math.floor(maxHP*0.15), max: Math.floor(maxHP*0.15) },
+          rArm: { value: Math.floor(maxHP*0.15), max: Math.floor(maxHP*0.15) },
+          lLeg: { value: Math.floor(maxHP*0.2), max: Math.floor(maxHP*0.2) },
+          rLeg: { value: Math.floor(maxHP*0.2), max: Math.floor(maxHP*0.2) },
+      };
+
+      // 4. Навыки (Вкладываем очки)
+      // Ближний бой и Атлетика
+      updates["system.skills.melee.points"] = rnd(10, 30);
+      updates["system.skills.athletics.points"] = rnd(10, 30);
+
+      // Применяем все обновления разом
+      await this.update(updates);
+
+      // Добавляем оружие, если его нет
       const hasWeapons = this.items.some((i) => i.type === "weapon");
-      if (!hasWeapons)
-        await this.createEmbeddedDocuments(
-          "Item",
-          this._getZombieNaturalWeapons()
-        );
+      if (!hasWeapons) {
+        await this.createEmbeddedDocuments("Item", this._getZombieNaturalWeapons());
+      }
     }
 
     // Лут: отключение зрения и привязки
@@ -373,7 +390,7 @@ export class ZActor extends Actor {
               name: "Укус",
               ap: 5,
               dmg: "4d6 + 11",
-              mod: 28,
+              mod: 0,
               effect: "infected",
               chance: 40,
             },
@@ -395,7 +412,7 @@ export class ZActor extends Actor {
               name: "Раздирание",
               ap: 4,
               dmg: "3d4 + 7",
-              mod: 38,
+              mod: 0,
               effect: "bleeding",
               chance: 25,
             },
@@ -565,6 +582,7 @@ export class ZActor extends Actor {
 
     // ПРИМЕНЯЕМ: Итоговое значение = Математика + Модификатор от перков
     system.secondary.evasion.value = baseEvasion + getNum(system.secondary.evasion.mod);
+    if (this.type === "zombie") {system.secondary.evasion.value = 0;};
     system.secondary.bravery.value = baseBravery + getNum(system.secondary.bravery.mod);
     system.secondary.tenacity.value = baseTenacity + getNum(system.secondary.tenacity.mod);
     system.secondary.naturalAC.value = baseNaturalAC + getNum(system.secondary.naturalAC.mod);

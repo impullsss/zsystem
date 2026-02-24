@@ -492,14 +492,44 @@ export class ZShelterSheet extends ZBaseActorSheet {
 
   async _onEndDay() {
       if (!game.user.isGM) return ui.notifications.warn("Только ГМ может завершить день.");
-      Dialog.confirm({
+      
+      // Читаем текущий дефолтный расход из настроек убежища
+      const dailyFuel = this.actor.system.resources.fuel?.daily || 5;
+
+      const content = `
+      <form>
+          <div class="form-group">
+              <label>Расход топлива за сегодня:</label>
+              <input type="number" id="fuel-cost" value="${dailyFuel}" autofocus/>
+          </div>
+          <p class="notes" style="font-size:0.9em; color:#666;">
+              Стандартный расход: ${dailyFuel}.<br>
+              Поставьте 0, если генератор не включали.
+          </p>
+      </form>
+      `;
+
+      new Dialog({
           title: "Завершить день?",
-          content: "<p>Будут списаны ресурсы и обновлены жители. Запустить?</p>",
-          yes: async () => this._processEndDay()
-      });
+          content: content,
+          buttons: {
+              yes: {
+                  label: "Завершить день",
+                  icon: '<i class="fas fa-moon"></i>',
+                  callback: (html) => {
+                      // Получаем значение из инпута
+                      const fuelCost = Number(html.find("#fuel-cost").val());
+                      // Передаем его в основной процесс
+                      this._processEndDay(isNaN(fuelCost) ? dailyFuel : fuelCost);
+                  }
+              },
+              cancel: { label: "Отмена" }
+          },
+          default: "yes"
+      }).render(true);
   }
 
-  async _processEndDay() {
+  async _processEndDay(fuelNeed) {
       const system = this.actor.system;
       const residentIds = system.residents || [];
       const pop = residentIds.length;
@@ -515,10 +545,10 @@ export class ZShelterSheet extends ZBaseActorSheet {
       let trend = system.morale?.trend || 0;
 
       const foodNeed = pop * 3; 
-      const fuelNeed = res.fuel?.daily || 5;
+      // fuelNeed мы получили аргументом функции
 
       // ====================================================
-      // 1. ТРИПУНКТ (TRIAGE) - ДИАЛОГ
+      // 1. ТРИПУНКТ (TRIAGE) - ДИАЛОГ РАСПРЕДЕЛЕНИЯ ЛЕКАРСТВ
       // ====================================================
       const infectedResidents = [];
       for (let rid of residentIds) {
@@ -596,6 +626,7 @@ export class ZShelterSheet extends ZBaseActorSheet {
       let hasFood = true;
       let hasFuel = true;
 
+      // Еда
       if (food >= foodNeed) {
           food -= foodNeed;
           publicHtml += `<div style="color:green">🍴 Еда: -${foodNeed} (Ост: ${food})</div>`;
@@ -606,14 +637,19 @@ export class ZShelterSheet extends ZBaseActorSheet {
           publicHtml += `<div style="color:red; font-weight:bold;">🍴 ГОЛОД! Еды не хватило! (-10 Морали)</div>`;
       }
 
-      if (fuel >= fuelNeed) {
-          fuel -= fuelNeed;
-          publicHtml += `<div style="color:green">⛽ Топливо: -${fuelNeed} (Ост: ${fuel})</div>`;
+      // Топливо (Используем переданный fuelNeed)
+      if (fuelNeed > 0) {
+          if (fuel >= fuelNeed) {
+              fuel -= fuelNeed;
+              publicHtml += `<div style="color:green">⛽ Топливо: -${fuelNeed} (Ост: ${fuel})</div>`;
+          } else {
+              fuel = 0;
+              hasFuel = false;
+              trend -= 5; 
+              publicHtml += `<div style="color:red;">⚠️ Нет топлива! (-5 Морали)</div>`;
+          }
       } else {
-          fuel = 0;
-          hasFuel = false;
-          trend -= 5; 
-          publicHtml += `<div style="color:red;">⚠️ Нет топлива! (-5 Морали)</div>`;
+          publicHtml += `<div style="color:#777;">⛽ Топливо не тратилось (Генератор выкл.)</div>`;
       }
 
       // --- ПОСТРОЙКИ (С ПРОВЕРКОЙ РАБОЧИХ) ---

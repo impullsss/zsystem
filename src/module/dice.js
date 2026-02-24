@@ -6,12 +6,14 @@ let aimingHandler = null;
 
 // --- КЛАСС МЕНЕДЖЕРА ПРИЦЕЛИВАНИЯ ---
 class AimingManager {
-    constructor(actor, item, attack, modifier, dialogApp) {
+    // НОВОЕ: Добавили aimSteps в конструктор
+    constructor(actor, item, attack, modifier, dialogApp, aimSteps = 0) {
         this.actor = actor;
         this.item = item;
         this.attack = attack;
         this.modifier = modifier;
         this.dialogApp = dialogApp;
+        this.aimSteps = aimSteps; // Запоминаем шаги прицеливания
         this.sourceToken = actor.getActiveTokens()[0];
         
         // UI элементы
@@ -45,7 +47,9 @@ class AimingManager {
         canvas.stage.on('mousedown', this._onClick);
         canvas.stage.on('rightdown', this._onRightClick);
         
-        ui.notifications.info("РЕЖИМ ПРИЦЕЛИВАНИЯ: ЛКМ - Действие, ПКМ - Выход.");
+        const aimBonus = this.aimSteps * (game.settings.get("zsystem", "aimBonus") || 0);
+        const aimText = aimBonus > 0 ? ` (Прицел +${aimBonus}%)` : "";
+        ui.notifications.info(`РЕЖИМ ПРИЦЕЛИВАНИЯ${aimText}: ЛКМ - Огонь, ПКМ - Отмена.`);
         document.body.style.cursor = "crosshair";
     }
 
@@ -113,11 +117,16 @@ class AimingManager {
         });
 
         if (target) {
+            // Расчет стоимости с учетом прицеливания
+            const aimCostPerStep = game.settings.get("zsystem", "aimCost");
+            const extraAp = this.aimSteps * aimCostPerStep;
+            const baseCost = Number(this.attack.ap) || 0;
+            const totalCost = baseCost + extraAp;
+
             const curAP = this.actor.system.resources.ap.value;
-            const cost = Number(this.attack.ap) || 0;
             
-            if (curAP < cost) {
-                ui.notifications.warn("Недостаточно AP!");
+            if (curAP < totalCost) {
+                ui.notifications.warn(`Недостаточно AP! Нужно ${totalCost} (Атака ${baseCost} + Прицел ${extraAp})`);
                 return;
             }
 
@@ -126,7 +135,8 @@ class AimingManager {
             // Получаем выбранную локацию из диалога (если он виден)
             const location = $('#aim-location').val() || "torso";
             
-            await _executeAttack(this.actor, this.item, this.attack, location, this.modifier);
+            // ИСПРАВЛЕНИЕ: Передаем this.aimSteps
+            await _executeAttack(this.actor, this.item, this.attack, location, this.modifier, "roll", this.aimSteps);
             
             this._updateHudContent(target);
         }
@@ -141,8 +151,8 @@ class AimingManager {
     _updateHudContent(target) {
         if (!this.hud) return;
 
-        // Расчет шанса
-        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier);
+        // ИСПРАВЛЕНИЕ: Передаем this.aimSteps в расчет
+        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier, this.aimSteps);
         const hitChance = chanceData.total;
         
         let colorHex = 0xff5252; 
@@ -162,6 +172,12 @@ class AimingManager {
 
         // Текст HUD
         let detailsHtml = "";
+        // Показываем бонус от прицеливания в деталях
+        if (this.aimSteps > 0) {
+             const aimBonus = this.aimSteps * game.settings.get("zsystem", "aimBonus");
+             detailsHtml += `<div class="aim-detail" style="color:#69f0ae;"><span>Прицел:</span> <span>+${aimBonus}%</span></div>`;
+        }
+
         if (chanceData.details.coverPen < 0) detailsHtml += `<div class="aim-detail"><span>Укрытие:</span> <span>${chanceData.details.coverPen}%</span></div>`;
         if (chanceData.details.rangePen < 0) detailsHtml += `<div class="aim-detail"><span>Дальность:</span> <span>${chanceData.details.rangePen}%</span></div>`;
         if (chanceData.details.intervPen < 0) detailsHtml += `<div class="aim-detail"><span>Помеха:</span> <span>${chanceData.details.intervPen}%</span></div>`;
@@ -176,7 +192,7 @@ class AimingManager {
             ${detailsHtml}
             ${warnHtml}
             <div style="margin-top:5px; border-top:1px solid #555; padding-top:2px; font-size:0.8em; color:#888;">
-                AP: ${this.attack.ap} | ЛКМ: Огонь
+                AP: ${this.attack.ap + (this.aimSteps * game.settings.get("zsystem", "aimCost"))} | ЛКМ: Огонь
             </div>
         `;
 
@@ -186,21 +202,23 @@ class AimingManager {
 }
 
 // === ВЫНЕСЕННАЯ ФУНКЦИЯ РАСЧЕТА ===
-function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modifier) {
+function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modifier, aimSteps = 0) {
     let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
     const skillVal = actor.system.skills[skillType]?.value || 0;
     const atkMod = Number(attack.mod) || 0;
     
+    // БОНУС ОТ ПРИЦЕЛИВАНИЯ
+    const aimBonusPerStep = game.settings.get("zsystem", "aimBonus") || 10;
+    const aimBonusTotal = aimSteps * aimBonusPerStep;
+
     const location = $('#aim-location').val() || "torso";
     const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
 
     const dist = canvas.grid.measureDistance(sourceToken, targetToken);
-    // Берем дальность из оружия или дефолт 1.5м
     const weaponReach = Number(item.system.range) || 1.5;
 
     // Укрытие
     let coverPen = 0;
-    // ФИКС: В ближнем бою игнорируем укрытие, если мы в пределах досягаемости оружия
     const isMeleeHit = (skillType === 'melee' && dist <= weaponReach);
     
     if (!isMeleeHit) {
@@ -213,7 +231,6 @@ function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modi
     
     // Помехи (Живой щит)
     let intervPen = 0;
-    // ФИКС: Помехи считаются ТОЛЬКО для стрельбы
     if (item.system.weaponType === 'ranged') {
         const obs = _checkInterveningTokens(sourceToken, targetToken);
         intervPen = obs.length * -20;
@@ -224,7 +241,8 @@ function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modi
         evasionMod = -((targetToken.actor?.system.secondary?.evasion?.value || 0));
     }
 
-    const total = Math.max(0, skillVal + atkMod + aimMod + coverPen + rangePen + intervPen + evasionMod + modifier);
+    // Добавили aimBonusTotal в сумму
+    const total = Math.max(0, skillVal + atkMod + aimMod + coverPen + rangePen + intervPen + evasionMod + modifier + aimBonusTotal);
     return { total, details: { coverPen, rangePen, intervPen, evasionMod } };
 }
 
@@ -342,6 +360,10 @@ export async function performAttack(actor, itemId) {
                         <div class="atk-info">AP: ${atk.ap} | Noise: ${totalNoise}</div>
                     </button>`;
     }
+
+    const aimCost = game.settings.get("zsystem", "aimCost");
+    const aimBonus = game.settings.get("zsystem", "aimBonus");
+    const aimMax = game.settings.get("zsystem", "aimMax");
     
     const content = `
     <form class="z-attack-dialog">
@@ -349,11 +371,24 @@ export async function performAttack(actor, itemId) {
             <div class="form-group"><label>Модификатор</label><input type="number" id="atk-modifier" value="0"/></div>
             <div class="form-group"><label>Режим</label><select id="atk-rollMode"><option value="roll">Публичный</option><option value="gmroll">ГМ</option></select></div>
         </div>
-        <div class="form-group"><label>Цель:</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова (-40)</option><option value="lLeg">Ноги (-20)</option></select></div>
         
-        <!-- Галка теперь доступна всегда (для Melee тоже) -->
-        <div class="form-group" style="background:#263238; padding:5px; border-radius:3px;">
-            <label style="color:#eceff1;">Ручное прицеливание</label>
+        <div class="form-group"><label>Цель (Локация):</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова (-40)</option><option value="lLeg">Ноги (-20)</option></select></div>
+        
+        <!-- НОВОЕ: Блок Прицеливания -->
+        <div class="aim-section" style="background:rgba(0,0,0,0.1); padding:5px; border:1px solid #777; border-radius:4px; margin:5px 0;">
+            <label style="font-weight:bold; display:block; border-bottom:1px dotted #555; margin-bottom:5px;">
+                <i class="fas fa-crosshairs"></i> Прицеливание (+${aimBonus}% / ${aimCost} AP)
+            </label>
+            <div class="flexrow" style="align-items:center; gap:10px;">
+                <input type="range" id="aim-slider" min="0" max="${aimMax}" value="0" step="1" oninput="document.getElementById('aim-val').innerText = this.value">
+                <span style="font-weight:bold; width:20px; text-align:center;" id="aim-val">0</span>
+            </div>
+            <div style="font-size:0.8em; color:#555; text-align:center;">Максимум: ${aimMax} AP</div>
+        </div>
+
+        <!-- Галка Ручного (для Smart Aiming) -->
+        <div class="form-group" style="background:#263238; padding:5px; border-radius:3px; margin-top:5px;">
+            <label style="color:#eceff1;">Ручное наведение (Canvas)</label>
             <input type="checkbox" id="manual-aim" checked/>
         </div>
         
@@ -374,14 +409,23 @@ export async function performAttack(actor, itemId) {
 
                 const loc = html.find('#aim-location').val();
                 const mod = Number(html.find('#atk-modifier').val()) || 0;
+                
+                // Читаем значение прицеливания
+                const aimSteps = Number(html.find('#aim-slider').val()) || 0;
+
                 const manualAim = html.find('#manual-aim').is(':checked');
 
                 if (manualAim) {
                     if (aimingHandler) aimingHandler.deactivate();
-                    aimingHandler = new AimingManager(actor, item, atk, mod, d);
+                    
+                    // ИСПРАВЛЕНИЕ: Передаем aimSteps последним аргументом
+                    aimingHandler = new AimingManager(actor, item, atk, mod, d, aimSteps);
                 } else {
-                    await _executeAttack(actor, item, atk, loc, mod);
+                    await _executeAttack(actor, item, atk, loc, mod, "roll", aimSteps);
                 }
+                
+                // Закрываем диалог только если не ручное прицеливание
+                if (!manualAim) d.close(); 
             });
         }
     });
@@ -389,8 +433,12 @@ export async function performAttack(actor, itemId) {
 }
 
 // === ИСПОЛНЕНИЕ АТАКИ ===
-async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll") {
+async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll", aimSteps = 0) {
     console.log("ZSystem | [CHECKPOINT 1] Вход в атаку:", item.name);
+
+    // Читаем настройки
+    const aimCostPerStep = game.settings.get("zsystem", "aimCost");
+    const aimBonusPerStep = game.settings.get("zsystem", "aimBonus");
 
     // 1. ОПРЕДЕЛЯЕМ ТОКЕНЫ
     const sourceToken = actor.getActiveTokens()[0]; 
@@ -400,13 +448,23 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     if (!sourceToken) return ui.notifications.error("Токен атакующего не найден!");
 
     // 2. ПРОВЕРКА РЕСУРСОВ
-    const apCost = Number(attack.ap) || 0;
+    const baseApCost = Number(attack.ap) || 0;
+    const extraApCost = aimSteps * aimCostPerStep;
+    const totalApCost = baseApCost + extraApCost;
+    
     const curAP = Number(actor.system.resources.ap.value) || 0;
-    if (curAP < apCost) return ui.notifications.warn(`Недостаточно AP`);
+    
+    if (curAP < totalApCost) {
+        return ui.notifications.warn(`Недостаточно AP! Нужно ${totalApCost} (Атака ${baseApCost} + Прицел ${extraApCost}).`);
+    }
+
+    // Добавляем бонус к модификатору
+    const aimBonusTotal = aimSteps * aimBonusPerStep;
+    modifier += aimBonusTotal;
 
     console.log("ZSystem | [CHECKPOINT 2] AP проверено. Списание патронов...");
 
-    // 3. РАСХОД ПАТРОНОВ (Более безопасный расчет)
+    // 3. РАСХОД ПАТРОНОВ
     const isThrowingAction = (attack.mode === 'throw' || item.system.isThrowing === true);
     const spentBullets = parseInt(attack.bullets) || (item.system.ammoType ? 1 : 0);
     
@@ -419,22 +477,19 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         await item.update({ "system.mag.value": Math.max(0, curMag - spentBullets) });
     }
 
-    // Списываем AP
-    await actor.update({"system.resources.ap.value": Math.max(0, curAP - apCost)});
+    // Списываем AP (Общее)
+    await actor.update({"system.resources.ap.value": Math.max(0, curAP - totalApCost)});
     
     console.log("ZSystem | [CHECKPOINT 3] Ресурсы списаны. Запуск анимации...");
 
-    // 4. ЗАПУСК АНИМАЦИИ (ПРИНУДИТЕЛЬНО)
+    // 4. ЗАПУСК АНИМАЦИИ
     try {
         const aaModule = game.modules.get("automated-animations");
-        // Пробуем разные варианты API для V13
         const aaApi = aaModule?.api || window.AutoAnimations?.api || window.AutomatedAnimations;
         
         if (aaApi && typeof aaApi.playAnimation === "function") {
-            console.log("ZSystem | [ANIMATION] Вызов API A-A...");
             aaApi.playAnimation(sourceToken, item, { targets: targets });
         } else {
-            console.warn("ZSystem | [ANIMATION] API Automated Animations не найдено. Пробую Hook...");
             Hooks.callAll("AutomatedAnimations-Workflow", sourceToken, item, { targets: targets });
         }
     } catch (err) {
@@ -443,13 +498,13 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     console.log("ZSystem | [CHECKPOINT 4] Расчет попадания...");
 
-    // 5. РАСЧЕТ ПОПАДАНИЯ (Smart Targeting)
+    // 5. РАСЧЕТ ПОПАДАНИЯ
     let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : (isThrowingAction ? 'athletics' : 'melee');
     const skillVal = actor.system.skills[skillType]?.value || 0;
     const atkMod = Number(attack.mod) || 0;
     const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
     
-    let coverPenalty = 0, coverLabel = "", rangePenalty = 0, rangeLabel = "", interventionPenalty = 0, evasionMod = 0, targetName = "Нет цели";
+    let coverPenalty = 0, rangePenalty = 0, interventionPenalty = 0, evasionMod = 0, targetName = "Нет цели";
 
     if (targetToken) {
         targetName = targetToken.name;
@@ -461,12 +516,10 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         if (skillType === 'ranged') {
             const coverData = _calculateCover(sourceToken, targetToken);
             coverPenalty = coverData.penalty;
-            coverLabel = coverData.label ? ` [${coverData.label} ${coverData.penalty}]` : "";
             if (coverPenalty <= -1000) return ui.notifications.error("Цель за преградой!");
 
             const rangeData = _calculateRangePenalty(item, dist);
             rangePenalty = rangeData.penalty;
-            rangeLabel = rangeData.label ? ` [${rangeData.label} ${rangeData.penalty}]` : "";
 
             const obstacles = _checkInterveningTokens(sourceToken, targetToken);
             interventionPenalty = obstacles.length * -20;
@@ -488,10 +541,9 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     // 7. УРОН И ЭФФЕКТЫ
     let dmgAmount = 0, dmgDisplay = "";
     const damageDataForGM = [];
-    const triggeredEffects = []; // Список сработавших эффектов для чата
+    const triggeredEffects = [];
 
     if (isHit) {
-        // А. Расчет урона
         let formula = attack.dmg || "0";
         if (resultType === "crit-success") formula = `ceil((${formula}) * 1.5)`;
         
@@ -505,11 +557,8 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         dmgAmount = Math.max(1, Math.floor(finalDmg));
         dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
-        // Б. Обработка Эффектов (НОВОЕ)
-        // Поддержка старого формата (если у атаки старое поле .effect)
+        // Обработка эффектов
         let rawEffects = attack.effects || [];
-        
-        // ЗАЩИТА: Если это объект {0:..., 1:...}, превращаем в массив
         let effectsList = [];
         if (Array.isArray(rawEffects)) {
             effectsList = rawEffects;
@@ -517,31 +566,23 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
             effectsList = Object.values(rawEffects);
         }
 
-        // Поддержка старого формата (если вдруг есть старые данные)
         if (attack.effect && !effectsList.length) {
             effectsList.push({ id: attack.effect, chance: attack.chance || 100 });
         }
 
-        // Теперь effectsList точно массив, можно делать for..of
         for (let eff of effectsList) {
-            if (!eff.id) continue; // Пропускаем пустые
-            
+            if (!eff.id) continue;
             const chance = Number(eff.chance) || 100;
-            const rollEffect = Math.random() * 100; // 0..99.99
-            
-            if (rollEffect <= chance) {
-                triggeredEffects.push(eff.id);
-            }
+            const rollEffect = Math.random() * 100;
+            if (rollEffect <= chance) triggeredEffects.push(eff.id);
         }
         
-        // Сборка данных для ГМа
         if (targetToken) {
             damageDataForGM.push({ 
                 uuid: targetToken.document.uuid, 
                 amount: dmgAmount, 
                 type: item.system.damageType || "blunt", 
                 limb: location,
-                // Передаем массив ID эффектов, которые нужно наложить
                 effects: triggeredEffects 
             });
         }
@@ -551,9 +592,12 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     const cardHtml = _getSlotMachineHTML(targetName, totalChance, roll.total, resultType);
     let ammoInfo = (spentBullets > 0 && item.system.ammoType) ? `<div style="font-size:0.8em; color:#777;">Потрачено патронов: ${spentBullets}</div>` : "";
     
+    // Добавляем инфо о прицеливании в лог
+    let aimLog = aimSteps > 0 ? `<div style="color:#69f0ae; font-size:0.8em;">Прицел: +${aimBonusTotal}% (-${extraApCost} AP)</div>` : "";
+
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
-        content: `${cardHtml}${dmgDisplay}${ammoInfo}<div class="z-ap-spent">-${apCost} AP</div>`,
+        content: `${cardHtml}${dmgDisplay}${ammoInfo}${aimLog}<div class="z-ap-spent">-${totalApCost} AP</div>`,
         flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageDataForGM } }
     }, { rollMode: rollMode });
 

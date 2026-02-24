@@ -1,132 +1,76 @@
 export class TravelManager {
   
-  /**
-   * Основной метод обработки перемещения на глобальной карте
-   */
-static async handleMovement(tokenDoc, changes) {
+  static async handleMovement(tokenDoc, changes) {
     const actor = tokenDoc.actor;
-    if (!actor) return true; // Если это просто картинка без актора, пусть двигается
+    if (!actor) return true; 
 
-    // 1. ОПРЕДЕЛЯЕМ ТИП ПУТЕШЕСТВИЯ
+    // 1. Определяем тип
     const isVehicle = actor.type === "vehicle";
+    // Пешеходы тоже могут ходить по глобалке, но без топлива
     const isWalker = ["survivor", "npc"].includes(actor.type);
 
-    if (!isVehicle && !isWalker) {
-        ui.notifications.warn("Этот объект не может путешествовать по карте.");
-        return false;
-    }
+    if (!isVehicle && !isWalker) return true;
 
-    // 2. СЧИТАЕМ ДИСТАНЦИЮ
+    // 2. Считаем дистанцию (учитывает масштаб сцены!)
     const origin = { x: tokenDoc.x, y: tokenDoc.y };
     const dest = { x: changes.x ?? tokenDoc.x, y: changes.y ?? tokenDoc.y };
     const distance = canvas.grid.measureDistance(origin, dest);
     
     if (distance <= 0) return true;
 
-    // 3. ПАРАМЕТРЫ (Скорость и Расход)
-    let speed = 3; // Пешком по умолчанию (миль/час)
-    let mpg = 0;   // Расход топлива
+    // 3. Параметры Транспорта
+    let mpg = 0;
     let fuel = 0;
-    
+    let speed = 40; // Скорость для расчета времени
+
     if (isVehicle) {
         speed = Number(actor.system.attributes.speed.value) || 40;
         mpg = Number(actor.system.attributes.mpg.value) || 0;
         fuel = Number(actor.system.resources.fuel.value) || 0;
     } else {
-        // Логика для пешехода
-        // Можно модифицировать скорость от Атлетики, но 3 мили/ч - это стандарт
-        // Если перегруз - скорость падает
-        if (actor.hasStatusEffect("overburdened")) speed = 2;
+        // Пешеход
+        speed = 3; 
     }
 
     // 4. РАСЧЕТ РАСХОДА (Только для машин)
     let finalCost = 0;
     if (isVehicle && mpg > 0) {
+        // Дистанция (км) / Расход (км на литр/галлон)
         const fuelCost = distance / mpg;
         finalCost = Math.round(fuelCost * 100) / 100;
 
+        // БЛОКИРУЕМ ДВИЖЕНИЕ, ЕСЛИ НЕТ ТОПЛИВА
         if (fuel < finalCost) {
-            ui.notifications.error(`Недостаточно топлива! Нужно: ${finalCost}, Есть: ${fuel}`);
-            return false;
+            ui.notifications.error(`Недостаточно топлива! Дистанция: ${Math.round(distance)}, Расход: ${finalCost}, Есть: ${fuel}`);
+            return false; // <--- ВАЖНО: Возвращаем false, чтобы токен не сдвинулся
         }
     }
 
-    // 5. РАСЧЕТ ВРЕМЕНИ
-    // Время = Дистанция / Скорость
-    // Если скорость 0 (машина сломана), ставим минимум, чтобы не делить на ноль
-    const safeSpeed = Math.max(0.1, speed);
-    const timeHours = distance / safeSpeed;
-    const timeSeconds = Math.floor(timeHours * 3600);
-
-    // 6. ПРИМЕНЕНИЕ
-    // Списываем топливо (Это работает, т.к. игрок владеет машиной)
+    // 5. Списание
     if (isVehicle && finalCost > 0) {
         const newFuel = Math.max(0, fuel - finalCost);
+        // await внутри preUpdate допустим для данных актора, но не токена
         await actor.update({ "system.resources.fuel.value": newFuel });
     }
 
-    // ВРЕМЯ МИРА: Убираем прямой вызов game.time.advance(timeSeconds)
-    // Вместо этого передаем timeSeconds во флаг сообщения
-
-    // 7. ВИЗУАЛИЗАЦИЯ
-    const hours = Math.floor(timeHours);
-    const minutes = Math.round((timeHours - hours) * 60);
-    const timeString = `${hours}ч ${minutes > 0 ? minutes + "м" : ""}`;
-
-    const icon = isVehicle ? "🚗" : "🚶";
-    const fuelRow = isVehicle ? `<div><b>Топливо:</b> -${finalCost} (Ост: ${Math.round(fuel - finalCost)})</div>` : "";
+    // 6. Визуализация в чат
+    const timeHours = distance / Math.max(0.1, speed);
+    const timeStr = `${Math.floor(timeHours)}ч ${Math.round((timeHours % 1)*60)}м`;
+    
+    const fuelMsg = isVehicle ? `<div>⛽ Топливо: -${finalCost} (Ост: ${Math.round(fuel - finalCost)})</div>` : "";
 
     ChatMessage.create({
         content: `
-            <div class="z-chat-card">
-                <div class="z-card-header">${icon} Путешествие</div>
-                <div><b>Дистанция:</b> ${Math.round(distance * 10) / 10} миль</div>
-                <div><b>Скорость:</b> ${safeSpeed} м/ч</div>
-                ${fuelRow}
-                <div style="border-top:1px dashed #555; margin-top:5px; padding-top:2px;">
-                    <b>Прошло времени:</b> ${timeString}
-                </div>
+            <div class="z-chat-card" style="border-color: #fbc02d;">
+                <div class="z-card-header" style="color: #fbc02d;">🗺️ Путешествие</div>
+                <div><b>Дистанция:</b> ${Math.round(distance)} км</div>
+                ${fuelMsg}
+                <div style="font-size:0.8em; margin-top:5px; border-top:1px dashed #555;">В пути: ${timeStr}</div>
             </div>
         `,
-        speaker: ChatMessage.getSpeaker({ actor: actor }),
-        // ВАЖНО: Передаем запрос на изменение времени ГМу
-        flags: {
-            zsystem: {
-                advanceTime: timeSeconds 
-            }
-        }
+        speaker: ChatMessage.getSpeaker({ actor: actor })
     });
 
-    // 8. СЛУЧАЙНАЯ ВСТРЕЧА
-    const encounterChance = Math.min(50, Math.floor(distance / 10) * 10); 
-    await this._checkEncounter(encounterChance);
-
-    return true;
-  }
-
-  static async _checkEncounter(chance) {
-      if (chance <= 0) return;
-      
-      const roll = new Roll("1d100");
-      await roll.evaluate();
-
-      if (roll.total <= chance) {
-          // Встреча!
-          // Звук тревоги (слышат все, это создает напряжение)
-          AudioHelper.play({src: "icons/svg/sound.svg", volume: 0.8, autoplay: true}, false);
-          
-          ChatMessage.create({
-              content: `
-                <div class="z-chat-card" style="border-color:red;">
-                    <div class="z-card-header" style="color:red;">⚠️ СЛУЧАЙНАЯ ВСТРЕЧА!</div>
-                    <div>Шанс: ${chance}% (Roll: ${roll.total})</div>
-                    <div style="margin-top:5px; font-style:italic;">Группа замечает что-то впереди...</div>
-                    <button class="roll-encounter-table">Генерировать событие</button>
-                </div>
-              `,
-              whisper: ChatMessage.getWhisperRecipients("GM"),
-              blind: true // <--- ДОБАВИТЬ ЭТУ СТРОКУ
-          });
-      }
+    return true; // Разрешаем движение
   }
 }

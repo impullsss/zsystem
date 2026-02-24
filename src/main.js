@@ -9,7 +9,7 @@ import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 import { ZVehicleSheet } from "./module/vehicle-sheet.js";
-import { TravelManager } from "./module/travel.js";
+import { TravelManager } from "./module/travel.js"; 
 import { PerkLogic } from "./module/perk-logic.js"; 
 
 // Глобальный перехватчик: только ГМ исполняет команды
@@ -59,6 +59,16 @@ Hooks.on("createChatMessage", async (message, options, userId) => {
   if (flags.advanceTime > 0) {
       await game.time.advance(flags.advanceTime);
       // Опционально: можно не писать уведомление, так как чат-карта уже есть
+  }
+
+  // УДАЛЕНИЕ ПРЕДМЕТА (При перемещении без прав владельца)
+  if (flags.deleteItemUuid) {
+      const itemToDelete = await fromUuid(flags.deleteItemUuid);
+      if (itemToDelete) {
+          await itemToDelete.delete();
+          // Удаляем техническое сообщение
+          setTimeout(() => message.delete(), 500); 
+      }
   }
 
   // 1. ШУМ И АГРО
@@ -290,6 +300,33 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  // Настройки Прицеливания (Aiming)
+  game.settings.register("zsystem", "aimCost", {
+    name: "Цена прицеливания (AP)",
+    hint: "Сколько AP стоит один шаг прицеливания.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 1
+  });
+
+  game.settings.register("zsystem", "aimBonus", {
+    name: "Бонус прицеливания (%)",
+    hint: "Сколько % точности дает один шаг.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 10
+  });
+
+  game.settings.register("zsystem", "aimMax", {
+    name: "Максимум прицеливания (Шаги)",
+    hint: "Сколько раз можно вложить AP в один выстрел.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 3
   });
 
   CONFIG.Actor.documentClass = ZActor;
@@ -538,24 +575,35 @@ Hooks.on("canvasReady", () => {
     }
 });
 
-Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
+Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
     // 1. Проверка движения
     if (changes.x === undefined && changes.y === undefined) return true;
     
-    // 2. Инициатор
+    // 2. Инициатор (только свой токен)
     if (game.user.id !== userId) return true;
-
-    // 3. Проверка боя
-    const inCombat = tokenDoc.inCombat || (game.combat?.active && game.combat.combatants.some(c => c.tokenId === tokenDoc.id));
-    if (!inCombat) return true;
-
-    // 4. ГМ (УБРАНО для тестов, чтобы у тебя тоже списывалось)
-    // if (game.user.isGM) return true; 
 
     const actor = tokenDoc.actor;
     if (!actor) return true;
 
-    // 5. Расчет клеток
+    // --- ЛОГИКА ГЛОБАЛЬНОЙ КАРТЫ (ТРАНСПОРТ) ---
+    const scene = tokenDoc.parent;
+    const isGlobalMap = scene.getFlag("zsystem", "isGlobalMap");
+
+    if (isGlobalMap) {
+        // Если это глобальная карта — передаем управление TravelManager
+        // Он сам спишет топливо и вернет true/false (разрешить ли движение)
+        return await TravelManager.handleMovement(tokenDoc, changes);
+    }
+
+    // --- ЛОГИКА ТАКТИЧЕСКОГО БОЯ (AP) ---
+    
+    // 3. Проверка боя (AP расходуются только в бою)
+    const inCombat = tokenDoc.inCombat || (game.combat?.active && game.combat.combatants.some(c => c.tokenId === tokenDoc.id));
+    
+    // Если мы НЕ на глобальной карте и НЕ в бою — движение свободное
+    if (!inCombat) return true;
+
+    // 4. Расчет клеток для AP
     const gridSize = canvas.dimensions.size; 
     const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x);
     const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y);
@@ -563,8 +611,7 @@ Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
 
     if (squaresMoved <= 0) return true;
 
-    // 6. РАСЧЕТ СТОИМОСТИ (Синхронно)
-    // ВАЖНО: берем turnSteps без await через getFlag
+    // 5. РАСЧЕТ СТОИМОСТИ AP
     let stepsCounter = actor.getFlag("zsystem", "turnSteps") || 0;
     let totalAPCost = 0;
 
@@ -576,30 +623,28 @@ Hooks.on("preUpdateToken", (tokenDoc, changes, context, userId) => {
         if (actor.hasStatusEffect("overburdened")) singleStepCost = 2;
         if (actor.hasStatusEffect("stealth")) singleStepCost = 2;
 
-        // Вызов PerkLogic (должен быть тоже синхронным!)
         try {
-            singleStepCost = PerkLogic.onGetStepCost(actor, singleStepCost, stepsCounter);
+            if (typeof PerkLogic !== "undefined") {
+                singleStepCost = PerkLogic.onGetStepCost(actor, singleStepCost, stepsCounter);
+            }
         } catch (e) { console.error("PerkLogic Error:", e); }
 
         totalAPCost += singleStepCost;
     }
 
-    const currentAP = Number(actor.system.resources.ap.value) || 0;
+    const currentAP = Number(actor.system.resources.ap?.value) || 0;
 
-    // 7. Проверка лимита
+    // 6. Проверка лимита AP
     if (currentAP < totalAPCost) {
         ui.notifications.warn(`Недостаточно AP! Нужно: ${totalAPCost}, есть: ${currentAP}`);
-        return false; // Блокируем ход СИНХРОННО
+        return false; // Блокируем ход
     }
 
-    // 8. ПРИМЕНЕНИЕ
-    // Обновляем актора и записываем флаг за один раз
-    actor.update({ 
+    // 7. Списание AP
+    await actor.update({ 
         "system.resources.ap.value": currentAP - totalAPCost,
         "flags.zsystem.turnSteps": stepsCounter
     });
-
-    console.log(`ZSystem | Шаг: ${squaresMoved} кл. Цена: ${totalAPCost} AP. Всего шагов: ${stepsCounter}`);
 
     return true;
 });
