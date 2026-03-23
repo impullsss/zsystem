@@ -151,19 +151,27 @@ export class ZActor extends Actor {
     await super._onUpdate(data, options, userId);
     if (userId !== game.user.id) return;
 
-    // Проверка перегруза при изменении предметов или статов
-    // Мы проверяем вычисляемое свойство, которое настроили в prepareDerivedData
     const isOverburdened = this.system.secondary?.isOverburdened;
     const hasEffect = this.hasStatusEffect("overburdened");
 
     if (isOverburdened && !hasEffect) {
-      // Накладываем эффект без изменений статов (чисто иконка), т.к. статы режем в prepareData
       const effectData = GLOBAL_STATUSES.overburdened;
       await this.createEmbeddedDocuments("ActiveEffect", [effectData]);
       ui.notifications.warn(`${this.name}: Перегруз! (-2 AP)`);
     } else if (!isOverburdened && hasEffect) {
       const effect = this.effects.find((e) => e.statuses.has("overburdened"));
       if (effect) await effect.delete();
+    }
+
+    // НОВОЕ: Проверка ручного ввода отрицательного ХП конечностей
+    if (data.system && data.system.limbs) {
+        for (const [limbKey, limbData] of Object.entries(data.system.limbs)) {
+            // Если игрок/ГМ руками вписал значение <= 0
+            if (limbData.value !== undefined && limbData.value <= 0) {
+                // Метод _applyInjury сам проверит, нет ли уже такого эффекта, так что спама не будет
+                this._applyInjury(limbKey);
+            }
+        }
     }
   }
 
@@ -528,7 +536,7 @@ export class ZActor extends Actor {
   prepareDerivedData() {
     const system = this.system;
     // Защита: если данных нет или это не боевой тип, выходим. 
-    if (!system || ["shelter", "container", "vehicle"].includes(this.type)) return;
+    if (!system ||["shelter", "container", "vehicle"].includes(this.type)) return;
 
     // ГАРАНТИРУЕМ наличие всех объектов
     system.attributes = system.attributes || {};
@@ -543,13 +551,13 @@ export class ZActor extends Actor {
     };
 
     // --- 1. АТРИБУТЫ (ОСНОВНЫЕ) ---
-    const attrKeys = ["str", "agi", "vig", "per", "int", "cha"];
+    const attrKeys =["str", "agi", "vig", "per", "int", "cha"];
     let spentStats = 0;
     attrKeys.forEach((key) => {
       if (!system.attributes[key]) system.attributes[key] = { base: 1, value: 1, mod: 0 };
       const attr = system.attributes[key];
       attr.base = Math.max(1, Math.min(10, getNum(attr.base)));
-      // Итоговое значение атрибута = База + Модификатор (от перков/эффектов)
+      // Итоговое значение атрибута = База + Модификатор
       attr.value = Math.max(1, attr.base + getNum(attr.mod));
       spentStats += (attr.base - 1);
     });
@@ -557,8 +565,40 @@ export class ZActor extends Actor {
 
     const s = system.attributes;
 
+    // ====================================================================
+    // --- 1.5. ДИНАМИЧЕСКИЕ ШТРАФЫ (ТРАВМЫ, СЛЕПОТА И УТОМЛЕНИЕ) ---
+    // (Делаем это ДО расчета уклонения и навыков, чтобы они унаследовали штраф)
+    // ====================================================================
+    
+    // Читаем стаки утомления
+    let fatigueStacks = this.getFlag("zsystem", "fatigueStacks") || 0;
+    if (this.hasStatusEffect("fatigued")) {
+        fatigueStacks = Math.max(1, fatigueStacks); // Гарантируем минимум 1, если висит иконка
+    } else {
+        fatigueStacks = 0; // Сбрасываем, если статус сняли
+    }
+    // Сохраняем в system для удобного доступа UI
+    system.secondary.fatigueStacks = fatigueStacks;
+
+    // Травмы Торса (Режут Ловкость и Живучесть на 1/3)
+    if (this.effects.some(e => e.statuses.has("injury-torso"))) {
+        s.agi.value = Math.max(1, Math.floor(s.agi.value * (2/3)));
+        s.vig.value = Math.max(1, Math.floor(s.vig.value * (2/3)));
+    }
+
+    // Травмы Головы (Режут Интеллект и Восприятие наполовину)
+    if (this.effects.some(e => e.statuses.has("injury-head"))) {
+        s.int.value = Math.max(1, Math.floor(s.int.value * 0.5));
+        s.per.value = Math.max(1, Math.floor(s.per.value * 0.5));
+    }
+
+    // Слепота (Режет Восприятие наполовину) - может стакаться с травмой головы
+    if (this.hasStatusEffect("blind")) {
+        s.per.value = Math.max(1, Math.floor(s.per.value * 0.5));
+    }
+
+
     // --- 2. ИНИЦИАЛИЗАЦИЯ ВТОРИЧНЫХ ХАРАКТЕРИСТИК ---
-    // Важно: инициализируем .mod, чтобы перки могли в него писать
     const secondaryKeys = ["evasion", "bravery", "tenacity", "naturalAC", "meleeDamage"];
     secondaryKeys.forEach(key => {
         if (!system.secondary[key]) system.secondary[key] = { value: 0, mod: 0 };
@@ -568,21 +608,27 @@ export class ZActor extends Actor {
     if (!system.secondary.carryWeight) system.secondary.carryWeight = { value: 0, max: 0, mod: 0 };
 
     // --- 3. РАСЧЕТЫ БАЗОВЫХ ЗНАЧЕНИЙ (МАТЕМАТИКА) ---
-    
-    // Уклонение: Ловкость * 2
     const baseEvasion = (s.agi.value * 2);
-    // Храбрость: Восприятие + Харизма
     const baseBravery = (s.per.value + s.cha.value);
-    // Стойкость: Живучесть + Сила
     const baseTenacity = (s.vig.value + s.str.value);
-    // Природная броня: 1 за каждые 2 Живучести
     const baseNaturalAC = Math.floor(s.vig.value / 2);
-    // Переносимый вес: Сила * 5 + 20 кг
     const baseCarryMax = (s.str.value * 5) + 20;
 
-    // ПРИМЕНЯЕМ: Итоговое значение = Математика + Модификатор от перков
     system.secondary.evasion.value = baseEvasion + getNum(system.secondary.evasion.mod);
-    if (this.type === "zombie") {system.secondary.evasion.value = 0;};
+    
+    // --- ПРИМЕНЕНИЕ ШТРАФОВ НА УКЛОНЕНИЕ ---
+    if (this.hasStatusEffect("prone") || this.hasStatusEffect("overburdened")) {
+        system.secondary.evasion.value = Math.floor(system.secondary.evasion.value / 2);
+    }
+    if (this.effects.some(e => e.statuses.has("injury-leg"))) {
+        system.secondary.evasion.value -= 10;
+    }
+    
+    // ЗОМБИ: Фиксированное отрицательное уклонение
+    if (this.type === "zombie") {
+        system.secondary.evasion.value = -20;
+    }
+
     system.secondary.bravery.value = baseBravery + getNum(system.secondary.bravery.mod);
     system.secondary.tenacity.value = baseTenacity + getNum(system.secondary.tenacity.mod);
     system.secondary.naturalAC.value = baseNaturalAC + getNum(system.secondary.naturalAC.mod);
@@ -595,22 +641,15 @@ export class ZActor extends Actor {
     });
     system.secondary.carryWeight.value = Math.round(totalWeight * 10) / 10;
     
-    // Флаг перегруза
     system.secondary.isOverburdened = system.secondary.carryWeight.value > system.secondary.carryWeight.max;
 
     // --- 4. НАВЫКИ ---
     let spentSkills = 0;
     const skillConfig = {
-      melee: ["str", "agi"],
-      ranged: ["agi", "per"],
-      science: "int4",
-      mechanical: ["int", "max_str_agi"],
-      medical: ["int", "per"],
-      diplomacy: ["cha", "per"],
-      leadership: ["cha", "int"],
-      survival: ["per", "max_vig_int"],
-      athletics: ["str", "agi"],
-      stealth: ["agi", "per"],
+      melee: ["str", "agi"], ranged: ["agi", "per"], science: "int4",
+      mechanical: ["int", "max_str_agi"], medical: ["int", "per"],
+      diplomacy: ["cha", "per"], leadership: ["cha", "int"],
+      survival:["per", "max_vig_int"], athletics: ["str", "agi"], stealth: ["agi", "per"],
     };
 
     for (const key of Object.keys(skillConfig)) {
@@ -628,7 +667,17 @@ export class ZActor extends Actor {
       const invested = getNum(skill.points);
       const modifier = getNum(skill.mod);
       spentSkills += invested;
-      skill.value = Math.max(0, Math.min(100, skill.base + invested + modifier));
+      
+      // Утомление режет 5% со всех навыков за стак
+      let fatiguePenalty = fatigueStacks * 5;
+      
+      // Травма головы режет 15 с умных навыков
+      let headPenalty = 0;
+      if (this.effects.some(e => e.statuses.has("injury-head")) &&["science", "mechanical", "medical"].includes(key)) {
+          headPenalty = 15;
+      }
+
+      skill.value = Math.max(0, Math.min(100, skill.base + invested + modifier - fatiguePenalty - headPenalty));
     }
     system.secondary.spentSkills = { value: spentSkills };
 
@@ -636,12 +685,17 @@ export class ZActor extends Actor {
     if (!system.resources.hp) system.resources.hp = { value: 10, max: 10, penalty: 0 };
     if (!system.resources.ap) system.resources.ap = { value: 7, max: 7, bonus: 0, effect: 0 };
 
+    // Макс ХП: База - Штрафы (Травмы) - Утомление
     const baseMaxHP = 70 + (s.vig.value - 1) * 10;
-    system.resources.hp.max = Math.max(10, baseMaxHP - getNum(system.resources.hp.penalty));
+    const fatigueHPPenalty = fatigueStacks * 10;
+    system.resources.hp.max = Math.max(1, baseMaxHP - getNum(system.resources.hp.penalty) - fatigueHPPenalty);
 
+    // Макс AP: База + Бонусы - Утомление
     const baseAP = 7 + Math.ceil((s.agi.value - 1) / 2);
     const encumbrancePenalty = system.secondary.isOverburdened ? 2 : 0;
-    system.resources.ap.max = Math.max(0, baseAP + getNum(system.resources.ap.bonus) + getNum(system.resources.ap.effect) - encumbrancePenalty);
+    const fatigueAPPenalty = fatigueStacks * 1;
+    
+    system.resources.ap.max = Math.max(0, baseAP + getNum(system.resources.ap.bonus) + getNum(system.resources.ap.effect) - encumbrancePenalty - fatigueAPPenalty);
 
     // --- 6. КОНЕЧНОСТИ ---
     const totalHP = system.resources.hp.max;
@@ -799,7 +853,7 @@ export class ZActor extends Actor {
 
       if (this.system.limbs && this.system.limbs[limb]) {
         const currentLimbVal = this.system.limbs[limb].value;
-        const newLimbHP = Math.max(0, currentLimbVal - dmg);
+        const newLimbHP = currentLimbVal - dmg; // Теперь уходит в глубокий минус
 
         undoData.updates[`system.limbs.${limb}.value`] = currentLimbVal;
         updateData[`system.limbs.${limb}.value`] = newLimbHP;
@@ -1162,27 +1216,27 @@ export class ZActor extends Actor {
     else if (limb.includes("Leg")) effectData = INJURY_EFFECTS.leg;
 
     if (effectData) {
-      const exists = this.effects.some((e) => e.statuses.has(effectData.id));
+      // Ищем, есть ли уже ТОЧНО ТАКАЯ ЖЕ травма на этой же конечности
       let finalId = effectData.id;
       if (limb.includes("Arm") || limb.includes("Leg")) {
         finalId = `${effectData.id}-${limb}`;
       }
-      const realExists = this.effects.some(
-        (e) => e.id === finalId || (e.statuses && e.statuses.has(finalId))
-      );
+      const realExists = this.effects.some((e) => e.id === finalId || (e.statuses && e.statuses.has(finalId)));
 
       if (!realExists) {
         const eff = foundry.utils.deepClone(effectData);
         eff.id = finalId;
         eff.name += ` (${limb})`;
-        eff.statuses = [finalId];
-        const created = await this.createEmbeddedDocuments("ActiveEffect", [
-          eff,
-        ]);
+        
+        // ВАЖНОЕ ИСПРАВЛЕНИЕ: Присваиваем И базовый класс (injury-leg) И специфичный (injury-leg-lLeg)
+        // Чтобы prepareDerivedData смог найти его по базовому имени!
+        eff.statuses = [effectData.id, finalId];
+        
+        const created = await this.createEmbeddedDocuments("ActiveEffect", [eff]);
         return created.map((c) => c.id);
       }
     }
-    return [];
+    return[];
   }
 
   async _consumeItem(item) {
@@ -1320,6 +1374,31 @@ export class ZActor extends Actor {
       await tokens[0].document.delete();
     }
     ui.notifications.notify(`${this.name} восстает из мертвых!`);
+  }
+  // --- УПРАВЛЕНИЕ УТОМЛЕНИЕМ ---
+  async addFatigue(amount = 1) {
+    if (this.type === "zombie" || this.type === "container") return;
+
+    let currentStacks = this.getFlag("zsystem", "fatigueStacks") || 0;
+    let newStacks = Math.min(5, currentStacks + amount);
+
+    if (newStacks >= 5 && currentStacks < 5) {
+        ui.notifications.error(`${this.name} теряет сознание от жестокого истощения!`);
+        await this.applyDamage(999, "true", "torso"); // Техническая смерть/кома
+        return;
+    }
+
+    await this.setFlag("zsystem", "fatigueStacks", newStacks);
+
+    // Вешаем иконку, если её нет
+    if (!this.hasStatusEffect("fatigued")) {
+        await this.createEmbeddedDocuments("ActiveEffect", [GLOBAL_STATUSES.fatigued]);
+    }
+    
+    ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: this }),
+        content: `<div style="color:orange;"><i class="fas fa-battery-empty"></i> Утомление: уровень ${newStacks}/5</div>`
+    });
   }
 
   async fullHeal() {

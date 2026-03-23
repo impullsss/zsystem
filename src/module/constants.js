@@ -5,20 +5,17 @@ export const INJURY_EFFECTS = {
     img: "icons/svg/daze.svg",
     statuses: ["injury-head"],
     isPhysical: true,
-    changes: [
-      { key: "system.attributes.per.value", mode: 2, value: -2 },
-      { key: "system.attributes.int.value", mode: 2, value: -2 },
-    ],
-    description: "Контузия. Снижено Восприятие и Интеллект.",
+    changes:[], // Математика перенесена в actor.js
+    description: "Снижает ИНТ и ВОС наполовину. -15 к Науке, Механике и Медицине. Риск потери AP каждый ход.",
   },
   torso: {
     id: "injury-torso",
     name: "Травма Торса (Сбито дыхание)",
     img: "icons/svg/blood.svg",
-    statuses: ["injury-torso"],
+    statuses:["injury-torso"],
     isPhysical: true,
-    changes: [{ key: "system.resources.ap.effect", mode: 2, value: -2 }],
-    description: "Сбито дыхание. Штраф -2 ОД.",
+    changes:[], // Математика перенесена в actor.js
+    description: "Снижает ЛОВ и ЖИВ на 1/3. Движение наносит 2d4 урона.",
   },
   arm: {
     id: "injury-arm",
@@ -26,11 +23,8 @@ export const INJURY_EFFECTS = {
     img: "icons/svg/paralysis.svg",
     statuses: ["injury-arm"],
     isPhysical: true,
-    changes: [
-      { key: "system.attributes.str.value", mode: 2, value: -1 },
-      { key: "system.attributes.agi.value", mode: 2, value: -1 },
-    ],
-    description: "Больно держать оружие. Штраф Силы и Ловкости.",
+    changes:[], // Математика перенесена в actor.js и dice.js
+    description: "Штраф -10% к точности. Атаки и взлом стоят на 1 AP дороже.",
   },
   leg: {
     id: "injury-leg",
@@ -38,11 +32,8 @@ export const INJURY_EFFECTS = {
     img: "icons/svg/falling.svg",
     statuses: ["injury-leg"],
     isPhysical: true,
-    changes: [
-      { key: "system.secondary.evasion.value", mode: 2, value: -10 },
-      { key: "system.resources.ap.effect", mode: 2, value: -1 },
-    ],
-    description: "Хромота. Штраф скорости и уклонения.",
+    changes:[], // Математика перенесена в actor.js и main.js
+    description: "Штраф -10 к Уклонению. Каждый шаг стоит на 1 AP больше.",
   },
   unconscious: {
     id: "status-unconscious",
@@ -50,7 +41,7 @@ export const INJURY_EFFECTS = {
     img: "icons/svg/unconscious.svg",
     statuses: ["status-unconscious"],
     isPhysical: true,
-    changes: [{ key: "system.resources.ap.value", mode: 5, value: 0 }],
+    changes: [{ key: "system.resources.ap.max", mode: 5, value: 0 }],
     description: "Персонаж выведен из строя. ХП = 0.",
   },
 };
@@ -63,7 +54,7 @@ export const GLOBAL_STATUSES = {
     icon: "icons/svg/blood.svg",
     statuses: ["bleeding"],
     isPhysical: true,
-    description: "Теряет 1-5 HP каждый ход.",
+    description: "Теряет 4d4 HP каждый ход (Игнорирует броню).",
   },
   prone: {
     id: "prone",
@@ -72,11 +63,8 @@ export const GLOBAL_STATUSES = {
     icon: "icons/svg/falling.svg",
     statuses: ["prone"],
     isPhysical: true,
-    changes: [
-      { key: "system.attributes.agi.value", mode: 5, value: 1 },
-      { key: "system.secondary.evasion.value", mode: 5, value: 0 },
-    ],
-    description: "Уязвим. Встать стоит 50% AP.",
+    changes:[], // Уклонение режется в actor.js
+    description: "Уклонение снижено на 50%. Встать стоит 3 AP. Перемещение стоит дороже.",
   },
   dizzy: {
     id: "dizzy",
@@ -94,11 +82,8 @@ export const GLOBAL_STATUSES = {
     icon: "icons/svg/blind.svg",
     statuses: ["blind"],
     isPhysical: true,
-    changes: [
-      { key: "system.attributes.agi.value", mode: 5, value: 1 },
-      { key: "system.attributes.per.value", mode: 5, value: 1 },
-    ],
-    description: "AGI и PER снижены до 1.",
+    changes:[], // ВОС режется в actor.js
+    description: "Восприятие снижено на 50%. Точность -50%. Прицеливание невозможно.",
   },
   immolated: {
     id: "immolated",
@@ -106,7 +91,7 @@ export const GLOBAL_STATUSES = {
     name: "Горение",
     icon: "icons/svg/fire.svg",
     statuses: ["immolated"],
-    description: "Наносит урон по всему телу каждый ход.",
+    description: "Наносит 1d6 урона по КАЖДОЙ конечности каждый ход.",
   },
   poisoned: {
     id: "poisoned",
@@ -123,7 +108,7 @@ export const GLOBAL_STATUSES = {
     name: "Паника",
     icon: "icons/svg/terror.svg",
     statuses: ["panic"],
-    description: "Потеря контроля. См. таблицу Паники.",
+    description: "Потеря контроля. (Используйте статусы Тревога/Страх/Срыв).",
   },
   infected: {
     id: "infected",
@@ -141,7 +126,7 @@ export const GLOBAL_STATUSES = {
     icon: "icons/svg/degen.svg",
     statuses: ["wounded"],
     isPhysical: true,
-    changes: [{ key: "system.resources.ap.max", mode: 2, value: -2 }],
+    changes:[{ key: "system.resources.ap.max", mode: 2, value: -2 }],
     description: "После тяжелого ранения. -2 Макс АП. Лечится только отдыхом.",
   },
   fatigued: {
@@ -150,8 +135,8 @@ export const GLOBAL_STATUSES = {
     name: "Утомление",
     icon: "icons/svg/downgrade.svg",
     statuses: ["fatigued"],
-    changes: [{ key: "system.secondary.evasion.value", mode: 1, value: 0.75 }],
-    description: "Усталость или голод. -25% Точности и Уклонения.",
+    changes:[], // Математика в actor.js
+    description: "Стакается до 5 раз. За стак: -10 Макс ХП, -1 Макс AP, -5% ко всем навыкам.",
   },
   overburdened: {
     id: "overburdened",
@@ -159,23 +144,23 @@ export const GLOBAL_STATUSES = {
     name: "Перегруз",
     icon: "icons/svg/downgrade.svg",
     statuses: ["overburdened"],
-    description: "Вес превышен. -2 Макс AP, движение стоит дороже."
+    description: "Вес превышен. Уклонение -50%, движение стоит +1 AP."
   },
   stealth: {
     id: "stealth",
     label: "Скрытность",
     name: "Скрытность",
-    icon: "icons/svg/mystery-man.svg", // Ниндзя
+    icon: "icons/svg/mystery-man.svg",
     statuses: ["stealth"],
-    description: "Тихое передвижение. Шум -50%. Крит +5%."
+    description: "Снижает радиус обзора врагов. Движение стоит +1 AP. Атака из стелса наносит х2 урон."
   },
   alerted: {
     id: "alerted",
     label: "Тревога",
     name: "Тревога",
     icon: "icons/svg/hazard.svg",
-    statuses: ["alerted"],
-    description: "Зомби услышал шум и перешел в активный режим."
+    statuses:["alerted"],
+    description: "Зомби перешел в активный режим (Вас заметили)."
   },
   invisible: {
     id: "invisible",

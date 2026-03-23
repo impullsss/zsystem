@@ -6,7 +6,7 @@ import { ZItem } from "./module/item.js";
 import { ZItemSheet } from "./module/item-sheet.js";
 import { NoiseManager } from "./module/noise.js";
 import { ZChat } from "./module/chat.js";
-import { GLOBAL_STATUSES } from "./module/constants.js";
+import { GLOBAL_STATUSES, INJURY_EFFECTS } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 import { ZVehicleSheet } from "./module/vehicle-sheet.js";
 import { TravelManager } from "./module/travel.js"; 
@@ -336,12 +336,15 @@ Hooks.once("init", () => {
     decimals: 2,
   };
 
-  CONFIG.statusEffects = Object.values(GLOBAL_STATUSES).map((s) => ({
+ const allStatuses =[...Object.values(GLOBAL_STATUSES), ...Object.values(INJURY_EFFECTS)];
+  
+  CONFIG.statusEffects = allStatuses.map((s) => ({
     id: s.id,
-    label: s.label,
-    icon: s.icon,
+    label: s.label || s.name, // У травм используется 'name', у статусов 'label'
+    icon: s.icon || s.img,    // У травм 'img', у статусов 'icon'
     statuses: [s.id],
   }));
+
   CONFIG.statusEffects.push({
     id: "dead",
     label: "Мертв",

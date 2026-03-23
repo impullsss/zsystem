@@ -372,8 +372,18 @@ export async function performAttack(actor, itemId) {
             <div class="form-group"><label>Режим</label><select id="atk-rollMode"><option value="roll">Публичный</option><option value="gmroll">ГМ</option></select></div>
         </div>
         
-        <div class="form-group"><label>Цель (Локация):</label><select id="aim-location"><option value="torso">Торс</option><option value="head">Голова (-40)</option><option value="lLeg">Ноги (-20)</option></select></div>
-        
+        <div class="form-group">
+    <label>Цель (Локация):</label>
+    <select id="aim-location">
+        <option value="torso">Торс (0)</option>
+        <option value="head">Голова (-40)</option>
+        <option value="lArm">Левая Рука (-20)</option>
+        <option value="rArm">Правая Рука (-20)</option>
+        <option value="lLeg">Левая Нога (-20)</option>
+        <option value="rLeg">Правая Нога (-20)</option>
+    </select>
+</div>
+
         <!-- НОВОЕ: Блок Прицеливания -->
         <div class="aim-section" style="background:rgba(0,0,0,0.1); padding:5px; border:1px solid #777; border-radius:4px; margin:5px 0;">
             <label style="font-weight:bold; display:block; border-bottom:1px dotted #555; margin-bottom:5px;">
@@ -502,7 +512,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : (isThrowingAction ? 'athletics' : 'melee');
     const skillVal = actor.system.skills[skillType]?.value || 0;
     const atkMod = Number(attack.mod) || 0;
-    const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
+    const aimMod = (location === "head") ? -20 : (location !== "torso" ? -10 : 0);
     
     let coverPenalty = 0, rangePenalty = 0, interventionPenalty = 0, evasionMod = 0, targetName = "Нет цели";
 
