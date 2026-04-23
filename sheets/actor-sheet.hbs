@@ -25,13 +25,19 @@
                   <div class="bar-fill hp" style="width: {{calculatePercentage system.resources.hp.value system.resources.hp.max}}%;"></div>
                   <div class="bar-inputs">
                       <!-- Ограничение max -->
-                      <input type="number" name="system.resources.hp.value" value="{{system.resources.hp.value}}" 
+                      <input type="number" name="system.resources.hp.value" value="{{system.resources.hp.value}}"
                              min="0" max="{{system.resources.hp.max}}" title="Текущее"/>
                       <span style="color:#fff; font-weight:bold;">/</span>
                       <input type="number" value="{{system.resources.hp.max}}" disabled title="Максимум"/>
                   </div>
               </div>
           </div>
+          {{#if system.resources.hp.penalty}}
+          <div class="hp-penalty-hint">
+              <span>Макс: {{system.resources.hp.baseMax}}</span>
+              <span class="hp-penalty-value">−{{system.resources.hp.penalty}} штраф</span>
+          </div>
+          {{/if}}
 
           <!-- AP Bar -->
           <div class="stat-bar" style="margin-bottom: 2px;"> <!-- margin для бонуса -->
@@ -251,6 +257,13 @@
                     <div class="limb-input" style="top:110px; left:140px;"><input type="number" name="system.limbs.rArm.value" value="{{system.limbs.rArm.value}}"></div>
                     <div class="limb-input" style="top:230px; left:70px;"><input type="number" name="system.limbs.lLeg.value" value="{{system.limbs.lLeg.value}}"></div>
                     <div class="limb-input" style="top:230px; left:100px;"><input type="number" name="system.limbs.rLeg.value" value="{{system.limbs.rLeg.value}}"></div>
+                    <!-- Штрафы конечностей -->
+                    {{#if system.limbs.head.penalty}}<div class="limb-penalty" style="top:52px; left:79px;" title="Штраф к макс. HP">-{{system.limbs.head.penalty}}</div>{{/if}}
+                    {{#if system.limbs.torso.penalty}}<div class="limb-penalty" style="top:132px; left:79px;" title="Штраф к макс. HP">-{{system.limbs.torso.penalty}}</div>{{/if}}
+                    {{#if system.limbs.lArm.penalty}}<div class="limb-penalty" style="top:132px; left:30px;" title="Штраф к макс. HP">-{{system.limbs.lArm.penalty}}</div>{{/if}}
+                    {{#if system.limbs.rArm.penalty}}<div class="limb-penalty" style="top:132px; left:140px;" title="Штраф к макс. HP">-{{system.limbs.rArm.penalty}}</div>{{/if}}
+                    {{#if system.limbs.lLeg.penalty}}<div class="limb-penalty" style="top:252px; left:64px;" title="Штраф к макс. HP">-{{system.limbs.lLeg.penalty}}</div>{{/if}}
+                    {{#if system.limbs.rLeg.penalty}}<div class="limb-penalty" style="top:252px; left:100px;" title="Штраф к макс. HP">-{{system.limbs.rLeg.penalty}}</div>{{/if}}
                 </div>
 
                 <!-- ВТОРИЧНЫЕ ХАРАКТЕРИСТИКИ (Moved here) -->
@@ -372,6 +385,13 @@
                             {{item.name}}
                             {{#if item.system.equipped}}
                                 <span style="font-size:0.7em; color:#2e7d32; border:1px solid #2e7d32; padding:0 2px; border-radius:3px; margin-left:5px;">E</span>
+                                {{#unless (eq item.system.hands "2h")}}
+                                    <span class="item-hand-badge" data-item-id="{{item.id}}"
+                                          style="font-size:0.7em; color:#1565c0; border:1px solid #1565c0; padding:0 3px; border-radius:3px; margin-left:3px; cursor:pointer;"
+                                          title="Смена руки (-1 AP)">
+                                        {{#if (eq item.flags.zsystem.weaponHand "lArm")}}Л{{else}}П{{/if}}
+                                    </span>
+                                {{/unless}}
                             {{/if}}
                         </span>
                         

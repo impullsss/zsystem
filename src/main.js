@@ -9,235 +9,13 @@ import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES, INJURY_EFFECTS } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 import { ZVehicleSheet } from "./module/vehicle-sheet.js";
-import { TravelManager } from "./module/travel.js"; 
-import { PerkLogic } from "./module/perk-logic.js"; 
+import { TravelManager } from "./module/travel.js";
+import { PerkLogic } from "./module/perk-logic.js";
+import { PlayerHUD } from "./module/player-hud.js";
+import { StealthDetectionManager } from "./module/stealth.js";
+import { GMHandler } from "./module/gm-handler.js";
+import { ZSystemActions } from "./module/actions.js";
 
-// Глобальный перехватчик: только ГМ исполняет команды
-Hooks.on("createChatMessage", async (message, options, userId) => {
-  if (!game.user.isGM) return; // Только ГМ обрабатывает логику
-  
-  const flags = message.flags?.zsystem;
-
-  if (flags?.transferItem) {
-    const { sourceUuid, targetActorUuid } = flags.transferItem;
-    
-    // fromUuid работает и с простыми ID, и с полными путями Actor.id или Scene.id.Token.id
-    const item = await fromUuid(sourceUuid);
-    const targetActor = await fromUuid(targetActorUuid);
-
-    if (item && targetActor) {
-        // Если targetActor - это токен, берем его актора
-        const target = targetActor.actor || targetActor;
-        
-        const itemData = item.toObject();
-        await target.createEmbeddedDocuments("Item", [itemData]);
-        await item.delete();
-        
-        console.log(`ZSystem | ГМ переложил ${item.name} в инвентарь ${target.name}`);
-    }
-  }
-
-  if (!flags) return;
-
-  if (flags.type === "heal") {
-      const { healerUuid, targetUuid, itemData, limbKey } = flags;
-      
-      const healer = await fromUuid(healerUuid);
-      const target = await fromUuid(targetUuid);
-      
-      if (healer && target) {
-          // Вызываем метод НА АКТОРЕ, но исполняет его ГМ (потому что этот код работает у ГМа)
-          // Если target - токен, берем .actor
-          const realTarget = target.actor || target;
-          const realHealer = healer.actor || healer;
-          
-          await realTarget.applyMedicineLogic(realHealer, itemData, limbKey);
-      }
-  }
-
-  // --- НОВОЕ: Перемотка Времени (Travel System) ---
-  if (flags.advanceTime > 0) {
-      await game.time.advance(flags.advanceTime);
-      // Опционально: можно не писать уведомление, так как чат-карта уже есть
-  }
-
-  // УДАЛЕНИЕ ПРЕДМЕТА (При перемещении без прав владельца)
-  if (flags.deleteItemUuid) {
-      const itemToDelete = await fromUuid(flags.deleteItemUuid);
-      if (itemToDelete) {
-          await itemToDelete.delete();
-          // Удаляем техническое сообщение
-          setTimeout(() => message.delete(), 500); 
-      }
-  }
-
-  // 1. ШУМ И АГРО
-  if (flags.noiseAdd > 0) {
-    // А) Глобальный шум
-    const current = game.settings.get("zsystem", "currentNoise");
-    await game.settings.set("zsystem", "currentNoise", Math.max(0, current + flags.noiseAdd));
-
-    // Б) Локальное Агро (НОВОЕ)
-    // Пытаемся найти токен источника
-    let sourceToken = null;
-    
-    // 1. Пробуем через speaker.token (если это токен на сцене)
-    if (message.speaker?.token) {
-        sourceToken = canvas.tokens.get(message.speaker.token);
-    } 
-    // 2. Если нет, пробуем через speaker.actor (находим первый активный токен этого актора)
-    else if (message.speaker?.actor) {
-        const actor = game.actors.get(message.speaker.actor);
-        if (actor) {
-            const tokens = actor.getActiveTokens();
-            if (tokens.length > 0) sourceToken = tokens[0];
-        }
-    }
-
-    // Если нашли источник — запускаем проверку
-    if (sourceToken) {
-        await NoiseManager.checkAggro(sourceToken, flags.noiseAdd);
-    }
-  }
-
-  // --- НОВОЕ: РАСПАКОВКА GM INFO ---
-  // ГМ видит сообщение с флагом gmInfo и создает для себя приватную копию
-  if (flags.gmInfo) {
-      // Создаем сообщение локально только для ГМа (себя)
-      // Важно: мы не используем Socket, мы просто создаем сообщение в чате ГМа от имени Системы
-      await ChatMessage.create({
-          user: game.user.id,
-          speaker: { alias: "System" },
-          content: flags.gmInfo,
-          whisper: [game.user.id],
-          type: CONST.CHAT_MESSAGE_TYPES.WHISPER,
-          sound: null // Без звука
-      });
-      
-      // Опционально: очистить флаг из оригинала, чтобы не дублировать при перезагрузке, 
-      // но это не обязательно для чата.
-  }
-  // --------------------------------
-
-  // 2. УРОН И ЭФФЕКТЫ
-  if (flags.damageData && Array.isArray(flags.damageData)) {
-      const undoLog = [];
-      for (let entry of flags.damageData) {
-        const doc = await fromUuid(entry.uuid);
-        const actor = doc?.actor || doc;
-        if (actor) {
-             // 1. Наносим урон
-             const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb);
-             
-             // 2. Накладываем эффекты (НОВОЕ)
-             if (entry.effects && entry.effects.length > 0) {
-                 for (let effectId of entry.effects) {
-                     // Ищем данные эффекта в константах
-                     // Важно: GLOBAL_STATUSES должен быть импортирован в main.js
-                     const statusData = Object.values(GLOBAL_STATUSES).find(s => s.id === effectId || s.statuses.includes(effectId));
-                     
-                     if (statusData && !actor.hasStatusEffect(statusData.id)) {
-                         const created = await actor.createEmbeddedDocuments("ActiveEffect", [statusData]);
-                         // Добавляем ID созданного эффекта в лог отмены, чтобы кнопка "Отменить" сняла и его
-                         if (undoData && created.length > 0) {
-                             undoData.createdEffectIds.push(created[0].id);
-                         }
-                         // Уведомление
-                         ui.notifications.info(`${actor.name}: наложен эффект ${statusData.label}`);
-                     }
-                 }
-             }
-
-             if (undoData) undoLog.push(undoData);
-        }
-      }
-      if (undoLog.length > 0) await message.setFlag("zsystem", "undoData", undoLog);
-  }
-
-  // 3. ОБНОВЛЕНИЕ АКТОРОВ (Без изменений)
-  if (flags.actorUpdate) {
-    const doc = await fromUuid(flags.actorUpdate.uuid);
-    const actor = doc?.actor || doc;
-    if (actor) {
-      const updates = flags.actorUpdate.updates;
-      await actor.update(updates);
-      if (updates.img && actor.isToken) {
-        await actor.token.update({ texture: { src: updates.img } });
-      }
-    }
-  }
-
-   // 4. ВИЗУАЛЬНЫЕ ЭФФЕКТЫ (Трассеры) --- НОВОЕ ---
-  if (flags.visuals && flags.visuals.type === "tracer") {
-      const data = flags.visuals.data;
-      // ГМ создает рисунок
-      const doc = (await canvas.scene.createEmbeddedDocuments("Drawing", [data]))[0];
-      
-      // Удаляем рисунок через 1 сек
-      if (doc) {
-          setTimeout(async () => { 
-              if (canvas.scene.drawings.has(doc.id)) await doc.delete(); 
-          }, 1000);
-      }
-      
-      // Удаляем само техническое сообщение, чтобы не засорять чат ГМа
-      // (Делаем небольшую задержку, чтобы не конфликтовать с созданием)
-      setTimeout(() => message.delete(), 500);
-  }
-
-});
-
-  
-
-// === ИСПРАВЛЕННЫЙ ХУК: Контекстное меню (Отмена Урона) ===
-Hooks.on("getChatMessageContextOptions", (html, options) => {
-  options.push({
-    name: "Отменить Урон",
-    icon: '<i class="fas fa-undo"></i>',
-    condition: (li) => {
-      const messageId = $(li).data("messageId");
-      const message = game.messages.get(messageId);
-      return game.user.isGM && message?.getFlag("zsystem", "undoData");
-    },
-    callback: async (li) => {
-      const messageId = $(li).data("messageId");
-      const message = game.messages.get(messageId);
-      const undoLog = message?.getFlag("zsystem", "undoData");
-
-      if (!undoLog || !Array.isArray(undoLog)) return;
-
-      for (let entry of undoLog) {
-        // ФИКС: Используем fromUuid для поиска, поддерживая и токены, и акторов
-        const doc = await fromUuid(entry.uuid);
-        const actor = doc?.actor || doc; // Если doc это TokenDocument, берем .actor. Если Actor, то это он сам.
-
-        if (actor) {
-          // 1. Откат значений
-          if (!foundry.utils.isEmpty(entry.updates)) {
-            await actor.update(entry.updates);
-          }
-
-          // 2. Удаление созданных эффектов
-          if (entry.createdEffectIds && entry.createdEffectIds.length > 0) {
-            // Фильтруем ID: удаляем только те, что реально существуют на акторе сейчас
-            const idsToDelete = entry.createdEffectIds.filter((id) =>
-              actor.effects.has(id)
-            );
-
-            if (idsToDelete.length > 0) {
-              await actor.deleteEmbeddedDocuments("ActiveEffect", idsToDelete);
-            }
-          }
-          ui.notifications.info(`Откат для ${actor.name} выполнен.`);
-        } else {
-            ui.notifications.warn(`Не удалось найти актора для отката (UUID: ${entry.uuid})`);
-        }
-      }
-      // Удаляем флаг, чтобы нельзя было отменить дважды
-      await message.unsetFlag("zsystem", "undoData");
-    },
-  });
-});
 
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing...");
@@ -329,6 +107,24 @@ Hooks.once("init", () => {
     default: 3
   });
 
+  game.settings.register("zsystem", "allowInfectionBelowOne", {
+    name: "Антибиотик снижает инфекцию до 0",
+    hint: "Если включено — антибиотик может снизить инфекцию ниже стадии 1 (до полного излечения). По умолчанию минимум — стадия 1.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register("zsystem", "randomizeZombieStats", {
+    name: "Рандомизация характеристик зомби",
+    hint: "Если включено — зомби при спавне получают случайные ХП и характеристики (имитация разной степени гниения).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = {
@@ -385,7 +181,13 @@ Hooks.once("init", () => {
   ZChat.init();
 });
 
-Hooks.once("ready", () => console.log("ZSystem | Ready."));
+Hooks.once("ready", () => {
+    console.log("ZSystem | Ready.");
+    PlayerHUD.init();
+    StealthDetectionManager.initHooks();
+    GMHandler.initHooks();
+    ZSystemActions.initHooks();
+});
 
 Hooks.on("updateCombat", async (combat, changed) => {
   if (
@@ -622,9 +424,11 @@ Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
         stepsCounter++;
         
         let singleStepCost = 1;
-        if (actor.hasStatusEffect("prone")) singleStepCost = 2;
-        if (actor.hasStatusEffect("overburdened")) singleStepCost = 2;
-        if (actor.hasStatusEffect("stealth")) singleStepCost = 2;
+        if (actor.hasStatusEffect("prone")) singleStepCost += 1;
+        if (actor.hasStatusEffect("overburdened")) singleStepCost += 1;
+        if (actor.hasStatusEffect("stealth")) singleStepCost += 1;
+        if (actor.hasStatusEffect("injury-leg-lLeg")) singleStepCost += 1;
+        if (actor.hasStatusEffect("injury-leg-rLeg")) singleStepCost += 1;
 
         try {
             if (typeof PerkLogic !== "undefined") {
@@ -644,279 +448,66 @@ Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
     }
 
     // 7. Списание AP
-    await actor.update({ 
+    await actor.update({
         "system.resources.ap.value": currentAP - totalAPCost,
         "flags.zsystem.turnSteps": stepsCounter
     });
+
+    // 8. Травма торса — каждый шаг наносит 1d5 урона
+    if (actor.hasStatusEffect("injury-torso")) {
+        const torsoRoll = new Roll("1d5");
+        await torsoRoll.evaluate();
+        await actor.applyDamage(torsoRoll.total, "true", "torso");
+        ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            content: `<div style="color:#e74c3c;">ТРАВМА ТОРСА: движение наносит ${torsoRoll.total} урона</div>`
+        });
+    }
 
     return true;
 });
 
 Hooks.on("createActiveEffect", async (effect, options, userId) => {
     if (userId !== game.user.id) return;
+    const actor = effect.parent;
+    if (!actor) return;
+
     if (effect.statuses.has("invisible")) {
-        const actor = effect.parent;
-        if (actor && actor.isToken) await actor.token.update({ hidden: true });
-        else if (actor) {
-            const tokens = actor.getActiveTokens();
-            for (let t of tokens) await t.document.update({ hidden: true });
+        if (actor.isToken) await actor.token.update({ hidden: true });
+        else for (let t of actor.getActiveTokens()) await t.document.update({ hidden: true });
+    }
+
+    // Слепота: сужаем обзор токена до 1.5 клеток (видит вплотную)
+    if (effect.statuses.has("blind")) {
+        const tokens = actor.isToken ? [actor.token] : actor.getActiveTokens().map(t => t.document);
+        for (let tokenDoc of tokens) {
+            await tokenDoc.setFlag("zsystem", "sightBeforeBlind", tokenDoc.sight?.range ?? 30);
+            await tokenDoc.update({ "sight.range": 1.5 });
         }
     }
 });
 
 Hooks.on("deleteActiveEffect", async (effect, options, userId) => {
     if (userId !== game.user.id) return;
+    const actor = effect.parent;
+    if (!actor) return;
+
     if (effect.statuses.has("invisible")) {
-        const actor = effect.parent;
-        if (actor && actor.isToken) await actor.token.update({ hidden: false });
-        else if (actor) {
-            const tokens = actor.getActiveTokens();
-            for (let t of tokens) await t.document.update({ hidden: false });
+        if (actor.isToken) await actor.token.update({ hidden: false });
+        else for (let t of actor.getActiveTokens()) await t.document.update({ hidden: false });
+    }
+
+    // Слепота: возвращаем исходный обзор
+    if (effect.statuses.has("blind")) {
+        const tokens = actor.isToken ? [actor.token] : actor.getActiveTokens().map(t => t.document);
+        for (let tokenDoc of tokens) {
+            const original = tokenDoc.getFlag("zsystem", "sightBeforeBlind") ?? 30;
+            await tokenDoc.update({ "sight.range": original });
+            await tokenDoc.unsetFlag("zsystem", "sightBeforeBlind");
         }
     }
 });
 
-Hooks.on("deleteCombat", async (combat, options, userId) => {
-    if (!game.user.isGM) return;
-
-    for (let combatant of combat.combatants) {
-        const actor = combatant.actor;
-        if (actor) {
-            const maxAP = actor.system.resources.ap.max || 7;
-            await actor.update({ "system.resources.ap.value": maxAP });
-        }
-    }
-    ui.notifications.info("Бой окончен. Очки действия восстановлены.");
-});
-
-Hooks.on("dropCanvasData", async (canvas, data) => {
-    if (data.type !== "Item") return true;
-
-    const targetToken = canvas.tokens.placeables.find(t => 
-        (data.x >= t.x) && (data.x <= (t.x + t.w)) && (data.y >= t.y) && (data.y <= (t.y + t.h))
-    );
-
-    if (!targetToken || !targetToken.actor) return true;
-
-    const sourceItem = await fromUuid(data.uuid);
-    if (!sourceItem || !sourceItem.actor || sourceItem.actor.uuid === targetToken.actor.uuid) return true;
-
-    const sourceActor = sourceItem.actor;
-    const targetActor = targetToken.actor;
-
-    // Проверка дистанции
-    const sourceToken = sourceActor.getActiveTokens()[0];
-    if (sourceToken && canvas.grid.measureDistance(sourceToken, targetToken) > 2.5) {
-        ui.notifications.warn("Слишком далеко!");
-        return false;
-    }
-
-    // ВАЖНО: Вместо того чтобы менять данные самим, 
-    // создаем невидимое сообщение, которое ГМ обработает
-    ChatMessage.create({
-        content: `<i>Система: Передача предмета ${sourceItem.name}...</i>`,
-        whisper: ChatMessage.getWhisperRecipients("GM"),
-        flags: {
-            zsystem: {
-                transferItem: {
-                    sourceUuid: sourceItem.uuid,
-                    targetActorUuid: targetActor.uuid
-                }
-            }
-        }
-    });
-
-    ui.notifications.info(`Запрос на передачу ${sourceItem.name} отправлен.`);
-    return false;
-});
-// Логика действий (вынесем в глобальный класс, чтобы не загромождать хук)
-class ZSystemActions {
-    static async interact() {
-        const myToken = canvas.tokens.controlled[0];
-        if (!myToken) return ui.notifications.warn("Сначала выделите своего персонажа!");
-
-        // Ищем цели в радиусе 3.5 метров
-        const targets = canvas.tokens.placeables.filter(t => {
-            if (t.id === myToken.id || !t.actor) return false;
-            return canvas.grid.measureDistance(myToken, t) <= 3.5;
-        });
-
-        if (targets.length === 0) return ui.notifications.warn("Рядом нет ничего интересного.");
-
-        // Сортировка по дистанции
-        targets.sort((a, b) => canvas.grid.measureDistance(myToken, a) - canvas.grid.measureDistance(myToken, b));
-        const target = targets[0];
-
-        // ВНИМАНИЕ: Если это контейнер или NPC, принудительно открываем лист.
-        // Мы используем render(true), но Foundry v13 может блокировать это без прав.
-        // Если лист не открывается, ГМу нужно поставить права "Observer" для игроков.
-        target.actor.sheet.render(true);
-        ui.notifications.info(`Взаимодействие с ${target.name}`);
-    }
-
-    static async manualSearch() {
-        const myToken = canvas.tokens.controlled[0];
-        if (!myToken) return ui.notifications.warn("Сначала выделите своего персонажа!");
-        
-        const actor = myToken.actor;
-
-        // 1. Выполняем бросок Восприятия
-        // Мы используем существующий метод актора, но нам нужен результат броска
-        const label = "Поиск (Восприятие)";
-        
-        // Повторяем логику броска, чтобы получить доступ к результату (total)
-        const per = actor.system.attributes.per.value;
-        const roll = new Roll("1d10 + @per", { per });
-        await roll.evaluate();
-
-        // Отправляем бросок в чат
-        await roll.toMessage({
-            speaker: ChatMessage.getSpeaker({ actor }),
-            flavor: `<b>${actor.name}</b> внимательно осматривает местность...`
-        });
-
-        const searchResult = roll.total;
-        let foundCount = 0;
-
-        // 2. Ищем скрытые токены на сцене
-        const hiddenTokens = canvas.tokens.placeables.filter(t => t.document.hidden);
-
-        for (let t of hiddenTokens) {
-            const targetActor = t.actor;
-            if (!targetActor) continue;
-
-            const sys = targetActor.system.attributes;
-            // Проверяем, есть ли у объекта параметры сложности обнаружения (DC)
-            const spotDC = sys?.spotDC?.value || 15;
-            const spotRadius = sys?.spotRadius?.value || 5; // Радиус поиска в метрах
-
-            // Проверка дистанции
-            const dist = canvas.grid.measureDistance(myToken, t);
-
-            if (dist <= spotRadius) {
-                // Если бросок выше или равен сложности обнаружения
-                if (searchResult >= spotDC) {
-                    // Раскрываем токен!
-                    await t.document.update({ hidden: false });
-                    
-                    // Визуальный эффект над найденным объектом
-                    canvas.interface.createScrollingText(t.center, "👁️ Найдено!", {
-                        fill: "#ffeb3b",
-                        stroke: 0x000000,
-                        fontSize: 32,
-                        fontWeight: "bold"
-                    });
-                    
-                    foundCount++;
-                }
-            }
-        }
-
-        if (foundCount > 0) {
-            ui.notifications.info(`Вы обнаружили что-то интересное! (${foundCount} шт.)`);
-        } else {
-            // Маленький спецэффект вокруг игрока, чтобы показать радиус поиска
-            this._visualizeSearchRadius(myToken, 5); 
-        }
-    }
-
-    // Вспомогательный метод для красоты
-    static async _visualizeSearchRadius(token, radius) {
-        const templateData = {
-            t: "circle",
-            user: game.user.id,
-            distance: radius,
-            direction: 0,
-            x: token.center.x,
-            y: token.center.y,
-            fillColor: "#512da8",
-            alpha: 0.1,
-            borderColor: "#9575cd"
-        };
-        const doc = (await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [templateData]))[0];
-        setTimeout(() => { if (doc) doc.delete(); }, 1500);
-    }
-}
-
-// === 2. ХУК РЕГИСТРАЦИИ (С ПОДДЕРЖКОЙ MONK'S MODULES) ===
-Hooks.on("getSceneControlButtons", (controls) => {
-    const zControl = {
-        name: "zsystem-actions",
-        title: "Действия Выживания",
-        layer: "tokens", 
-        icon: "fas fa-biohazard",
-        visible: true,
-        tools: [
-            {
-                name: "z-interact",
-                title: "Взаимодействовать",
-                icon: "fas fa-hand-paper",
-                button: true, // Это мгновенное действие
-                onClick: () => ZSystemActions.interact()
-            },
-            {
-                name: "z-search",
-                title: "Поиск (Восприятие)",
-                icon: "fas fa-search",
-                button: true, // Это мгновенное действие
-                onClick: () => ZSystemActions.manualSearch()
-            }
-        ]
-    };
-
-    if (Array.isArray(controls)) controls.push(zControl);
-    else controls["zsystem-actions"] = zControl;
-});
-
-Hooks.on("hotbarDrop", (bar, data, slot) => {
-  if (data.type !== "Item") return true;
-  createItemMacro(data, slot);
-  return false;
-});
-
-async function createItemMacro(data, slot) {
-  // Получаем предмет по его UUID
-  const item = await fromUuid(data.uuid);
-  if (!item || item.type !== "weapon") {
-      return ui.notifications.warn("На панель можно выносить только оружие.");
-  }
-
-  // Команда, которую будет исполнять макрос
-  const command = `game.zsystem.rollItemMacro("${item.name}");`;
-  
-  // Проверяем, существует ли уже такой макрос
-  let macro = game.macros.find(m => (m.name === item.name) && (m.command === command));
-  if (!macro) {
-    macro = await Macro.create({
-      name: item.name,
-      type: "script",
-      img: item.img,
-      command: command,
-      flags: { "zsystem.itemMacro": true }
-    });
-  }
-
-  // Назначаем макрос в выбранный слот
-  game.user.assignHotbarMacro(macro, slot);
-}
-
-// Регистрируем глобальный хелпер для макроса в объекте game
-Hooks.once("ready", () => {
-    game.zsystem = game.zsystem || {};
-    game.zsystem.rollItemMacro = (itemName) => {
-        const speaker = ChatMessage.getSpeaker();
-        let actor;
-        if (speaker.token) actor = canvas.tokens.get(speaker.token).actor;
-        if (!actor) actor = game.actors.get(speaker.actor);
-        
-        if (!actor) return ui.notifications.warn("Сначала выберите токен персонажа!");
-
-        const item = actor.items.find(i => i.name === itemName);
-        if (!item) return ui.notifications.warn(`У персонажа ${actor.name} нет предмета "${itemName}"`);
-
-        return actor.performAttack(item.id);
-    };
-});
 
 // === АВТО-ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ПРИ ВЫДЕЛЕНИИ ===
 Hooks.on("controlToken", (token, controlled) => {

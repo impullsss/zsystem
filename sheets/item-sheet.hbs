@@ -217,44 +217,43 @@
                 
                 <div class="attacks-table">
     <!-- HEADER -->
-    <div class="attack-header flexrow" style="border-bottom:1px solid #777; font-weight:bold; font-size: 0.8em; align-items:center;">
-        <div style="flex:1;">Название</div>
-        <div style="flex:0.3; text-align:center;">AP</div>
-        <div style="flex:0.3; text-align:center;" title="Расход патронов">Пт.</div>
-        <div style="flex:0.6; text-align:center;">Урон</div>
-        <div style="flex:0.4; text-align:center;">Точн.</div>
-        <div style="flex:1.5; text-align:center;">Эффекты (Шанс %)</div>
-        <div style="width:30px;"></div>
+    <div class="attack-row attack-header" style="border-bottom:1px solid #777; font-weight:bold; font-size:0.75em; padding-bottom:3px; margin-bottom:3px;">
+        <div class="atk-col-name">Название</div>
+        <div class="atk-col-num" title="Очки действия">AP</div>
+        <div class="atk-col-num" title="Расход патронов">Пт.</div>
+        <div class="atk-col-dmg">Урон</div>
+        <div class="atk-col-num" title="Модификатор точности">Точн.</div>
+        <div class="atk-col-num" title="Модификатор шума (+ или -)">Шум</div>
+        <div class="atk-col-effects">Эффекты (Шанс %)</div>
+        <div style="width:24px;"></div>
     </div>
-    
+
     {{#each system.attacks as |attack key|}}
-    <div class="attack-row flexrow" style="align-items:flex-start; margin-top:5px; border-bottom:1px dotted #444; padding-bottom:5px;">
-        <!-- Основные статы -->
-        <div style="flex:1; padding-right:2px;"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}"/></div>
-        <div style="flex:0.3; padding-right:2px;"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
-        <div style="flex:0.3; padding-right:2px;"><input type="number" name="system.attacks.{{key}}.bullets" value="{{#if attack.bullets}}{{attack.bullets}}{{else}}1{{/if}}"/></div>
-        <div style="flex:0.6; padding-right:2px;"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>
-        <div style="flex:0.4; padding-right:2px;"><input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/></div>
-        
-        <!-- ЭФФЕКТЫ (Список) -->
-        <div style="flex:2; display:flex; flex-direction:column; gap:2px;">
+    <div class="attack-row" style="align-items:flex-start; margin-top:4px; border-bottom:1px dotted #444; padding-bottom:4px;">
+        <div class="atk-col-name"><input type="text" name="system.attacks.{{key}}.name" value="{{attack.name}}"/></div>
+        <div class="atk-col-num"><input type="number" name="system.attacks.{{key}}.ap" value="{{attack.ap}}"/></div>
+        <div class="atk-col-num"><input type="number" name="system.attacks.{{key}}.bullets" value="{{#if attack.bullets}}{{attack.bullets}}{{else}}1{{/if}}"/></div>
+        <div class="atk-col-dmg"><input type="text" name="system.attacks.{{key}}.dmg" value="{{attack.dmg}}"/></div>
+        <div class="atk-col-num"><input type="number" name="system.attacks.{{key}}.mod" value="{{attack.mod}}"/></div>
+        <div class="atk-col-num"><input type="number" name="system.attacks.{{key}}.noise" value="{{attack.noise}}" placeholder="0"/></div>
+
+        <!-- ЭФФЕКТЫ -->
+        <div class="atk-col-effects">
             {{#each attack.effects as |eff idx|}}
-            <div class="flexrow" style="align-items:center; gap:2px;">
-                <select name="system.attacks.{{key}}.effects.{{idx}}.id" style="font-size:0.8em; height:20px; flex:1;">
+            <div class="flexrow" style="align-items:center; gap:2px; margin-bottom:2px;">
+                <select name="system.attacks.{{key}}.effects.{{idx}}.id" style="font-size:0.78em; height:20px; flex:1; min-width:0;">
                     {{selectOptions ../../statusOptions selected=eff.id localize=false}}
                 </select>
-                <input type="number" name="system.attacks.{{key}}.effects.{{idx}}.chance" value="{{eff.chance}}" placeholder="100%" style="width:40px; height:20px; text-align:center; font-size:0.8em;"/>
-                <a class="attack-effect-delete" data-key="{{key}}" data-idx="{{idx}}" style="color:red; font-size:0.8em; cursor:pointer;"><i class="fas fa-times"></i></a>
+                <input type="number" name="system.attacks.{{key}}.effects.{{idx}}.chance" value="{{eff.chance}}" placeholder="100" style="width:36px; height:20px; text-align:center; font-size:0.78em;"/>
+                <a class="attack-effect-delete" data-key="{{key}}" data-idx="{{idx}}" style="color:#e74c3c; font-size:0.8em; cursor:pointer; flex:0 0 14px;"><i class="fas fa-times"></i></a>
             </div>
             {{/each}}
-            <!-- Кнопка добавить эффект -->
-            <a class="attack-effect-add" data-key="{{key}}" style="font-size:0.7em; color:green; cursor:pointer; text-align:center; border:1px dashed green; border-radius:3px;">
+            <a class="attack-effect-add" data-key="{{key}}" style="font-size:0.7em; color:green; cursor:pointer; text-align:center; display:block; border:1px dashed green; border-radius:3px; padding:1px 0;">
                 <i class="fas fa-plus"></i> Эффект
             </a>
         </div>
 
-        <!-- Удалить атаку -->
-        <div style="width:30px; text-align:right; padding-top:2px;">
+        <div style="width:24px; text-align:right; padding-top:2px;">
             <a class="attack-delete" data-key="{{key}}" title="Удалить атаку"><i class="fas fa-trash"></i></a>
         </div>
     </div>

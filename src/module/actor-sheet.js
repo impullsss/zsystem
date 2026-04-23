@@ -241,32 +241,52 @@ export class ZActorSheet extends ZBaseActorSheet {
       const item = this.actor.items.get(li.data("itemId"));
       if (!item) return;
 
-      const isEquipping = !item.system.equipped; // Пытаемся надеть?
+      const isEquipping = !item.system.equipped;
 
       // --- ЛОГИКА КОНТРОЛЯ РУК ---
       if (isEquipping && item.type === "weapon") {
-          // Сколько слотов занимает это оружие
           const slotsForThisItem = item.system.hands === "2h" ? 2 : 1;
-          
-          // Считаем, сколько рук УЖЕ занято другими надетыми пушками
-          const equippedWeapons = this.actor.items.filter(i => 
-              i.type === "weapon" && 
-              i.system.equipped && 
-              i.id !== item.id
+          const equippedWeapons = this.actor.items.filter(i =>
+              i.type === "weapon" && i.system.equipped && i.id !== item.id
           );
-
           let currentlyUsedSlots = 0;
-          equippedWeapons.forEach(w => {
-              currentlyUsedSlots += (w.system.hands === "2h" ? 2 : 1);
-          });
+          equippedWeapons.forEach(w => { currentlyUsedSlots += (w.system.hands === "2h" ? 2 : 1); });
 
-          // Если сумма превышает 2 слота — блокируем
           if (currentlyUsedSlots + slotsForThisItem > 2) {
-              return ui.notifications.warn(`Все руки заняты (использовано: ${currentlyUsedSlots}/2)! Сначала снимите другое оружие.`);
+              return ui.notifications.warn(`Все руки заняты (${currentlyUsedSlots}/2)! Сначала снимите другое оружие.`);
+          }
+
+          // Для одноручного — спросить в какую руку
+          if (item.system.hands !== "2h") {
+              const hasLArmInjury = this.actor.hasStatusEffect("injury-arm-lArm");
+              const hasRArmInjury = this.actor.hasStatusEffect("injury-arm-rArm");
+              const labelR = `Правая${hasRArmInjury ? " ⚠ сломана" : ""}`;
+              const labelL = `Левая${hasLArmInjury ? " ⚠ сломана" : ""}`;
+
+              const chosenHand = await new Promise(resolve => {
+                  new Dialog({
+                      title: `Экипировать: ${item.name}`,
+                      content: `<p>В какую руку взять <b>${item.name}</b>?</p>`,
+                      buttons: {
+                          right: { label: labelR, callback: () => resolve("rArm") },
+                          left:  { label: labelL, callback: () => resolve("lArm") },
+                      },
+                      close: () => resolve(null)
+                  }).render(true);
+              });
+
+              if (!chosenHand) return; // Закрыли диалог
+              await item.setFlag("zsystem", "weaponHand", chosenHand);
           }
       }
 
-      // Если проверка пройдена или мы снимаем вещь — обновляем статус
+      // Трата 1 AP при надевании оружия
+      if (isEquipping && item.type === "weapon") {
+          const curAP = this.actor.system.resources.ap.value ?? 0;
+          if (curAP < 1) return ui.notifications.warn("Недостаточно AP для смены оружия!");
+          await this.actor.update({ "system.resources.ap.value": Math.max(0, curAP - 1) });
+      }
+
       await item.update({ "system.equipped": isEquipping });
     });
 
@@ -286,6 +306,27 @@ export class ZActorSheet extends ZBaseActorSheet {
 
     html.find('.char-manager-btn').click(ev => {
         new ZCharacterCreator(this.actor).render(true);
+    });
+
+    html.find(".item-hand-badge").click(async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const item = this.actor.items.get(ev.currentTarget.dataset.itemId);
+      if (!item) return;
+
+      const curAP = this.actor.system.resources.ap.value ?? 0;
+      if (curAP < 1) return ui.notifications.warn("Недостаточно AP для смены руки!");
+
+      const currentHand = item.getFlag("zsystem", "weaponHand") ?? "rArm";
+      const newHand = currentHand === "rArm" ? "lArm" : "rArm";
+      const newHandLabel = newHand === "rArm" ? "Правая" : "Левая";
+
+      await item.setFlag("zsystem", "weaponHand", newHand);
+      await this.actor.update({ "system.resources.ap.value": Math.max(0, curAP - 1) });
+      ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+          content: `<div style="color:#f39c12; font-size:0.9em;">🤚 Смена руки (${item.name}): ${newHandLabel} (-1 AP)</div>`
+      });
     });
 
     html.find(".item-create").click(this._onItemCreate.bind(this));

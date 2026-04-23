@@ -5,3 +5,5 @@ dist/
 project-context.txt
 .repomixignore
 repomix.config.json
+.claude/
+.claude/settings.local.json

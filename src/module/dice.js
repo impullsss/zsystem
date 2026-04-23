@@ -4,32 +4,32 @@ import { PerkLogic } from "./perk-logic.js";
 
 let aimingHandler = null;
 
-// --- КЛАСС МЕНЕДЖЕРА ПРИЦЕЛИВАНИЯ ---
+// --- КЛАСС МЕНЕДЖЕРА ПРИЦЕЛИВАНИЯ (КОНУС) ---
 class AimingManager {
-    // НОВОЕ: Добавили aimSteps в конструктор
-    constructor(actor, item, attack, modifier, dialogApp, aimSteps = 0) {
+    constructor(actor, item, attack, modifier, dialogApp, aimSteps = 0, weaponHand = "rArm") {
         this.actor = actor;
         this.item = item;
         this.attack = attack;
         this.modifier = modifier;
         this.dialogApp = dialogApp;
-        this.aimSteps = aimSteps; // Запоминаем шаги прицеливания
+        this.aimSteps = aimSteps;
+        this.weaponHand = weaponHand;
         this.sourceToken = actor.getActiveTokens()[0];
-        
-        // UI элементы
+        this.currentTarget = null;
+
         this.hud = null;
-        this.graphics = new PIXI.Graphics(); 
+        this.graphics = new PIXI.Graphics();
 
         this._onMouseMove = this._onMouseMove.bind(this);
         this._onClick = this._onClick.bind(this);
         this._onRightClick = this._onRightClick.bind(this);
-        
+
         this.activate();
     }
 
     activate() {
         if (!this.sourceToken) return ui.notifications.error("Токен не найден!");
-        
+
         document.body.classList.add('zsystem-aiming-focus');
 
         this.hud = $(`<div id="z-aiming-hud"></div>`);
@@ -38,18 +38,15 @@ class AimingManager {
         canvas.interface.addChild(this.graphics);
 
         const allWindows = $('.window-app');
-        allWindows.css({
-            'pointer-events': 'none', 
-            'user-select': 'none'
-        }).animate({ opacity: 0 }, 250);
+        allWindows.css({ 'pointer-events': 'none', 'user-select': 'none' }).animate({ opacity: 0 }, 250);
 
         canvas.stage.on('mousemove', this._onMouseMove);
         canvas.stage.on('mousedown', this._onClick);
         canvas.stage.on('rightdown', this._onRightClick);
-        
+
         const aimBonus = this.aimSteps * (game.settings.get("zsystem", "aimBonus") || 0);
         const aimText = aimBonus > 0 ? ` (Прицел +${aimBonus}%)` : "";
-        ui.notifications.info(`РЕЖИМ ПРИЦЕЛИВАНИЯ${aimText}: ЛКМ - Огонь, ПКМ - Отмена.`);
+        ui.notifications.info(`ПРИЦЕЛИВАНИЕ${aimText}: ЛКМ — Огонь, ПКМ — Отмена.`);
         document.body.style.cursor = "crosshair";
     }
 
@@ -57,49 +54,113 @@ class AimingManager {
         document.body.classList.remove('zsystem-aiming-focus');
 
         const allWindows = $('.window-app');
-        allWindows.css({
-            'pointer-events': 'all',
-            'user-select': 'auto'
-        }).animate({ opacity: 1 }, 200);
+        allWindows.css({ 'pointer-events': 'all', 'user-select': 'auto' }).animate({ opacity: 1 }, 200);
 
         canvas.stage.off('mousemove', this._onMouseMove);
         canvas.stage.off('mousedown', this._onClick);
         canvas.stage.off('rightdown', this._onRightClick);
         document.body.style.cursor = "default";
-        
-        if (this.hud) {
-            this.hud.remove();
-            this.hud = null;
-        }
+
+        if (this.hud) { this.hud.remove(); this.hud = null; }
 
         this.graphics.clear();
         canvas.interface.removeChild(this.graphics);
-        
+
         if (game.user.targets.size > 0) {
-            game.user.targets.forEach(t => t.setTarget(false, {releaseOthers: false}));
+            game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
         }
+    }
+
+    _getTokensInCone(sx, sy, coneAngle, halfAngle, radius) {
+        return canvas.tokens.placeables.filter(t => {
+            if (!t.visible || t.id === this.sourceToken.id) return false;
+            const dx = t.center.x - sx;
+            const dy = t.center.y - sy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > radius) return false;
+            let diff = Math.atan2(dy, dx) - coneAngle;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            return Math.abs(diff) <= halfAngle;
+        });
+    }
+
+    _getHitColor(hitChance) {
+        if (hitChance >= 80) return { hex: 0x69f0ae, css: "#69f0ae" };
+        if (hitChance >= 50) return { hex: 0xffab91, css: "#ffab91" };
+        return { hex: 0xff5252, css: "#ff5252" };
+    }
+
+    _calcDisplayChance(target) {
+        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier, this.aimSteps);
+        let hitChance = chanceData.total;
+        if (this.actor.statuses.has("dizzy")) hitChance = Math.floor(hitChance * 0.5);
+        if (this.actor.statuses.has("blind")) hitChance = Math.floor(hitChance * 0.5);
+        return { hitChance, chanceData };
     }
 
     _onMouseMove(event) {
         const pos = event.data.getLocalPosition(canvas.tokens);
-        
-        const target = canvas.tokens.placeables.find(t => {
-            return t.visible && 
-                   t.id !== this.sourceToken.id &&
-                   t.hitArea.contains(pos.x - t.x, pos.y - t.y);
-        });
-
         const clientX = event.data.originalEvent.clientX;
         const clientY = event.data.originalEvent.clientY;
-        
-        if (this.hud) {
-            this.hud.css({ top: clientY + 15, left: clientX + 15 });
-        }
+
+        if (this.hud) this.hud.css({ top: clientY + 15, left: clientX + 15 });
+
+        const sx = this.sourceToken.center.x;
+        const sy = this.sourceToken.center.y;
+        const dx = pos.x - sx;
+        const dy = pos.y - sy;
+        const coneAngle = Math.atan2(dy, dx);
+        const halfAngle = Math.PI / 6; // 60° total cone
+        const weaponRange = Number(this.item.system.range) || 1.5;
+        const radius = weaponRange * canvas.grid.size;
+
+        // Token directly under cursor takes priority, then first token in cone
+        const directHover = canvas.tokens.placeables.find(t =>
+            t.visible && t.id !== this.sourceToken.id &&
+            t.hitArea.contains(pos.x - t.x, pos.y - t.y)
+        );
+        const tokensInCone = this._getTokensInCone(sx, sy, coneAngle, halfAngle, radius);
+        this.currentTarget = directHover || (tokensInCone.length > 0 ? tokensInCone[0] : null);
 
         this.graphics.clear();
 
-        if (target) {
-            this._updateHudContent(target);
+        // Determine cone color from hovered target
+        let coneColor = 0xffffff;
+        let coneAlpha = 0.10;
+        if (this.currentTarget) {
+            const { hitChance } = this._calcDisplayChance(this.currentTarget);
+            const col = this._getHitColor(hitChance);
+            coneColor = col.hex;
+            coneAlpha = 0.18;
+        }
+
+        // Draw cone sector
+        this.graphics.lineStyle(2, coneColor, 0.7);
+        this.graphics.beginFill(coneColor, coneAlpha);
+        this.graphics.moveTo(sx, sy);
+        this.graphics.arc(sx, sy, radius, coneAngle - halfAngle, coneAngle + halfAngle);
+        this.graphics.lineTo(sx, sy);
+        this.graphics.closePath();
+        this.graphics.endFill();
+
+        // Highlight tokens in cone
+        for (const t of tokensInCone) {
+            const isActive = this.currentTarget && t.id === this.currentTarget.id;
+            const { hitChance } = this._calcDisplayChance(t);
+            const col = this._getHitColor(hitChance);
+
+            this.graphics.lineStyle(isActive ? 3 : 1, col.hex, isActive ? 0.95 : 0.5);
+            this.graphics.beginFill(col.hex, isActive ? 0.22 : 0.08);
+            this.graphics.drawCircle(t.center.x, t.center.y, t.w / 2 + (isActive ? 4 : 0));
+            this.graphics.endFill();
+
+            // Show % label on each token in cone
+            // (текст рисуется через PIXI.Text только если изменился — избегаем утечки)
+        }
+
+        if (this.currentTarget) {
+            this._updateHudContent(this.currentTarget);
             this.hud.show();
         } else {
             this.hud.hide();
@@ -107,39 +168,45 @@ class AimingManager {
     }
 
     async _onClick(event) {
-        if (event.data.button !== 0) return; 
+        if (event.data.button !== 0) return;
+        if (!this.currentTarget) return;
 
-        const pos = event.data.getLocalPosition(canvas.tokens);
-        const target = canvas.tokens.placeables.find(t => {
-            return t.visible && 
-                   t.id !== this.sourceToken.id &&
-                   t.hitArea.contains(pos.x - t.x, pos.y - t.y);
-        });
+        const target = this.currentTarget;
 
-        if (target) {
-            // Расчет стоимости с учетом прицеливания
-            const aimCostPerStep = game.settings.get("zsystem", "aimCost");
-            const extraAp = this.aimSteps * aimCostPerStep;
-            const baseCost = Number(this.attack.ap) || 0;
-            const totalCost = baseCost + extraAp;
+        const aimCostPerStep = game.settings.get("zsystem", "aimCost");
+        const extraAp = this.aimSteps * aimCostPerStep;
+        const baseCost = Number(this.attack.ap) || 0;
+        const totalCost = baseCost + extraAp;
+        const curAP = this.actor.system.resources.ap.value;
 
-            const curAP = this.actor.system.resources.ap.value;
-            
-            if (curAP < totalCost) {
-                ui.notifications.warn(`Недостаточно AP! Нужно ${totalCost} (Атака ${baseCost} + Прицел ${extraAp})`);
+        if (curAP < totalCost) {
+            ui.notifications.warn(`Недостаточно AP! Нужно ${totalCost} (Атака ${baseCost} + Прицел ${extraAp})`);
+            this.deactivate();
+            aimingHandler = null;
+            if (this.dialogApp) this.dialogApp.close();
+            return;
+        }
+
+        const isThrowingAction = (this.attack.mode === 'throw' || this.item.system.isThrowing === true);
+        if (!isThrowingAction && this.item.system.ammoType) {
+            const spentBullets = parseInt(this.attack.bullets) || 1;
+            const curMag = parseInt(this.item.system.mag.value) || 0;
+            if (curMag < spentBullets) {
+                ui.notifications.warn(`Патроны закончились! В магазине: ${curMag}`);
+                this.deactivate();
+                aimingHandler = null;
+                if (this.dialogApp) this.dialogApp.close();
                 return;
             }
-
-            target.setTarget(true, {releaseOthers: true, groupSelection: false});
-            
-            // Получаем выбранную локацию из диалога (если он виден)
-            const location = $('#aim-location').val() || "torso";
-            
-            // ИСПРАВЛЕНИЕ: Передаем this.aimSteps
-            await _executeAttack(this.actor, this.item, this.attack, location, this.modifier, "roll", this.aimSteps);
-            
-            this._updateHudContent(target);
         }
+
+        target.setTarget(true, { releaseOthers: true, groupSelection: false });
+
+        const location = $('#aim-location').val() || "torso";
+        await _executeAttack(this.actor, this.item, this.attack, location, this.modifier, "roll", this.aimSteps, this.weaponHand);
+
+        // Конус остаётся активным — следующий выстрел без закрытия диалога
+        // Если AP теперь не хватает — HUD обновится при следующем mousemove
     }
 
     _onRightClick() {
@@ -151,33 +218,18 @@ class AimingManager {
     _updateHudContent(target) {
         if (!this.hud) return;
 
-        // ИСПРАВЛЕНИЕ: Передаем this.aimSteps в расчет
-        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier, this.aimSteps);
-        const hitChance = chanceData.total;
-        
-        let colorHex = 0xff5252; 
-        let colorCSS = "#ff5252"; 
+        const { hitChance, chanceData } = this._calcDisplayChance(target);
+        const isDizzy = this.actor.statuses.has("dizzy");
+        const isBlindAim = this.actor.statuses.has("blind");
+        const col = this._getHitColor(hitChance);
 
-        if (hitChance >= 80) { colorHex = 0x69f0ae; colorCSS = "#69f0ae"; } 
-        else if (hitChance >= 50) { colorHex = 0xffab91; colorCSS = "#ffab91"; } 
-
-        // Рисование линии (PIXI)
-        this.graphics.lineStyle(4, colorHex, 0.6); 
-        this.graphics.moveTo(this.sourceToken.center.x, this.sourceToken.center.y);
-        this.graphics.lineTo(target.center.x, target.center.y);
-        
-        this.graphics.beginFill(colorHex, 0.2);
-        this.graphics.drawCircle(target.center.x, target.center.y, target.w / 2);
-        this.graphics.endFill();
-
-        // Текст HUD
         let detailsHtml = "";
-        // Показываем бонус от прицеливания в деталях
         if (this.aimSteps > 0) {
-             const aimBonus = this.aimSteps * game.settings.get("zsystem", "aimBonus");
-             detailsHtml += `<div class="aim-detail" style="color:#69f0ae;"><span>Прицел:</span> <span>+${aimBonus}%</span></div>`;
+            const aimBonus = this.aimSteps * game.settings.get("zsystem", "aimBonus");
+            detailsHtml += `<div class="aim-detail" style="color:#69f0ae;"><span>Прицел:</span> <span>+${aimBonus}%</span></div>`;
         }
-
+        if (isDizzy) detailsHtml += `<div class="aim-detail" style="color:#e74c3c;"><span>Головокружение:</span> <span>-50%</span></div>`;
+        if (isBlindAim) detailsHtml += `<div class="aim-detail" style="color:#e74c3c;"><span>Слепота:</span> <span>-50%</span></div>`;
         if (chanceData.details.coverPen < 0) detailsHtml += `<div class="aim-detail"><span>Укрытие:</span> <span>${chanceData.details.coverPen}%</span></div>`;
         if (chanceData.details.rangePen < 0) detailsHtml += `<div class="aim-detail"><span>Дальность:</span> <span>${chanceData.details.rangePen}%</span></div>`;
         if (chanceData.details.intervPen < 0) detailsHtml += `<div class="aim-detail"><span>Помеха:</span> <span>${chanceData.details.intervPen}%</span></div>`;
@@ -185,19 +237,20 @@ class AimingManager {
 
         let warnHtml = "";
         if (chanceData.details.coverPen <= -1000) warnHtml = `<div class="aim-warn">ЦЕЛЬ ЗА ПРЕГРАДОЙ</div>`;
-        
+
+        const totalApDisplay = this.attack.ap + (this.aimSteps * game.settings.get("zsystem", "aimCost"));
         const html = `
-            <div class="chance-header" style="color:${colorCSS}">ШАНС: ${hitChance}%</div>
+            <div class="chance-header" style="color:${col.css}">ШАНС: ${hitChance}%</div>
             <div style="font-size:0.9em; font-weight:bold; margin-bottom:5px;">${target.name}</div>
             ${detailsHtml}
             ${warnHtml}
             <div style="margin-top:5px; border-top:1px solid #555; padding-top:2px; font-size:0.8em; color:#888;">
-                AP: ${this.attack.ap + (this.aimSteps * game.settings.get("zsystem", "aimCost"))} | ЛКМ: Огонь
+                AP: ${totalApDisplay} | ЛКМ: Огонь
             </div>
         `;
 
         this.hud.html(html);
-        this.hud.css("border-left-color", colorCSS);
+        this.hud.css("border-left-color", col.css);
     }
 }
 
@@ -348,8 +401,22 @@ export async function performAttack(actor, itemId) {
     if (Object.keys(attackOptions).length === 0) {
         attackOptions["default"] = { name: "Атака", ap: item.system.apCost, dmg: item.system.damage, noise: item.system.noise };
     }
-    
+
     const lastKey = item.getFlag("zsystem", "lastAttackKey") || Object.keys(attackOptions)[0];
+
+    const hasLArmInjury = actor.hasStatusEffect("injury-arm-lArm");
+    const hasRArmInjury = actor.hasStatusEffect("injury-arm-rArm");
+
+    // Сохранённая рука — null если ещё не выбирали (первый раз бесплатно)
+    const storedHand = item.getFlag("zsystem", "weaponHand") ?? null;
+    const displayHand = storedHand ?? "rArm";
+    const curAP = Number(actor.system.resources.ap.value) || 0;
+
+    const handLabel = (hand) => {
+        const name = hand === "rArm" ? "Правая" : "Левая";
+        const broken = hand === "rArm" ? hasRArmInjury : hasLArmInjury;
+        return `${name}${broken ? " ⚠ сломана (+1 AP)" : ""}`;
+    };
 
     let buttonsHTML = "";
     for (let [key, atk] of Object.entries(attackOptions)) {
@@ -357,21 +424,35 @@ export async function performAttack(actor, itemId) {
         const isSelected = (key === lastKey) ? "selected" : "";
         buttonsHTML += `<button class="z-attack-btn ${isSelected}" data-key="${key}">
                         <div class="atk-name">${atk.name}</div>
-                        <div class="atk-info">AP: ${atk.ap} | Noise: ${totalNoise}</div>
+                        <div class="atk-info" data-base-ap="${atk.ap}">AP: ${atk.ap} | Noise: ${totalNoise}</div>
                     </button>`;
     }
+
+    const weaponHandHTML = `
+        <div class="form-group" style="border:1px solid #555; border-radius:4px; padding:5px; margin-bottom:5px;">
+            <label><i class="fas fa-hand-paper"></i> Рука с оружием
+                <span id="hand-switch-cost" style="color:#f39c12; font-size:0.85em; margin-left:6px; display:none;">(-1 AP при смене)</span>
+            </label>
+            <select id="weapon-hand">
+                <option value="rArm" ${displayHand === "rArm" ? "selected" : ""}>${handLabel("rArm")}</option>
+                <option value="lArm" ${displayHand === "lArm" ? "selected" : ""}>${handLabel("lArm")}</option>
+            </select>
+        </div>`;
 
     const aimCost = game.settings.get("zsystem", "aimCost");
     const aimBonus = game.settings.get("zsystem", "aimBonus");
     const aimMax = game.settings.get("zsystem", "aimMax");
-    
+    const isBlind = actor.statuses.has("blind");
+
     const content = `
     <form class="z-attack-dialog">
         <div class="grid grid-2col" style="margin-bottom:10px;">
             <div class="form-group"><label>Модификатор</label><input type="number" id="atk-modifier" value="0"/></div>
             <div class="form-group"><label>Режим</label><select id="atk-rollMode"><option value="roll">Публичный</option><option value="gmroll">ГМ</option></select></div>
         </div>
-        
+
+        ${weaponHandHTML}
+
         <div class="form-group">
     <label>Цель (Локация):</label>
     <select id="aim-location">
@@ -389,16 +470,17 @@ export async function performAttack(actor, itemId) {
             <label style="font-weight:bold; display:block; border-bottom:1px dotted #555; margin-bottom:5px;">
                 <i class="fas fa-crosshairs"></i> Прицеливание (+${aimBonus}% / ${aimCost} AP)
             </label>
+            ${isBlind ? '<div style="color:#e74c3c; font-weight:bold; text-align:center; padding:3px;"><i class="fas fa-eye-slash"></i> СЛЕПОТА — прицеливание недоступно</div>' : ''}
             <div class="flexrow" style="align-items:center; gap:10px;">
-                <input type="range" id="aim-slider" min="0" max="${aimMax}" value="0" step="1" oninput="document.getElementById('aim-val').innerText = this.value">
+                <input type="range" id="aim-slider" min="0" max="${aimMax}" value="0" step="1" ${isBlind ? 'disabled' : ''} oninput="document.getElementById('aim-val').innerText = this.value">
                 <span style="font-weight:bold; width:20px; text-align:center;" id="aim-val">0</span>
             </div>
             <div style="font-size:0.8em; color:#555; text-align:center;">Максимум: ${aimMax} AP</div>
         </div>
 
-        <!-- Галка Ручного (для Smart Aiming) -->
+        <!-- Конусное прицеливание на канвасе -->
         <div class="form-group" style="background:#263238; padding:5px; border-radius:3px; margin-top:5px;">
-            <label style="color:#eceff1;">Ручное наведение (Canvas)</label>
+            <label style="color:#eceff1;"><i class="fas fa-crosshairs"></i> Конусное прицеливание (Canvas)</label>
             <input type="checkbox" id="manual-aim" checked/>
         </div>
         
@@ -411,6 +493,30 @@ export async function performAttack(actor, itemId) {
         content: content,
         buttons: {},
         render: (html) => {
+            const updateButtonAP = () => {
+                const selectedHand = html.find('#weapon-hand').val();
+                // Смена стоит AP только если рука уже была сохранена (не первый выбор)
+                const isSwitch = storedHand !== null && selectedHand !== storedHand;
+                const brokenHands = { lArm: hasLArmInjury, rArm: hasRArmInjury };
+                const injuryPenalty = brokenHands[selectedHand] ? 1 : 0;
+                const switchCost = isSwitch ? 1 : 0;
+
+                html.find('#hand-switch-cost').toggle(isSwitch);
+                html.find('#weapon-hand').css('border-color', isSwitch ? '#f39c12' : '');
+
+                html.find('.atk-info[data-base-ap]').each(function() {
+                    const base = Number($(this).data('base-ap'));
+                    const noise = $(this).text().match(/Noise: (\d+)/)?.[1] || 0;
+                    const total = base + injuryPenalty + switchCost;
+                    let extra = "";
+                    if (injuryPenalty) extra += ` <span style="color:#e74c3c;">(+1 травма)</span>`;
+                    if (switchCost) extra += ` <span style="color:#f39c12;">(+1 смена)</span>`;
+                    $(this).html(`AP: ${total}${extra} | Noise: ${noise}`);
+                });
+            };
+            html.find('#weapon-hand').on('change', updateButtonAP);
+            updateButtonAP();
+
             html.find('.z-attack-btn').click(async (ev) => {
                 ev.preventDefault();
                 const key = ev.currentTarget.dataset.key;
@@ -419,23 +525,31 @@ export async function performAttack(actor, itemId) {
 
                 const loc = html.find('#aim-location').val();
                 const mod = Number(html.find('#atk-modifier').val()) || 0;
-                
-                // Читаем значение прицеливания
                 const aimSteps = Number(html.find('#aim-slider').val()) || 0;
-
+                const weaponHand = html.find('#weapon-hand').val();
                 const manualAim = html.find('#manual-aim').is(':checked');
+
+                // Смена руки — списываем 1 AP (только если рука была уже сохранена)
+                if (storedHand !== null && weaponHand !== storedHand) {
+                    await actor.update({ "system.resources.ap.value": Math.max(0, curAP - 1) });
+                    ChatMessage.create({
+                        speaker: ChatMessage.getSpeaker({ actor }),
+                        content: `<div style="color:#f39c12; font-size:0.9em;">🤚 Смена руки: ${weaponHand === "rArm" ? "Правая" : "Левая"} (-1 AP)</div>`
+                    });
+                }
+                // Сохраняем выбранную руку всегда (первый выбор или смена)
+                if (weaponHand !== storedHand) {
+                    await item.setFlag("zsystem", "weaponHand", weaponHand);
+                }
 
                 if (manualAim) {
                     if (aimingHandler) aimingHandler.deactivate();
-                    
-                    // ИСПРАВЛЕНИЕ: Передаем aimSteps последним аргументом
-                    aimingHandler = new AimingManager(actor, item, atk, mod, d, aimSteps);
+                    aimingHandler = new AimingManager(actor, item, atk, mod, d, aimSteps, weaponHand);
                 } else {
-                    await _executeAttack(actor, item, atk, loc, mod, "roll", aimSteps);
+                    await _executeAttack(actor, item, atk, loc, mod, "roll", aimSteps, weaponHand);
                 }
-                
-                // Закрываем диалог только если не ручное прицеливание
-                if (!manualAim) d.close(); 
+
+                if (!manualAim) d.close();
             });
         }
     });
@@ -443,7 +557,7 @@ export async function performAttack(actor, itemId) {
 }
 
 // === ИСПОЛНЕНИЕ АТАКИ ===
-async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll", aimSteps = 0) {
+async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll", aimSteps = 0, weaponHand = "rArm") {
     console.log("ZSystem | [CHECKPOINT 1] Вход в атаку:", item.name);
 
     // Читаем настройки
@@ -458,7 +572,9 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     if (!sourceToken) return ui.notifications.error("Токен атакующего не найден!");
 
     // 2. ПРОВЕРКА РЕСУРСОВ
-    const baseApCost = Number(attack.ap) || 0;
+    const armInjuryAP = actor.hasStatusEffect(`injury-arm-${weaponHand}`) ? 1 : 0;
+    const panicAP = actor.hasStatusEffect("panic-anxious") ? 1 : actor.hasStatusEffect("panic-panicked") ? 2 : 0;
+    const baseApCost = (Number(attack.ap) || 0) + armInjuryAP + panicAP;
     const extraApCost = aimSteps * aimCostPerStep;
     const totalApCost = baseApCost + extraApCost;
     
@@ -541,7 +657,21 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     }
 
     // 6. БРОСОК
-    const totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + interventionPenalty + modifier);
+    let totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + interventionPenalty + modifier);
+
+    // TASK-004: Штраф головокружения и слепоты (-50% каждый, стакаются)
+    let dizzyLog = "";
+    if (actor.statuses.has("dizzy")) {
+        const origChance = totalChance;
+        totalChance = Math.floor(totalChance * 0.5);
+        dizzyLog = `<div style="font-size:0.8em; color:#e74c3c;">ГОЛОВОКРУЖЕНИЕ: ${origChance}% → ${totalChance}%</div>`;
+    }
+    if (actor.statuses.has("blind")) {
+        const origChance = totalChance;
+        totalChance = Math.floor(totalChance * 0.5);
+        dizzyLog += `<div style="font-size:0.8em; color:#e74c3c;">СЛЕПОТА: ${origChance}% → ${totalChance}%</div>`;
+    }
+
     const roll = await new Roll("1d100").evaluate();
     const resultType = _calcResult(roll.total, totalChance);
     const isHit = resultType.includes("success");
@@ -552,18 +682,34 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     let dmgAmount = 0, dmgDisplay = "";
     const damageDataForGM = [];
     const triggeredEffects = [];
+    let strBonusLog = "";
+    let stealthLog = "";
 
     if (isHit) {
         let formula = attack.dmg || "0";
         if (resultType === "crit-success") formula = `ceil((${formula}) * 1.5)`;
-        
+
         let rDmg = await new Roll(formula, actor.getRollData()).evaluate();
         let finalDmg = rDmg.total;
+
+        // TASK-001: Авто-сила в ближнем бою
+        if (item.system.weaponType === "melee") {
+            const strVal = actor.system.attributes.str.value || 0;
+            const strBonus = (item.system.hands === "2h") ? strVal * 2 : strVal;
+            finalDmg += strBonus;
+            strBonusLog = `<div style="font-size:0.8em; color:#aed6f1;">СИЛ: +${strBonus}${item.system.hands === "2h" ? " (двуруч.)" : ""}</div>`;
+        }
+
+        // TASK-003: Скрытная атака
+        if (actor.statuses.has("stealth")) {
+            finalDmg *= 2;
+            stealthLog = `<div style="font-size:0.8em; color:#a29bfe; font-weight:bold;">СКРЫТНАЯ АТАКА ×2</div>`;
+        }
 
         if (targetToken?.actor && typeof PerkLogic !== "undefined") {
             finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
         }
-        
+
         dmgAmount = Math.max(1, Math.floor(finalDmg));
         dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
 
@@ -588,12 +734,13 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         }
         
         if (targetToken) {
-            damageDataForGM.push({ 
-                uuid: targetToken.document.uuid, 
-                amount: dmgAmount, 
-                type: item.system.damageType || "blunt", 
+            damageDataForGM.push({
+                uuid: targetToken.document.uuid,
+                amount: dmgAmount,
+                type: item.system.damageType || "blunt",
                 limb: location,
-                effects: triggeredEffects 
+                effects: triggeredEffects,
+                headshot: location === "head"
             });
         }
     }
@@ -607,7 +754,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
-        content: `${cardHtml}${dmgDisplay}${ammoInfo}${aimLog}<div class="z-ap-spent">-${totalApCost} AP</div>`,
+        content: `${cardHtml}${dmgDisplay}${ammoInfo}${aimLog}${strBonusLog}${stealthLog}${dizzyLog}<div class="z-ap-spent">-${totalApCost} AP</div>`,
         flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageDataForGM } }
     }, { rollMode: rollMode });
 

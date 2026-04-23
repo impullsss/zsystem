@@ -104,6 +104,22 @@
 .bar-fill.hp { background: #b71c1c; }
 .bar-fill.ap { background: #2e7d32; }
 
+.hp-penalty-hint {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 0.75em;
+  color: #888;
+  margin-top: -2px;
+  margin-bottom: 2px;
+  padding-right: 2px;
+}
+
+.hp-penalty-value {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
 .bar-inputs {
   position: relative;
   z-index: 5;
@@ -384,6 +400,16 @@
   width: 32px;
   height: 20px;
   z-index: 10;
+}
+
+.limb-penalty {
+  position: absolute;
+  font-size: 0.7em;
+  color: #e74c3c;
+  font-weight: bold;
+  z-index: 10;
+  pointer-events: none;
+  text-shadow: 0 0 2px #fff;
 }
 
 .limb-input input {

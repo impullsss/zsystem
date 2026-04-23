@@ -4,6 +4,8 @@ import {
   GLOBAL_STATUSES,
   INFECTION_STAGES,
 } from "./constants.js";
+import { applyDamage, applyBleeding, checkPanic, applyPanicStage } from "./actor-damage.js";
+import { useMedicine, applyMedicineLogic, reportHealing } from "./actor-medicine.js";
 
 export class ZActor extends Actor {
   async _onCreate(data, options, userId) {
@@ -20,7 +22,7 @@ export class ZActor extends Actor {
     }
 
     // Зомби: авто-статы и оружие
-     if (this.type === "zombie") {
+     if (this.type === "zombie" && game.settings.get("zsystem", "randomizeZombieStats")) {
       const updates = {};
       const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -623,6 +625,9 @@ export class ZActor extends Actor {
     if (this.effects.some(e => e.statuses.has("injury-leg"))) {
         system.secondary.evasion.value -= 10;
     }
+    // Паника даёт бонус к уклонению (инстинкт выживания)
+    if (this.hasStatusEffect("panic-anxious"))  system.secondary.evasion.value += 5;
+    if (this.hasStatusEffect("panic-panicked")) system.secondary.evasion.value += 10;
     
     // ЗОМБИ: Фиксированное отрицательное уклонение
     if (this.type === "zombie") {
@@ -688,6 +693,7 @@ export class ZActor extends Actor {
     // Макс ХП: База - Штрафы (Травмы) - Утомление
     const baseMaxHP = 70 + (s.vig.value - 1) * 10;
     const fatigueHPPenalty = fatigueStacks * 10;
+    system.resources.hp.baseMax = baseMaxHP;
     system.resources.hp.max = Math.max(1, baseMaxHP - getNum(system.resources.hp.penalty) - fatigueHPPenalty);
 
     // Макс AP: База + Бонусы - Утомление
@@ -725,25 +731,49 @@ export class ZActor extends Actor {
     let maxAP = this.system.resources.ap.max;
     await this.setFlag("zsystem", "turnSteps", 0);
     if (this.hasStatusEffect("immolated")) {
-      const fireRoll = new Roll("1d6");
-      await fireRoll.evaluate();
-      const fireDmg = fireRoll.total;
-      await this.applyDamage(fireDmg, "true", "torso");
+      const fireLimbs = ["head", "torso", "lArm", "rArm", "lLeg", "rLeg"];
+      let totalFireDmg = 0;
+      for (const limbKey of fireLimbs) {
+        const fireRoll = new Roll("1d6");
+        await fireRoll.evaluate();
+        totalFireDmg += fireRoll.total;
+        await this.applyDamage(fireRoll.total, "fire", limbKey, false, true);
+      }
       ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg}</div>`,
+        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон по всем конечностям: ${totalFireDmg} (игнорирует AC, учитывает сопротивление огню)</div>`,
       });
       if (this.type !== "zombie") maxAP = Math.max(0, maxAP - 4);
     }
     await this.update({ "system.resources.ap.value": maxAP });
 
+    // Травма головы — бросок 1d10 vs ЖИВ, при провале AP вдвое
+    if (this.effects.some(e => e.statuses.has("injury-head"))) {
+      const vig = this.system.attributes?.vig?.value || 1;
+      const headRoll = new Roll("1d10");
+      await headRoll.evaluate();
+      if (headRoll.total > vig) {
+        const halved = Math.floor(maxAP / 2);
+        await this.update({ "system.resources.ap.value": halved });
+        ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor: this }),
+          content: `<div style="color:#e74c3c;">ТРАВМА ГОЛОВЫ: бросок ${headRoll.total} vs ЖИВ ${vig} — голова кружится, AP срезан до ${halved}!</div>`,
+        });
+      } else {
+        ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor: this }),
+          content: `<div style="color:#69f0ae;">ТРАВМА ГОЛОВЫ: бросок ${headRoll.total} vs ЖИВ ${vig} — держится!</div>`,
+        });
+      }
+    }
+
     if (this.hasStatusEffect("bleeding")) {
-      const roll = new Roll("1d5");
+      const roll = new Roll("4d4");
       await roll.evaluate();
       await this.applyDamage(roll.total, "true", "torso");
       ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `Кровотечение: -${roll.total} HP`,
+        content: `<div style="color:#e74c3c;">КРОВОТЕЧЕНИЕ: -${roll.total} HP (игнорирует броню)</div>`,
       });
     }
     if (this.hasStatusEffect("poisoned")) {
@@ -752,429 +782,22 @@ export class ZActor extends Actor {
       await this.applyDamage(roll.total, "true", "torso");
       ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `Отравление: -${roll.total} HP`,
+        content: `<div style="color:#e74c3c;">ОТРАВЛЕНИЕ: -${roll.total} HP</div>`,
       });
     }
-    if (this.hasStatusEffect("panic")) await Dice.rollPanicTable(this);
-  }async onTurnStart() {
-    let maxAP = this.system.resources.ap.max;
-    await this.setFlag("zsystem", "turnSteps", 0);
-    if (this.hasStatusEffect("immolated")) {
-      const fireRoll = new Roll("1d6");
-      await fireRoll.evaluate();
-      const fireDmg = fireRoll.total;
-      await this.applyDamage(fireDmg, "true", "torso");
-      ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `<div style="color:orange; font-weight:bold;">🔥 ГОРИТ ЗАЖИВО! 🔥</div><div>Урон: ${fireDmg}</div>`,
-      });
-      if (this.type !== "zombie") maxAP = Math.max(0, maxAP - 4);
-    }
-    await this.update({ "system.resources.ap.value": maxAP });
-
-    if (this.hasStatusEffect("bleeding")) {
-      const roll = new Roll("1d5");
-      await roll.evaluate();
-      await this.applyDamage(roll.total, "true", "torso");
-      ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `Кровотечение: -${roll.total} HP`,
-      });
-    }
-    if (this.hasStatusEffect("poisoned")) {
-      const roll = new Roll("1d6");
-      await roll.evaluate();
-      await this.applyDamage(roll.total, "true", "torso");
-      ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this }),
-        content: `Отравление: -${roll.total} HP`,
-      });
-    }
-    if (this.hasStatusEffect("panic")) await Dice.rollPanicTable(this);
+    // Паника обрабатывается через стадии (panic-anxious/panicked/breaking) — отдельного броска не требует
   }
 
   // --- APPLY DAMAGE ---
-  async applyDamage(amount, type = "blunt", limb = "torso") {
-    const undoData = {
-      uuid: this.uuid, // <--- ФИКС 1: Используем UUID вместо ID для поддержки Токенов
-      updates: {},
-      createdEffectIds: [],
-    };
+  async applyDamage(...args)     { return applyDamage(this, ...args); }
+  async _applyBleeding(...args)  { return applyBleeding(this, ...args); }
+  async checkPanic(...args)      { return checkPanic(this, ...args); }
+  async _applyPanicStage(...args){ return applyPanicStage(this, ...args); }
 
-    let originalAmount = amount;
-    if (this.type === "zombie" && type === "fire") amount *= 2;
-
-    let totalResist = 0;
-    let totalAC = 0;
-
-    if (type !== "true") {
-      const naturalAC = this.system.secondary?.naturalAC?.value || 0;
-      totalAC += naturalAC;
-      const armors = this.items.filter(
-        (i) =>
-          i.type === "armor" &&
-          i.system.equipped &&
-          i.system.coverage &&
-          i.system.coverage[limb]
-      );
-      for (let armor of armors) {
-        totalResist += Number(armor.system.dr[type]) || 0;
-        totalAC += Number(armor.system.ac) || 0;
-      }
-      totalResist = Math.min(100, totalResist);
-    }
-
-    const dmg = Math.max(
-      0,
-      Math.floor(amount * (1 - totalResist / 100) - totalAC)
-    );
-
-    // ДЕТАЛИЗАЦИЯ ПОГЛОЩЕНИЯ (Лог для ГМа)
-    // ФИКС 2: blind: true скрывает сообщение от игрока-отправителя
-    ChatMessage.create({
-      content: `<div style="font-size:0.85em; color:#555; background:#eee; padding:3px; border:1px solid #ccc;">
-                    <b>Absorb Log (${this.name})</b><br>
-                    Raw: ${originalAmount} (${type})<br>
-                    Armor AC: -${totalAC}<br>
-                    Resist: -${totalResist}%<br>
-                    <b>Final: ${dmg}</b>
-                  </div>`,
-      whisper: ChatMessage.getWhisperRecipients("GM"),
-      blind: true, // <--- ВАЖНО
-      speaker: { alias: "System" },
-    });
-
-    if (dmg > 0) {
-      const currentHP = this.system.resources.hp.value;
-      const newHP = currentHP - dmg;
-
-      undoData.updates["system.resources.hp.value"] = currentHP;
-      const updateData = { "system.resources.hp.value": newHP };
-
-      if (this.system.limbs && this.system.limbs[limb]) {
-        const currentLimbVal = this.system.limbs[limb].value;
-        const newLimbHP = currentLimbVal - dmg; // Теперь уходит в глубокий минус
-
-        undoData.updates[`system.limbs.${limb}.value`] = currentLimbVal;
-        updateData[`system.limbs.${limb}.value`] = newLimbHP;
-
-        if (currentLimbVal > 0 && newLimbHP <= 0) {
-          const addedIds = await this._applyInjury(limb);
-          if (addedIds) undoData.createdEffectIds.push(...addedIds);
-        }
-      }
-
-      await this.update(updateData);
-
-      const vig = this.system.attributes?.vig?.value || 1;
-      const deathThreshold = -(vig * 5);
-
-      if (newHP <= deathThreshold && !this.hasStatusEffect("dead")) {
-        const eff = await this.createEmbeddedDocuments("ActiveEffect", [
-          {
-            id: "dead",
-            name: "Мертв",
-            icon: "icons/svg/skull.svg",
-            statuses: ["dead"],
-          },
-        ]);
-        undoData.createdEffectIds.push(eff[0].id);
-
-        // ВАЖНО: Визуальный фидбек для токена
-        const tokens = this.getActiveTokens();
-        for (let t of tokens) {
-          await t.document.update({
-            alpha: 0.5, // Полупрозрачность
-            overlayEffect: "icons/svg/skull.svg", // Большая иконка поверх
-          });
-        }
-      } else if (
-        currentHP > 0 &&
-        newHP <= 0 &&
-        !this.hasStatusEffect("status-unconscious")
-      ) {
-        const eff1 = await this.createEmbeddedDocuments("ActiveEffect", [
-          INJURY_EFFECTS.unconscious,
-        ]);
-        undoData.createdEffectIds.push(eff1[0].id);
-
-        const eff2 = await this._applyBleeding("torso");
-        if (eff2) undoData.createdEffectIds.push(eff2);
-      }
-
-      if (
-        this.type !== "zombie" &&
-        this.type !== "shelter" &&
-        newHP > deathThreshold
-      ) {
-        await this.checkPanic(dmg);
-      }
-
-      const _limbNames = {
-        head: "Голова",
-        torso: "Торс",
-        lArm: "Л.Рука",
-        rArm: "П.Рука",
-        lLeg: "Л.Нога",
-        rLeg: "П.Нога",
-      };
-      ui.notifications.info(
-        `${this.name}: -${dmg} HP (${_limbNames[limb] || limb})`
-      );
-
-      return undoData;
-    } else {
-      ui.notifications.info(`${this.name}: Урон поглощен броней!`);
-      return null;
-    }
-  }
-
-  async _applyBleeding(limb) {
-    const base = GLOBAL_STATUSES.bleeding;
-    const uniqueId = `bleeding-${limb}`;
-
-    // Проверка на дубликаты
-    const exists = this.effects.some((e) => e.id === uniqueId);
-    if (exists) return null; // Возвращаем null, если эффект уже есть
-
-    const eff = foundry.utils.deepClone(base);
-    eff.id = uniqueId;
-    eff.name = `Кровотечение (${limb})`;
-    eff.statuses = ["bleeding", uniqueId];
-
-    const created = await this.createEmbeddedDocuments("ActiveEffect", [eff]);
-    return created[0].id;
-  }
-
-  async checkPanic(damageAmount) {
-    // 1. Защита от мертвых, бессознательных или уже в глубоком срыве
-    if (this.hasStatusEffect("dead") || 
-        this.hasStatusEffect("status-unconscious") || 
-        this.hasStatusEffect("panic-breaking")) return;
-
-    // 2. Безопасное получение характеристик (V13 Optional Chaining)
-    const bravery = this.system.secondary?.bravery?.value || 0;
-    const tenacity = this.system.secondary?.tenacity?.value || 0;
-
-    // 3. Условие: урон должен быть больше Стойкости
-    if (damageAmount > tenacity) {
-      const roll = new Roll("1d100");
-      await roll.evaluate();
-      
-      const saveTarget = bravery * 5;
-
-      // Визуализация броска в консоль для дебага ГМа
-      console.log(`ZSystem | Panic Check for ${this.name}: Roll ${roll.total} vs Target ${saveTarget}`);
-
-      if (roll.total > saveTarget) {
-        // ОПРЕДЕЛЯЕМ СТАДИЮ
-        let stage = "anxious";
-
-        // Если урон критический (больше половины текущих ХП) — сразу паника
-        if (damageAmount > (this.system.resources.hp.value / 2)) {
-            stage = "panicked";
-        }
-
-        // Прогрессия: Тревога -> Паника -> Срыв
-        if (this.hasStatusEffect("panic-anxious")) stage = "panicked";
-        else if (this.hasStatusEffect("panic-panicked")) stage = "breaking";
-
-        // Вызываем новый метод наложения
-        await this._applyPanicStage(stage, roll.total, saveTarget);
-      }
-    }
-  }
-
-  async _applyPanicStage(stage, rollResult, target) {
-    // PANIC_STAGES должен быть импортирован из constants.js
-    const { PANIC_STAGES } = await import("./constants.js");
-    const effectData = PANIC_STAGES[stage];
-    
-    if (!effectData) return;
-
-    // Чистим старые эффекты паники
-    const oldIds = this.effects
-        .filter(e => ["panic-anxious", "panic-panicked", "panic-breaking"].some(s => e.statuses.has(s)))
-        .map(e => e.id);
-    
-    if (oldIds.length) await this.deleteEmbeddedDocuments("ActiveEffect", oldIds);
-
-    // Создаем новый
-    await this.createEmbeddedDocuments("ActiveEffect", [foundry.utils.deepClone(effectData)]);
-
-    // Чат-карточка
-    ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: this }),
-      content: `
-        <div class="z-chat-card" style="border-left: 4px solid #7e57c2;">
-            <div class="z-card-header">ПРОВЕРКА ХРАБРОСТИ</div>
-            <div style="text-align:center; font-size:1.2em;"><b>ПРОВАЛ</b></div>
-            <div style="font-size:0.9em; margin:5px 0;">Результат: ${rollResult} (Цель: ${target})</div>
-            <hr>
-            <div style="color:#d32f2f; font-weight:bold; text-align:center;">
-                <i class="fas fa-exclamation-triangle"></i> СОСТОЯНИЕ: ${effectData.name}
-            </div>
-        </div>`
-    });
-  }
-
-// --- ЛЕЧЕНИЕ (ОБНОВЛЕНО: GM DELEGATION) ---
-  async useMedicine(item) {
-    // 1. Выбор цели
-    const targets = Array.from(game.user.targets);
-    if (targets.length === 0) return ui.notifications.warn("Выберите цель (Target)!");
-    const targetToken = targets[0];
-    const targetActor = targetToken.actor;
-
-    // Проверка дистанции (опционально, но полезно)
-    const myToken = this.getActiveTokens()[0];
-    if (myToken && canvas.grid.measureDistance(myToken, targetToken) > 2) {
-        return ui.notifications.warn("Слишком далеко для лечения!");
-    }
-
-    // 2. Сбор опций (Конечности цели)
-    const limbs = {
-      torso: "Торс (ОБЩ)",
-      head: "Голова",
-      lArm: "Л.Рука",
-      rArm: "П.Рука",
-      lLeg: "Л.Нога",
-      rLeg: "П.Нога",
-    };
-    let options = "";
-    for (let [k, v] of Object.entries(limbs)) {
-      const lData = targetActor.system.limbs[k];
-      options += `<option value="${k}">${v} (${lData.value}/${lData.max})</option>`;
-    }
-
-    // 3. Диалог
-    new Dialog({
-      title: `Лечение: ${item.name}`,
-      content: `<form><div class="form-group"><label>Лечить зону:</label><select id="limb-select">${options}</select></div></form>`,
-      buttons: {
-        heal: {
-          label: "Применить",
-          icon: '<i class="fas fa-heartbeat"></i>',
-          callback: async (html) => {
-            const limbKey = html.find("#limb-select").val();
-            
-            // 4. СПИСАНИЕ ПРЕДМЕТА (Делает игрок, т.к. это его инвентарь)
-            const itemData = item.toObject(); // Сохраняем данные перед удалением
-            await this._consumeItem(item);
-
-            // 5. ОТПРАВКА ЗАПРОСА ГМУ
-            // Мы передаем все данные, необходимые для расчета
-            ChatMessage.create({
-                content: `<i>Применяет ${item.name} на ${targetActor.name}...</i>`,
-                flags: {
-                    zsystem: {
-                        type: "heal",
-                        healerUuid: this.uuid,
-                        targetUuid: targetActor.uuid,
-                        itemData: itemData,
-                        limbKey: limbKey
-                    }
-                }
-            });
-          },
-        },
-      },
-    }).render(true);
-  }
-
-  // ЭТОТ МЕТОД ТЕПЕРЬ ВЫЗЫВАЕТСЯ ТОЛЬКО ГМОМ (через main.js)
-  async applyMedicineLogic(healer, itemData, limbKey) {
-    const report = [];
-
-    // А. Антибиотик
-    if (itemData.system.isAntibiotic) {
-      const inf = this.system.resources.infection;
-      if (inf.active || inf.stage > 0) {
-        const newStage = Math.max(0, inf.stage - 1);
-        await this.update({
-          "system.resources.infection.active": false,
-          "system.resources.infection.stage": newStage,
-        });
-        report.push(`<span style="color:blue;">🦠 Инфекция снижена (Ст. ${newStage})</span>`);
-        return this._reportHealing(healer, report);
-      }
-    }
-
-    // Б. Расчет лечения
-    // Берем навык лекаря (если лекарь передан)
-    const medSkill = healer ? (healer.system.skills.medical.value || 0) : 0;
-    const skillBonus = Math.floor(medSkill / 5);
-    const baseHeal = Number(itemData.system.healAmount) || 0;
-    
-    // Итоговое лечение
-    const totalHeal = baseHeal + skillBonus;
-    
-    // В. Расчет Штрафа (Penalty) с защитой от переполнения
-    // Формула: чем выше навык, тем меньше штраф.
-    // Если (BaseHeal - SkillBonus) < 0, то штраф 0. Иначе минимум 1.
-    let penaltyIncrease = Math.max(1, baseHeal - skillBonus);
-    
-    // --- FIX: ЗАЩИТА MAX HP CAP ---
-    const res = this.system.resources.hp;
-    const currentHP = res.value;
-    const baseMaxHP = (this.system.attributes.vig.value - 1) * 10 + 70; // Базовая формула Макс ХП
-    const currentPenalty = res.penalty || 0;
-
-    // Предсказываем новое ХП
-    // Лечение не может превысить (BaseMax - CurrentPenalty)
-    const currentMax = baseMaxHP - currentPenalty;
-    const newHP = Math.min(currentMax, currentHP + totalHeal);
-
-    // Предсказываем новый штраф
-    // Максимально допустимый штраф = BaseMax - NewHP
-    // (чтобы MaxHP никогда не стал меньше CurrentHP)
-    const maxAllowedPenalty = baseMaxHP - newHP;
-    
-    let newPenalty = currentPenalty + penaltyIncrease;
-    
-    // Если новый штраф слишком велик и опустит МаксХП ниже ТекущегоХП — режем штраф
-    if (newPenalty > maxAllowedPenalty) {
-        newPenalty = maxAllowedPenalty;
-        report.push(`<i>(Штраф ограничен текущим здоровьем)</i>`);
-    }
-
-    const updates = {
-        "system.resources.hp.value": newHP,
-        "system.resources.hp.penalty": newPenalty
-    };
-
-    // Г. Лечение конечности
-    if (this.system.limbs && this.system.limbs[limbKey]) {
-      const lData = this.system.limbs[limbKey];
-      // Конечность тоже не должна иметь макс меньше текущего
-      // Но для простоты пока просто лечим
-      updates[`system.limbs.${limbKey}.value`] = Math.min(lData.max, lData.value + totalHeal);
-    }
-
-    await this.update(updates);
-
-    // Д. Отчет
-    report.push(`<span style="color:green; font-weight:bold;">+${totalHeal} HP</span>`);
-    if (newPenalty > currentPenalty) {
-        report.push(`<span style="color:#d32f2f;">-${newPenalty - currentPenalty} Max HP (Штраф)</span>`);
-    }
-
-    this._reportHealing(healer, report, limbKey, itemData.name);
-  }
-
-  _reportHealing(healer, messages, limb, itemName) {
-      ChatMessage.create({
-          content: `
-            <div class="z-chat-card">
-                <div class="z-card-header">МЕДИЦИНА</div>
-                <div><b>${healer?.name || "???"}</b> использует ${itemName || "предмет"} на <b>${this.name}</b>.</div>
-                ${limb ? `<div style="font-size:0.8em; margin-bottom:5px;">Зона: ${limb}</div>` : ""}
-                <hr>
-                <div>${messages.join("<br>")}</div>
-            </div>
-          `
-      });
-  }
+// --- ЛЕЧЕНИЕ ---
+  async useMedicine(item)                              { return useMedicine(this, item); }
+  async applyMedicineLogic(healer, itemData, limbKey)  { return applyMedicineLogic(this, healer, itemData, limbKey); }
+  _reportHealing(healer, messages, limb, itemName)     { return reportHealing(this, healer, messages, limb, itemName); }
 
   // ОТДЫХ
   async longRest() {
@@ -1420,7 +1043,8 @@ export class ZActor extends Actor {
         const isGlobal = Object.values(GLOBAL_STATUSES).some((gs) =>
           e.statuses.has(gs.id)
         );
-        return isInjury || isGlobal || e.statuses.has("dead");
+        const isPanic = ["panic-anxious", "panic-panicked", "panic-breaking"].some(s => e.statuses.has(s));
+        return isInjury || isGlobal || isPanic || e.statuses.has("dead");
       })
       .map((e) => e.id);
     if (effectsToDelete.length > 0)

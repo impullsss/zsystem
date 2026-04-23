@@ -2,9 +2,48 @@
     min-height: 400px;
 }
 .attacks-table {
-    border: 1px solid #777; padding: 5px; background: rgba(255,255,255,0.1);
+    border: 1px solid #777;
+    padding: 5px;
+    background: rgba(255,255,255,0.1);
 }
+
+.attack-row {
+    display: grid;
+    grid-template-columns: 1fr 38px 38px 72px 46px 46px 1fr 24px;
+    gap: 3px;
+    align-items: center;
+}
+
 .attack-row:nth-child(even) { background: rgba(0,0,0,0.1); }
+
+.atk-col-name  { min-width: 0; }
+.atk-col-num   { min-width: 0; }
+.atk-col-dmg   { min-width: 0; }
+.atk-col-effects { min-width: 0; }
+
+.attack-row input[type="text"],
+.attack-row input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 1px 3px;
+    font-size: 0.82em;
+    height: 22px;
+    text-align: center;
+}
+
+.attack-row .atk-col-name input {
+    text-align: left;
+}
+
+.attack-header div {
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.attack-header .atk-col-name {
+    text-align: left;
+}
 
 /* --- ITEM EFFECTS TAB --- */
 .zsystem.sheet.item .tab.effects {

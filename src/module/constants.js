@@ -210,24 +210,21 @@ export const PANIC_STAGES = {
   anxious: {
     id: "panic-anxious",
     name: "Тревога (Anxious)",
-    icon: "icons/svg/ some-anxious-icon.svg", // Выбери иконку
+    icon: "icons/svg/hazard.svg",
     statuses: ["panic-anxious"],
-    changes: [
-      { key: "system.skills.ranged.mod", mode: 2, value: -10 },
-      { key: "system.skills.melee.mod", mode: 2, value: -10 }
-    ],
-    description: "Персонаж на взводе. Точность снижена на 10%."
+    changes: [], // Эффекты: +5 Уклонение (в prepareDerivedData), +1 AP к действиям (в _executeAttack)
+    description: "Персонаж на взводе. +5 Уклонение, +1 AP к атакам."
   },
   panicked: {
     id: "panic-panicked",
-    name: "Паника (Panicked)",
+    name: "Страх (Panicked)",
     icon: "icons/svg/terror.svg",
     statuses: ["panic-panicked"],
     changes: [
-      { key: "system.resources.ap.max", mode: 2, value: -4 },
-      { key: "system.secondary.evasion.value", mode: 2, value: -20 }
-    ],
-    description: "Сильный страх. -4 AP, персонаж не может подходить ближе к врагам."
+      { key: "system.skills.ranged.mod", mode: 2, value: -10 },
+      { key: "system.skills.melee.mod", mode: 2, value: -10 }
+    ], // +10 Уклонение (в prepareDerivedData), +2 AP к действиям (в _executeAttack)
+    description: "Сильный страх. -10% точности, +10 Уклонение, +2 AP к атакам."
   },
   breaking: {
     id: "panic-breaking",
@@ -235,7 +232,7 @@ export const PANIC_STAGES = {
     icon: "icons/svg/skull.svg",
     statuses: ["panic-breaking"],
     changes: [
-        { key: "system.resources.ap.max", mode: 5, value: 0 } 
+        { key: "system.resources.ap.max", mode: 5, value: 0 }
     ],
     description: "Персонаж впал в ступор или истерику. Теряет ход."
   }

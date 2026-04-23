@@ -142,38 +142,100 @@ export class NoiseManager {
     }
   }
 
-  // === HUD (Без изменений) ===
+  // === HUD ===
   static renderHUD() {
-    if ($(`#${this.ID}`).length) return;
-    const controls = game.user.isGM ? `
-      <div class="noise-controls">
-        <i class="fas fa-minus noise-btn" data-action="sub"></i>
-        <div class="noise-value">0</div>
-        <i class="fas fa-plus noise-btn" data-action="add"></i>
-      </div>` : `<div class="noise-value">0</div>`;
+    if (document.getElementById(this.ID)) return;
 
-    const html = `
-      <div id="${this.ID}">
-        <div class="noise-label">NOISE</div>
-        ${controls}
-        <div class="noise-bar-bg"><div class="noise-bar-fill"></div></div>
+    const isGM = game.user.isGM;
+    const controls = isGM
+      ? `<div class="noise-controls">
+           <button class="noise-btn" data-action="sub">−</button>
+           <input class="noise-input" type="number" value="0" min="0" title="Ввести шум вручную"/>
+           <button class="noise-btn" data-action="add">+</button>
+         </div>`
+      : `<div class="noise-value-ro">0</div>`;
+
+    const el = document.createElement("div");
+    el.id = this.ID;
+    el.innerHTML = `
+      <div class="noise-header">
+        <span class="noise-label">NOISE</span>
+        ${isGM ? `<span class="noise-hide-btn" title="Скрыть">▲</span>` : ""}
       </div>
-    `;
-    $('body').append(html);
-    
-    $(`#${this.ID} .noise-btn`).click(ev => {
-        const action = ev.target.dataset.action;
-        if(action === "add") NoiseManager.add(5); 
-        if(action === "sub") NoiseManager.add(-5);
+      ${controls}
+      <div class="noise-bar-bg"><div class="noise-bar-fill"></div></div>`;
+    document.body.appendChild(el);
+
+    // Восстанавливаем позицию
+    const savedPos = JSON.parse(localStorage.getItem("zsystem-noise-pos") || "null");
+    if (savedPos) { el.style.left = savedPos.left + "px"; el.style.top = savedPos.top + "px"; }
+
+    // Восстанавливаем видимость
+    if (localStorage.getItem("zsystem-noise-hidden") === "1") el.classList.add("noise-collapsed");
+
+    // Нативный drag
+    let dragging = false, ox = 0, oy = 0;
+    el.querySelector(".noise-header").addEventListener("mousedown", e => {
+      if (e.target.classList.contains("noise-hide-btn")) return;
+      dragging = true;
+      ox = e.clientX - el.getBoundingClientRect().left;
+      oy = e.clientY - el.getBoundingClientRect().top;
+      e.preventDefault();
     });
+    document.addEventListener("mousemove", e => {
+      if (!dragging) return;
+      el.style.left = (e.clientX - ox) + "px";
+      el.style.top  = (e.clientY - oy) + "px";
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      localStorage.setItem("zsystem-noise-pos", JSON.stringify({ left: parseInt(el.style.left), top: parseInt(el.style.top) }));
+    });
+
+    // Кнопки +/-
+    el.querySelectorAll(".noise-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const action = e.currentTarget.dataset.action;
+        if (action === "add") NoiseManager.add(5);
+        if (action === "sub") NoiseManager.add(-5);
+      });
+    });
+
+    // Ручной ввод — сохраняем по Enter или потере фокуса
+    const input = el.querySelector(".noise-input");
+    if (input) {
+      const commit = () => {
+        const val = Math.max(0, parseInt(input.value) || 0);
+        game.settings.set("zsystem", "currentNoise", val);
+      };
+      input.addEventListener("change", commit);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") { commit(); input.blur(); } });
+    }
+
+    // Скрыть/показать
+    const hideBtn = el.querySelector(".noise-hide-btn");
+    if (hideBtn) {
+      hideBtn.addEventListener("click", () => {
+        const collapsed = el.classList.toggle("noise-collapsed");
+        localStorage.setItem("zsystem-noise-hidden", collapsed ? "1" : "0");
+        hideBtn.textContent = collapsed ? "▼" : "▲";
+      });
+    }
+
     NoiseManager.updateHUD(NoiseManager.value);
   }
 
   static updateHUD(val) {
-    const hud = $(`#${this.ID}`);
-    hud.find('.noise-value').text(val);
-    const percent = Math.min(100, (val / 50) * 100);
-    hud.find('.noise-bar-fill').css('width', `${percent}%`);
-    if (val > 20) hud.addClass('danger'); else hud.removeClass('danger');
+    const el = document.getElementById(this.ID);
+    if (!el) return;
+    const input = el.querySelector(".noise-input");
+    // Не перебиваем значение пока пользователь редактирует
+    if (input && document.activeElement !== input) input.value = val;
+    const ro = el.querySelector(".noise-value-ro");
+    if (ro) ro.textContent = val;
+    const fill = el.querySelector(".noise-bar-fill");
+    if (fill) fill.style.width = Math.min(100, (val / 50) * 100) + "%";
+    el.classList.toggle("danger", val > 20);
   }
 }

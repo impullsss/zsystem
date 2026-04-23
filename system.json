@@ -14,7 +14,8 @@
     "styles/actors/loot.css",
     "styles/actors/shelter.css",
     "styles/items/item-sheet.css",
-    "styles/apps/character-creator.css"
+    "styles/apps/character-creator.css",
+    "styles/components/player-hud.css"
   ],
 
   "languages": [
