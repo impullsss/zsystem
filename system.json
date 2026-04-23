@@ -10,6 +10,7 @@
     "styles/base.css",
     "styles/components/chat.css",
     "styles/components/noise.css",
+    "styles/components/social.css",
     "styles/actors/actor-sheet.css",
     "styles/actors/loot.css",
     "styles/actors/shelter.css",
@@ -106,6 +107,11 @@
         "spentStats": { "value": 0 },
         "spentSkills": { "value": 0 },
         "naturalAC": { "value": 0 }
+      },
+      "social": {
+        "attitude": "neutral",
+        "preset": "normal",
+        "notes": ""
       },
       "skills": {
         "melee": { "value": 0, "base": 0, "points": 0, "mod": 0 },

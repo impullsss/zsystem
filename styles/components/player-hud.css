@@ -48,6 +48,15 @@
     font-size: 0.78em;
 }
 
+.phud-social {
+    font-size: 0.76em;
+    line-height: 1.2;
+    opacity: 0.95;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .phud-hp { color: #ef9a9a; }
 .phud-ap { color: #90caf9; }
 
@@ -70,6 +79,16 @@
     transition: background 0.12s, color 0.12s;
     width: 100%;
     line-height: 1.2;
+}
+
+.phud-icon {
+    display: inline-block;
+    min-width: 1.1em;
+    text-align: center;
+}
+
+.phud-icon i {
+    font-size: 0.95em;
 }
 
 .phud-btn:hover:not(:disabled) {

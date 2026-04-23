@@ -204,6 +204,31 @@
 
             <!-- COL 2: DOLL & SECONDARY -->
             <div class="col-center">
+                {{#if (and isGM hasSocialProfile)}}
+                <div style="border:1px solid #444; padding:8px; margin-bottom:10px; background:rgba(0,0,0,0.05);">
+                    <h3 style="margin:0 0 8px 0; text-align:left;">Социальный профиль</h3>
+                    <div class="form-group">
+                        <label>Отношение</label>
+                        <select name="system.social.attitude">
+                            {{#each socialOptions.attitudes as |option|}}
+                            <option value="{{option.key}}" {{#if (eq ../system.social.attitude option.key)}}selected{{/if}}>{{option.label}}</option>
+                            {{/each}}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Пресет сложности</label>
+                        <select name="system.social.preset">
+                            {{#each socialOptions.presets as |option|}}
+                            <option value="{{option.key}}" {{#if (eq ../system.social.preset option.key)}}selected{{/if}}>{{option.label}}</option>
+                            {{/each}}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Заметка ГМа</label>
+                        <textarea name="system.social.notes" rows="3">{{system.social.notes}}</textarea>
+                    </div>
+                </div>
+                {{/if}}
                 <h3 style="text-align:center;">СТАТУС</h3>
                 
                 <div class="body-chart-container">

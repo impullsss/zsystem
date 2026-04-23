@@ -1,0 +1,57 @@
+<form class="z-social-check-form">
+  <div class="form-group">
+    <label>Навык</label>
+    <select name="skillId">
+      {{#each skillOptions as |skill|}}
+      <option value="{{skill.key}}" {{#if (eq ../skillId skill.key)}}selected{{/if}}>{{skill.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Цель</label>
+    <select name="targetUuid">
+      <option value="">Без цели</option>
+      {{#each targetOptions as |target|}}
+      <option value="{{target.uuid}}" {{#if (eq ../targetUuid target.uuid)}}selected{{/if}}>{{target.name}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  {{#if isGM}}
+  <div class="form-group">
+    <label>Ручной модификатор</label>
+    <input type="number" name="customModifier" value="{{customModifier}}" step="1" />
+  </div>
+  {{else}}
+  <input type="hidden" name="customModifier" value="0" />
+  {{/if}}
+
+  <div class="form-group">
+    <label>Режим броска</label>
+    <select name="rollMode">
+      <option value="roll" {{#if (eq rollMode "roll")}}selected{{/if}}>Публичный</option>
+      <option value="gmroll" {{#if (eq rollMode "gmroll")}}selected{{/if}}>ГМ</option>
+      <option value="blindroll" {{#if (eq rollMode "blindroll")}}selected{{/if}}>Слепой ГМ</option>
+    </select>
+  </div>
+
+  <div style="border-top:1px solid #555; margin-top:10px; padding-top:10px; font-size:0.9em;">
+    <div><strong>Шанс:</strong> {{preview.effectiveTarget}}%</div>
+    <div><strong>Оценка:</strong> {{preview.descriptor}}</div>
+    {{#if preview.targetActor}}
+    <div><strong>Цель:</strong> {{preview.targetActor.name}}</div>
+    {{/if}}
+    {{#if isGM}}
+    <div style="margin-top:6px; color:#999;">
+      Отношение: {{previewAttitude.label}} | Пресет: {{previewPresetLabel}}
+    </div>
+    {{else if hideFactors}}
+    <div style="margin-top:6px; color:#999;">Факторы NPC скрыты</div>
+    {{/if}}
+  </div>
+
+  <div class="form-group" style="margin-top:12px; display:flex; justify-content:flex-end; gap:6px;">
+    <button type="submit"><i class="fas fa-comments"></i> Бросить</button>
+  </div>
+</form>

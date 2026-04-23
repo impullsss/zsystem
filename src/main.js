@@ -125,6 +125,15 @@ Hooks.once("init", () => {
     default: true
   });
 
+  game.settings.register("zsystem", "hideSocialFactors", {
+    name: "Скрывать факторы соц. проверок",
+    hint: "Игроки видят только результат и общую оценку сложности, без отношения и пресета NPC.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = {

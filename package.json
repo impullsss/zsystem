@@ -6,7 +6,9 @@
   "scripts": {
     "clean": "rimraf dist",
     "build": "rollup -c",
-    "watch": "rollup -c -w"
+    "watch": "rollup -c -w",
+    "test": "node --test --experimental-default-type=module tests",
+    "sim:balance": "node --experimental-default-type=module scripts/simulate-balance.mjs"
   },
   "author": "impullsss",
   "license": "MIT",

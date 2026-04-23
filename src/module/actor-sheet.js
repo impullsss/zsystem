@@ -1,7 +1,40 @@
 import { ZBaseActorSheet } from "./base-sheet.js";
 import { ZCharacterCreator } from "./apps/character-creator.js";
+import { openCommunicationDialog } from "./apps/communication-dialog.js";
+import { openSocialCheckDialog } from "./apps/social-check-dialog.js";
+import { Z_SOCIAL_ATTITUDES, Z_SOCIAL_PRESETS } from "./social-check.js";
 
 export class ZActorSheet extends ZBaseActorSheet {
+  _getHeaderButtons() {
+    const buttons = super._getHeaderButtons();
+
+    if (["survivor", "npc"].includes(this.actor.type)) {
+      buttons.unshift({
+        label: "Общ.",
+        class: "z-communication-header",
+        icon: "fas fa-user-friends",
+        onclick: () => openCommunicationDialog(this.actor)
+      });
+      buttons.unshift({
+        label: "Соц.",
+        class: "z-social-check-header",
+        icon: "fas fa-comments",
+        onclick: () => openSocialCheckDialog(this.actor)
+      });
+    }
+
+    if (game.user.isGM && this.actor.type === "npc") {
+      buttons.unshift({
+        label: "Профиль",
+        class: "z-social-profile-header",
+        icon: "fas fa-user-edit",
+        onclick: () => this._showSocialProfileDialog()
+      });
+    }
+
+    return buttons;
+  }
+
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ["zsystem", "sheet", "actor"],
@@ -25,9 +58,16 @@ export class ZActorSheet extends ZBaseActorSheet {
     const context = super.getData();
     context.system = this.actor.system || {};
     context.isGM = game.user.isGM;
+    context.isNpc = this.actor.type === "npc";
+    context.hasSocialProfile = ["survivor", "npc"].includes(this.actor.type);
+    context.canSocialCheck = ["survivor", "npc"].includes(this.actor.type);
     context.isProne =
       this.actor.effects?.some((e) => e.statuses.has("prone")) || false;
     context.perks = []; 
+    context.socialOptions = {
+      attitudes: Object.entries(Z_SOCIAL_ATTITUDES).map(([key, label]) => ({ key, label })),
+      presets: Object.entries(Z_SOCIAL_PRESETS).map(([key, label]) => ({ key, label }))
+    };
 
     const currentHP = this.actor.system.resources?.hp?.value ?? 0;
 
@@ -420,6 +460,52 @@ export class ZActorSheet extends ZBaseActorSheet {
         },
         cancel: { label: "Отмена" }
       }
+    }).render(true);
+  }
+
+  _showSocialProfileDialog() {
+    const social = this.actor.system.social || {};
+    const attitudeOptions = Object.entries(Z_SOCIAL_ATTITUDES)
+      .map(([key, label]) => `<option value="${key}" ${social.attitude === key ? "selected" : ""}>${label}</option>`)
+      .join("");
+    const presetOptions = Object.entries(Z_SOCIAL_PRESETS)
+      .map(([key, label]) => `<option value="${key}" ${social.preset === key ? "selected" : ""}>${label}</option>`)
+      .join("");
+
+    new Dialog({
+      title: `Социальный профиль: ${this.actor.name}`,
+      content: `
+        <form>
+          <div class="form-group">
+            <label>Отношение</label>
+            <select name="attitude">${attitudeOptions}</select>
+          </div>
+          <div class="form-group">
+            <label>Пресет сложности</label>
+            <select name="preset">${presetOptions}</select>
+          </div>
+          <div class="form-group">
+            <label>Заметка ГМа</label>
+            <textarea name="notes" rows="4">${social.notes || ""}</textarea>
+          </div>
+        </form>
+      `,
+      buttons: {
+        save: {
+          label: "Сохранить",
+          callback: async (html) => {
+            await this.actor.update({
+              "system.social.attitude": html.find('[name="attitude"]').val(),
+              "system.social.preset": html.find('[name="preset"]').val(),
+              "system.social.notes": html.find('[name="notes"]').val()
+            });
+          }
+        },
+        cancel: {
+          label: "Отмена"
+        }
+      },
+      default: "save"
     }).render(true);
   }
 

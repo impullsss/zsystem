@@ -1,6 +1,11 @@
 import { NoiseManager } from "./noise.js"; 
 import { GLOBAL_STATUSES } from "./constants.js";
 import { PerkLogic } from "./perk-logic.js";
+import { calcChanceBreakdown, calcRollResult } from "./chance.js";
+import { Z_DIFFICULTY, getCalledShotPenalty } from "./difficulty-tables.js";
+import { buildAttackCostContext, getAmmoConsumptionPlan, rollTriggeredEffects } from "./attack-rules.js";
+import { buildDamageFormula, applyDamageModifiers, finalizeDamageAmount } from "./attack-damage.js";
+import { getSlotMachineHTML, buildStatusChanceLog, buildAttackChatParts } from "./attack-chat.js";
 
 let aimingHandler = null;
 
@@ -92,11 +97,21 @@ class AimingManager {
     }
 
     _calcDisplayChance(target) {
-        const chanceData = _calculateHitChance(this.actor, this.item, this.attack, this.sourceToken, target, this.modifier, this.aimSteps);
-        let hitChance = chanceData.total;
-        if (this.actor.statuses.has("dizzy")) hitChance = Math.floor(hitChance * 0.5);
-        if (this.actor.statuses.has("blind")) hitChance = Math.floor(hitChance * 0.5);
-        return { hitChance, chanceData };
+        const location = $('#aim-location').val() || "torso";
+        const chanceData = calcChanceBreakdown({
+            actor: this.actor,
+            item: this.item,
+            attack: this.attack,
+            sourceToken: this.sourceToken,
+            targetToken: target,
+            modifier: this.modifier,
+            aimSteps: this.aimSteps,
+            location,
+            calculateCover: _calculateCover,
+            calculateRangePenalty: _calculateRangePenalty,
+            checkInterveningTokens: _checkInterveningTokens
+        });
+        return { hitChance: chanceData.chance, chanceData };
     }
 
     _onMouseMove(event) {
@@ -230,13 +245,14 @@ class AimingManager {
         }
         if (isDizzy) detailsHtml += `<div class="aim-detail" style="color:#e74c3c;"><span>Головокружение:</span> <span>-50%</span></div>`;
         if (isBlindAim) detailsHtml += `<div class="aim-detail" style="color:#e74c3c;"><span>Слепота:</span> <span>-50%</span></div>`;
+        if (chanceData.details.calledShotPen < 0) detailsHtml += `<div class="aim-detail"><span>Локация:</span> <span>${chanceData.details.calledShotPen}%</span></div>`;
         if (chanceData.details.coverPen < 0) detailsHtml += `<div class="aim-detail"><span>Укрытие:</span> <span>${chanceData.details.coverPen}%</span></div>`;
         if (chanceData.details.rangePen < 0) detailsHtml += `<div class="aim-detail"><span>Дальность:</span> <span>${chanceData.details.rangePen}%</span></div>`;
         if (chanceData.details.intervPen < 0) detailsHtml += `<div class="aim-detail"><span>Помеха:</span> <span>${chanceData.details.intervPen}%</span></div>`;
         if (chanceData.details.evasionMod < 0) detailsHtml += `<div class="aim-detail"><span>Уклонение:</span> <span>${chanceData.details.evasionMod}%</span></div>`;
 
         let warnHtml = "";
-        if (chanceData.details.coverPen <= -1000) warnHtml = `<div class="aim-warn">ЦЕЛЬ ЗА ПРЕГРАДОЙ</div>`;
+        if (chanceData.details.coverPen <= Z_DIFFICULTY.chance.blocked) warnHtml = `<div class="aim-warn">ЦЕЛЬ ЗА ПРЕГРАДОЙ</div>`;
 
         const totalApDisplay = this.attack.ap + (this.aimSteps * game.settings.get("zsystem", "aimCost"));
         const html = `
@@ -252,51 +268,6 @@ class AimingManager {
         this.hud.html(html);
         this.hud.css("border-left-color", col.css);
     }
-}
-
-// === ВЫНЕСЕННАЯ ФУНКЦИЯ РАСЧЕТА ===
-function _calculateHitChance(actor, item, attack, sourceToken, targetToken, modifier, aimSteps = 0) {
-    let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : ((item.system.isThrowing && item.system.weaponType !== 'melee') ? 'athletics' : 'melee');
-    const skillVal = actor.system.skills[skillType]?.value || 0;
-    const atkMod = Number(attack.mod) || 0;
-    
-    // БОНУС ОТ ПРИЦЕЛИВАНИЯ
-    const aimBonusPerStep = game.settings.get("zsystem", "aimBonus") || 10;
-    const aimBonusTotal = aimSteps * aimBonusPerStep;
-
-    const location = $('#aim-location').val() || "torso";
-    const aimMod = (location === "head") ? -40 : (location !== "torso" ? -20 : 0);
-
-    const dist = canvas.grid.measureDistance(sourceToken, targetToken);
-    const weaponReach = Number(item.system.range) || 1.5;
-
-    // Укрытие
-    let coverPen = 0;
-    const isMeleeHit = (skillType === 'melee' && dist <= weaponReach);
-    
-    if (!isMeleeHit) {
-        const coverData = _calculateCover(sourceToken, targetToken);
-        coverPen = coverData.penalty;
-    }
-    
-    const rangeData = _calculateRangePenalty(item, dist);
-    const rangePen = rangeData.penalty;
-    
-    // Помехи (Живой щит)
-    let intervPen = 0;
-    if (item.system.weaponType === 'ranged') {
-        const obs = _checkInterveningTokens(sourceToken, targetToken);
-        intervPen = obs.length * -20;
-    }
-    
-    let evasionMod = 0;
-    if (!targetToken.actor?.hasStatusEffect("prone")) {
-        evasionMod = -((targetToken.actor?.system.secondary?.evasion?.value || 0));
-    }
-
-    // Добавили aimBonusTotal в сумму
-    const total = Math.max(0, skillVal + atkMod + aimMod + coverPen + rangePen + intervPen + evasionMod + modifier + aimBonusTotal);
-    return { total, details: { coverPen, rangePen, intervPen, evasionMod } };
 }
 
 // === ДИАЛОГ БРОСКА ===
@@ -338,16 +309,11 @@ export async function showRollDialog(label, callback) {
 
 // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 export function _calcResult(roll, target) {
-    if (roll <= 5) return "crit-success";
-    if (roll >= 96) return "crit-fail";
-    if (roll <= target) return "success";
-    return "fail";
+    return calcRollResult(roll, target);
 }
 
 export function _getSlotMachineHTML(label, target, rollTotal, resultType) {
-    let statusClass = (resultType.includes("success")) ? "success" : "failure";
-    let statusLabel = (resultType === "crit-success") ? "КРИТ. УСПЕХ" : (resultType === "success" ? "УСПЕХ" : (resultType === "crit-fail" ? "КРИТ. ПРОВАЛ" : "ПРОВАЛ"));
-    return `<div class="z-chat-card"><div class="z-card-header">${label}</div><div class="z-card-sub">Цель: ${target}%</div><div class="z-slot-machine"><div class="z-reel-window"><div class="z-reel-spin ${statusClass}">${rollTotal}</div></div></div><div class="z-result-label ${statusClass}">${statusLabel}</div></div>`;
+    return getSlotMachineHTML(label, target, rollTotal, resultType);
 }
 
 // === БРОСОК НАВЫКА ===
@@ -456,12 +422,12 @@ export async function performAttack(actor, itemId) {
         <div class="form-group">
     <label>Цель (Локация):</label>
     <select id="aim-location">
-        <option value="torso">Торс (0)</option>
-        <option value="head">Голова (-40)</option>
-        <option value="lArm">Левая Рука (-20)</option>
-        <option value="rArm">Правая Рука (-20)</option>
-        <option value="lLeg">Левая Нога (-20)</option>
-        <option value="rLeg">Правая Нога (-20)</option>
+        <option value="torso">Торс (${getCalledShotPenalty("torso")})</option>
+        <option value="head">Голова (${getCalledShotPenalty("head")})</option>
+        <option value="lArm">Левая Рука (${getCalledShotPenalty("lArm")})</option>
+        <option value="rArm">Правая Рука (${getCalledShotPenalty("rArm")})</option>
+        <option value="lLeg">Левая Нога (${getCalledShotPenalty("lLeg")})</option>
+        <option value="rLeg">Правая Нога (${getCalledShotPenalty("rLeg")})</option>
     </select>
 </div>
 
@@ -560,10 +526,6 @@ export async function performAttack(actor, itemId) {
 async function _executeAttack(actor, item, attack, location = "torso", modifier = 0, rollMode = "roll", aimSteps = 0, weaponHand = "rArm") {
     console.log("ZSystem | [CHECKPOINT 1] Вход в атаку:", item.name);
 
-    // Читаем настройки
-    const aimCostPerStep = game.settings.get("zsystem", "aimCost");
-    const aimBonusPerStep = game.settings.get("zsystem", "aimBonus");
-
     // 1. ОПРЕДЕЛЯЕМ ТОКЕНЫ
     const sourceToken = actor.getActiveTokens()[0]; 
     const targets = Array.from(game.user.targets);
@@ -571,40 +533,22 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     if (!sourceToken) return ui.notifications.error("Токен атакующего не найден!");
 
-    // 2. ПРОВЕРКА РЕСУРСОВ
-    const armInjuryAP = actor.hasStatusEffect(`injury-arm-${weaponHand}`) ? 1 : 0;
-    const panicAP = actor.hasStatusEffect("panic-anxious") ? 1 : actor.hasStatusEffect("panic-panicked") ? 2 : 0;
-    const baseApCost = (Number(attack.ap) || 0) + armInjuryAP + panicAP;
-    const extraApCost = aimSteps * aimCostPerStep;
-    const totalApCost = baseApCost + extraApCost;
-    
-    const curAP = Number(actor.system.resources.ap.value) || 0;
-    
-    if (curAP < totalApCost) {
-        return ui.notifications.warn(`Недостаточно AP! Нужно ${totalApCost} (Атака ${baseApCost} + Прицел ${extraApCost}).`);
+    const attackCost = _buildAttackCostContext(actor, attack, aimSteps, weaponHand);
+    if (!attackCost.ok) {
+        return ui.notifications.warn(`Недостаточно AP! Нужно ${attackCost.totalApCost} (Атака ${attackCost.baseApCost} + Прицел ${attackCost.extraApCost}).`);
     }
 
-    // Добавляем бонус к модификатору
-    const aimBonusTotal = aimSteps * aimBonusPerStep;
-    modifier += aimBonusTotal;
+    modifier += attackCost.aimBonusTotal;
 
     console.log("ZSystem | [CHECKPOINT 2] AP проверено. Списание патронов...");
 
-    // 3. РАСХОД ПАТРОНОВ
-    const isThrowingAction = (attack.mode === 'throw' || item.system.isThrowing === true);
-    const spentBullets = parseInt(attack.bullets) || (item.system.ammoType ? 1 : 0);
-    
-    if (!isThrowingAction && item.system.ammoType) {
-        const curMag = parseInt(item.system.mag.value) || 0;
-        if (curMag < spentBullets) {
-            console.log("ZSystem | Ошибка: Мало патронов");
-            return ui.notifications.warn(`Недостаточно патронов! Нужно: ${spentBullets}`);
-        }
-        await item.update({ "system.mag.value": Math.max(0, curMag - spentBullets) });
+    const ammoContext = await _consumeAttackAmmo(item, attack);
+    if (!ammoContext.ok) {
+        console.log("ZSystem | Ошибка: Мало патронов");
+        return ui.notifications.warn(`Недостаточно патронов! Нужно: ${ammoContext.spentBullets}`);
     }
 
-    // Списываем AP (Общее)
-    await actor.update({"system.resources.ap.value": Math.max(0, curAP - totalApCost)});
+    await actor.update({"system.resources.ap.value": Math.max(0, attackCost.curAP - attackCost.totalApCost)});
     
     console.log("ZSystem | [CHECKPOINT 3] Ресурсы списаны. Запуск анимации...");
 
@@ -625,52 +569,27 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     console.log("ZSystem | [CHECKPOINT 4] Расчет попадания...");
 
     // 5. РАСЧЕТ ПОПАДАНИЯ
-    let skillType = (item.system.weaponType === 'ranged') ? 'ranged' : (isThrowingAction ? 'athletics' : 'melee');
-    const skillVal = actor.system.skills[skillType]?.value || 0;
-    const atkMod = Number(attack.mod) || 0;
-    const aimMod = (location === "head") ? -20 : (location !== "torso" ? -10 : 0);
-    
-    let coverPenalty = 0, rangePenalty = 0, interventionPenalty = 0, evasionMod = 0, targetName = "Нет цели";
+    const chanceData = calcChanceBreakdown({
+        actor,
+        item,
+        attack,
+        sourceToken,
+        targetToken,
+        modifier,
+        aimSteps,
+        location,
+        calculateCover: _calculateCover,
+        calculateRangePenalty: _calculateRangePenalty,
+        checkInterveningTokens: _checkInterveningTokens
+    });
 
-    if (targetToken) {
-        targetName = targetToken.name;
-        const dist = canvas.grid.measureDistance(sourceToken, targetToken);
-        const weaponReach = Number(item.system.range) || 1.5;
+    if (chanceData.state.outOfReach) return ui.notifications.warn(`Слишком далеко!`);
+    if (chanceData.state.blockedByCover) return ui.notifications.error("Цель за преградой!");
 
-        if (skillType === 'melee' && dist > weaponReach) return ui.notifications.warn(`Слишком далеко!`);
-        
-        if (skillType === 'ranged') {
-            const coverData = _calculateCover(sourceToken, targetToken);
-            coverPenalty = coverData.penalty;
-            if (coverPenalty <= -1000) return ui.notifications.error("Цель за преградой!");
+    const targetName = chanceData.targetName;
+    const totalChance = chanceData.chance;
 
-            const rangeData = _calculateRangePenalty(item, dist);
-            rangePenalty = rangeData.penalty;
-
-            const obstacles = _checkInterveningTokens(sourceToken, targetToken);
-            interventionPenalty = obstacles.length * -20;
-        }
-
-        if (!targetToken.actor?.hasStatusEffect("prone")) {
-            evasionMod = -(targetToken.actor?.system.secondary?.evasion?.value || 0);
-        }
-    }
-
-    // 6. БРОСОК
-    let totalChance = Math.max(0, skillVal + atkMod + aimMod + evasionMod + coverPenalty + rangePenalty + interventionPenalty + modifier);
-
-    // TASK-004: Штраф головокружения и слепоты (-50% каждый, стакаются)
-    let dizzyLog = "";
-    if (actor.statuses.has("dizzy")) {
-        const origChance = totalChance;
-        totalChance = Math.floor(totalChance * 0.5);
-        dizzyLog = `<div style="font-size:0.8em; color:#e74c3c;">ГОЛОВОКРУЖЕНИЕ: ${origChance}% → ${totalChance}%</div>`;
-    }
-    if (actor.statuses.has("blind")) {
-        const origChance = totalChance;
-        totalChance = Math.floor(totalChance * 0.5);
-        dizzyLog += `<div style="font-size:0.8em; color:#e74c3c;">СЛЕПОТА: ${origChance}% → ${totalChance}%</div>`;
-    }
+    const dizzyLog = buildStatusChanceLog(chanceData);
 
     const roll = await new Roll("1d100").evaluate();
     const resultType = _calcResult(roll.total, totalChance);
@@ -678,92 +597,122 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     
     if (targetToken) _drawTracer(sourceToken, targetToken, isHit);
 
-    // 7. УРОН И ЭФФЕКТЫ
-    let dmgAmount = 0, dmgDisplay = "";
-    const damageDataForGM = [];
-    const triggeredEffects = [];
-    let strBonusLog = "";
-    let stealthLog = "";
-
-    if (isHit) {
-        let formula = attack.dmg || "0";
-        if (resultType === "crit-success") formula = `ceil((${formula}) * 1.5)`;
-
-        let rDmg = await new Roll(formula, actor.getRollData()).evaluate();
-        let finalDmg = rDmg.total;
-
-        // TASK-001: Авто-сила в ближнем бою
-        if (item.system.weaponType === "melee") {
-            const strVal = actor.system.attributes.str.value || 0;
-            const strBonus = (item.system.hands === "2h") ? strVal * 2 : strVal;
-            finalDmg += strBonus;
-            strBonusLog = `<div style="font-size:0.8em; color:#aed6f1;">СИЛ: +${strBonus}${item.system.hands === "2h" ? " (двуруч.)" : ""}</div>`;
-        }
-
-        // TASK-003: Скрытная атака
-        if (actor.statuses.has("stealth")) {
-            finalDmg *= 2;
-            stealthLog = `<div style="font-size:0.8em; color:#a29bfe; font-weight:bold;">СКРЫТНАЯ АТАКА ×2</div>`;
-        }
-
-        if (targetToken?.actor && typeof PerkLogic !== "undefined") {
-            finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
-        }
-
-        dmgAmount = Math.max(1, Math.floor(finalDmg));
-        dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
-
-        // Обработка эффектов
-        let rawEffects = attack.effects || [];
-        let effectsList = [];
-        if (Array.isArray(rawEffects)) {
-            effectsList = rawEffects;
-        } else if (typeof rawEffects === 'object') {
-            effectsList = Object.values(rawEffects);
-        }
-
-        if (attack.effect && !effectsList.length) {
-            effectsList.push({ id: attack.effect, chance: attack.chance || 100 });
-        }
-
-        for (let eff of effectsList) {
-            if (!eff.id) continue;
-            const chance = Number(eff.chance) || 100;
-            const rollEffect = Math.random() * 100;
-            if (rollEffect <= chance) triggeredEffects.push(eff.id);
-        }
-        
-        if (targetToken) {
-            damageDataForGM.push({
-                uuid: targetToken.document.uuid,
-                amount: dmgAmount,
-                type: item.system.damageType || "blunt",
-                limb: location,
-                effects: triggeredEffects,
-                headshot: location === "head"
-            });
-        }
-    }
+    const damageContext = await _resolveAttackDamage({
+        actor,
+        item,
+        attack,
+        targetToken,
+        location,
+        resultType,
+        isHit
+    });
 
     // 8. ЧАТ
-    const cardHtml = _getSlotMachineHTML(targetName, totalChance, roll.total, resultType);
-    let ammoInfo = (spentBullets > 0 && item.system.ammoType) ? `<div style="font-size:0.8em; color:#777;">Потрачено патронов: ${spentBullets}</div>` : "";
-    
-    // Добавляем инфо о прицеливании в лог
-    let aimLog = aimSteps > 0 ? `<div style="color:#69f0ae; font-size:0.8em;">Прицел: +${aimBonusTotal}% (-${extraApCost} AP)</div>` : "";
+    const cardHtml = getSlotMachineHTML(targetName, totalChance, roll.total, resultType);
+    const attackChatParts = buildAttackChatParts({
+        item,
+        aimSteps,
+        ammoContext,
+        attackCost,
+        damageContext,
+        dizzyLog
+    });
 
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
-        content: `${cardHtml}${dmgDisplay}${ammoInfo}${aimLog}${strBonusLog}${stealthLog}${dizzyLog}<div class="z-ap-spent">-${totalApCost} AP</div>`,
-        flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageDataForGM } }
+        content: `${cardHtml}${attackChatParts.content}`,
+        flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageContext.damageDataForGM } }
     }, { rollMode: rollMode });
 
-    if (isThrowingAction) {
+    if (ammoContext.isThrowingAction) {
         const qty = Number(item.system.quantity) || 1;
         if (qty > 1) await item.update({"system.quantity": qty - 1}); else await item.delete();
     }
     
     console.log("ZSystem | [FINISH] Атака завершена успешно.");
+}
+
+function _buildAttackCostContext(actor, attack, aimSteps, weaponHand) {
+    return buildAttackCostContext({
+        attackAp: attack.ap,
+        aimSteps,
+        aimCostPerStep: game.settings.get("zsystem", "aimCost"),
+        aimBonusPerStep: game.settings.get("zsystem", "aimBonus"),
+        currentAp: Number(actor.system.resources.ap.value) || 0,
+        hasArmInjury: actor.hasStatusEffect(`injury-arm-${weaponHand}`),
+        panicState: actor.hasStatusEffect("panic-panicked")
+            ? "panic-panicked"
+            : actor.hasStatusEffect("panic-anxious")
+                ? "panic-anxious"
+                : null
+    });
+}
+
+async function _consumeAttackAmmo(item, attack) {
+    const ammoPlan = getAmmoConsumptionPlan(item, attack);
+    if (!ammoPlan.ok) {
+        return ammoPlan;
+    }
+    if (ammoPlan.usesMagazine) {
+        await item.update({ "system.mag.value": ammoPlan.nextMagazineValue });
+    }
+    return ammoPlan;
+}
+
+async function _resolveAttackDamage({ actor, item, attack, targetToken, location, resultType, isHit }) {
+    const damageContext = {
+        dmgDisplay: "",
+        strBonusLog: "",
+        stealthLog: "",
+        damageDataForGM: []
+    };
+
+    if (!isHit) return damageContext;
+
+    let formula = buildDamageFormula(attack.dmg || "0", resultType);
+
+    const rDmg = await new Roll(formula, actor.getRollData()).evaluate();
+    const damageMath = applyDamageModifiers({
+        rolledDamage: rDmg.total,
+        weaponType: item.system.weaponType,
+        hands: item.system.hands,
+        strength: actor.system.attributes.str.value || 0,
+        isStealth: actor.statuses.has("stealth")
+    });
+    let finalDmg = damageMath.finalDamage;
+
+    if (damageMath.strengthBonus > 0) {
+        damageContext.strBonusLog = `<div style="font-size:0.8em; color:#aed6f1;">СИЛ: +${damageMath.strengthBonus}${item.system.hands === "2h" ? " (двуруч.)" : ""}</div>`;
+    }
+
+    if (damageMath.stealthMultiplier > 1) {
+        damageContext.stealthLog = `<div style="font-size:0.8em; color:#a29bfe; font-weight:bold;">СКРЫТНАЯ АТАКА ×${damageMath.stealthMultiplier}</div>`;
+    }
+
+    if (targetToken?.actor && typeof PerkLogic !== "undefined") {
+        finalDmg = PerkLogic.onApplyDamage(actor, targetToken.actor, finalDmg, item);
+    }
+
+    const dmgAmount = finalizeDamageAmount(finalDmg);
+    damageContext.dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
+
+    const triggeredEffects = _rollTriggeredEffects(attack);
+    if (targetToken) {
+        damageContext.damageDataForGM.push({
+            uuid: targetToken.document.uuid,
+            amount: dmgAmount,
+            type: item.system.damageType || "blunt",
+            limb: location,
+            effects: triggeredEffects,
+            headshot: location === "head"
+        });
+    }
+
+    return damageContext;
+}
+
+function _rollTriggeredEffects(attack) {
+    return rollTriggeredEffects(attack);
 }
 
 /**
@@ -799,12 +748,12 @@ function _calculateCover(sourceToken, targetToken) {
     }
 
     if (blockedCount === 0) {
-        return windowCount > 0 ? { penalty: -20, label: "Через окно" } : { penalty: 0, label: "" };
+        return windowCount > 0 ? { penalty: Z_DIFFICULTY.cover.window, label: "Через окно" } : { penalty: Z_DIFFICULTY.cover.none, label: "" };
     }
     
-    if (blockedCount <= 2) return { penalty: -15, label: "Легкое укр." };
-    if (blockedCount === 3) return { penalty: -30, label: "Тяж. укр." };
-    return { penalty: -1000, label: "Не видно" }; 
+    if (blockedCount <= 2) return { penalty: Z_DIFFICULTY.cover.light, label: "Легкое укр." };
+    if (blockedCount === 3) return { penalty: Z_DIFFICULTY.cover.heavy, label: "Тяж. укр." };
+    return { penalty: Z_DIFFICULTY.cover.blocked, label: "Не видно" }; 
 }
 
 export async function rollPanicTable(actor) {
@@ -855,9 +804,9 @@ function _distToSegment(p, a, b) {
 function _calculateRangePenalty(item, dist) {
     const range = Number(item.system.range) || 1;
     if (item.system.weaponType === 'melee') return { penalty: 0, label: "" };
-    if (dist <= range) return { penalty: 0, label: "" };
-    if (dist <= range * 2) return { penalty: -20, label: "Далеко" };
-    return { penalty: -40, label: "Слишк. далеко" };
+    if (dist <= range) return { penalty: Z_DIFFICULTY.range.near, label: "" };
+    if (dist <= range * 2) return { penalty: Z_DIFFICULTY.range.medium, label: "Далеко" };
+    return { penalty: Z_DIFFICULTY.range.far, label: "Слишк. далеко" };
 }
 
 async function _drawTracer(source, target, isHit) {

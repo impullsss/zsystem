@@ -1,0 +1,133 @@
+#token-hud.placeable-hud .control-icon.z-social-attitude {
+  flex: 0 0 var(--control-size) !important;
+  width: var(--control-size) !important;
+  height: var(--control-size) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 0 4px 0 !important;
+  overflow: hidden !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  box-sizing: border-box !important;
+}
+
+#token-hud.placeable-hud .control-icon.z-social-attitude i,
+#token-hud.placeable-hud .control-icon.z-social-attitude .z-social-attitude-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-style: normal !important;
+  line-height: 1 !important;
+  font-size: 22px !important;
+  box-sizing: border-box !important;
+}
+
+.window-app.communication-dialog,
+.window-app.social-check-dialog {
+  min-width: 460px;
+}
+
+.communication-dialog .window-content,
+.social-check-dialog .window-content {
+  overflow-x: hidden;
+}
+
+.communication-dialog button,
+.social-check-dialog button {
+  white-space: normal;
+}
+
+.window-app.z-social-profile-dialog {
+  min-width: 420px;
+}
+
+.z-social-profile-dialog .window-content {
+  overflow-x: hidden;
+}
+
+.z-social-dialog-form .form-group {
+  margin-bottom: 10px;
+}
+
+.z-social-dialog-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.z-social-dialog-form select {
+  width: 100%;
+}
+
+.z-social-profile-palette {
+  position: fixed;
+  z-index: 10000;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(18, 18, 22, 0.82);
+  border: 1px solid rgba(180, 180, 180, 0.35);
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  color: #f0f0f0;
+  pointer-events: auto;
+}
+
+.z-social-profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.z-social-profile-section-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9a9a9a;
+  text-align: center;
+}
+
+.z-social-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.z-social-profile-btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 6px;
+  border: 1px solid #5a5a5a;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f0f0f0;
+  text-align: center;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.z-social-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: #808080;
+}
+
+.z-social-profile-btn.is-active {
+  border-color: var(--social-accent, #69f0ae);
+  box-shadow: inset 0 0 0 1px var(--social-accent, #69f0ae);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.z-social-profile-btn--icon {
+  font-size: 1rem;
+  font-weight: 700;
+}
