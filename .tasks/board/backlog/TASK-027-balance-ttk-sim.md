@@ -40,3 +40,7 @@
 - Скрипт запускается одной командой (node)
 - Выдаёт сводку по сценариям (без таблиц в чате Foundry)
 
+## Change Log
+
+- 2026-04-27: Updated balance simulation to use the migrated combat skill-vs-DC roll result and added extra scenarios for intervening-token interference plus dizzy/blind penalties.
+- 2026-04-26: after TASK-024 table tuning, simulator shows ordinary medium-range light-cover ranged combat at about 25% hit rate and headshot-with-aim around 5%; this likely needs later balance review before combat migration to the skill-vs-difficulty model

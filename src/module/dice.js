@@ -1,11 +1,23 @@
 import { NoiseManager } from "./noise.js"; 
 import { GLOBAL_STATUSES } from "./constants.js";
 import { PerkLogic } from "./perk-logic.js";
-import { calcChanceBreakdown, calcRollResult } from "./chance.js";
-import { Z_DIFFICULTY, getCalledShotPenalty } from "./difficulty-tables.js";
+import { calcChanceBreakdown, calcRollResult, calcCombatRollResult } from "./chance.js";
+import { Z_DIFFICULTY, getCalledShotPenalty, getCoverPenalty, getRangePenalty } from "./difficulty-tables.js";
 import { buildAttackCostContext, getAmmoConsumptionPlan, rollTriggeredEffects } from "./attack-rules.js";
-import { buildDamageFormula, applyDamageModifiers, finalizeDamageAmount } from "./attack-damage.js";
+import { buildDamageFormula, applyDamageModifiers, finalizeDamageAmount, getCritMultiplier } from "./attack-damage.js";
 import { getSlotMachineHTML, buildStatusChanceLog, buildAttackChatParts } from "./attack-chat.js";
+import { buildCheckBandsHtml } from "./check-chat.js";
+import { buildCombatOutcomeContext } from "./combat-outcome.js";
+import { applyFirearmBallisticsAuto, buildFirearmBallisticsChatContext } from "./firearm-chat.js";
+import { ZChat } from "./chat.js";
+import { buildAimingBallisticsPreview, buildAimingBallisticsPreviewHtml } from "./firearm-preview.js";
+import { resolveJammedBurst } from "./firearm-ballistics.js";
+import { getAmmoProfile, getAmmoTraumaMultiplier, getLoadedAmmoData } from "./ammo-effects.js";
+import { buildSkillCheckContext, Z_SKILL_DIFFICULTY_PRESETS } from "./skill-check.js";
+import { openSkillCheckDialog } from "./apps/skill-check-dialog.js";
+import { rollD100 } from "./roll-utils.js";
+import { resolveTraumaOutcome } from "./trauma.js";
+import { calculateArmorWear, getActorProtection, resolveDamageProtection } from "./protection.js";
 
 let aimingHandler = null;
 
@@ -175,6 +187,7 @@ class AimingManager {
         }
 
         if (this.currentTarget) {
+            if (_isBallisticsPreviewEnabled()) this._drawBallisticsPreview(this.currentTarget);
             this._updateHudContent(this.currentTarget);
             this.hud.show();
         } else {
@@ -239,6 +252,11 @@ class AimingManager {
         const col = this._getHitColor(hitChance);
 
         let detailsHtml = "";
+        detailsHtml += `<div class="aim-detail"><span>DC:</span> <span>${chanceData.difficulty.total}</span></div>`;
+        detailsHtml += `<div class="aim-detail"><span>Крит. успех:</span> <span>${chanceData.check.critSuccessChance}%</span></div>`;
+        detailsHtml += `<div class="aim-detail"><span>Провал:</span> <span>${chanceData.check.ordinaryFailChance}%</span></div>`;
+        detailsHtml += `<div class="aim-detail"><span>Крит. провал:</span> <span>${chanceData.check.fumbleChance}%</span></div>`;
+        detailsHtml += buildCheckBandsHtml(chanceData.check);
         if (this.aimSteps > 0) {
             const aimBonus = this.aimSteps * game.settings.get("zsystem", "aimBonus");
             detailsHtml += `<div class="aim-detail" style="color:#69f0ae;"><span>Прицел:</span> <span>+${aimBonus}%</span></div>`;
@@ -250,6 +268,16 @@ class AimingManager {
         if (chanceData.details.rangePen < 0) detailsHtml += `<div class="aim-detail"><span>Дальность:</span> <span>${chanceData.details.rangePen}%</span></div>`;
         if (chanceData.details.intervPen < 0) detailsHtml += `<div class="aim-detail"><span>Помеха:</span> <span>${chanceData.details.intervPen}%</span></div>`;
         if (chanceData.details.evasionMod < 0) detailsHtml += `<div class="aim-detail"><span>Уклонение:</span> <span>${chanceData.details.evasionMod}%</span></div>`;
+        if (_isBallisticsPreviewEnabled()) {
+            detailsHtml += buildAimingBallisticsPreviewHtml(buildAimingBallisticsPreview({
+                sourceToken: this.sourceToken,
+                targetToken: target,
+                item: this.item,
+                attack: this.attack,
+                ammo: getLoadedAmmoData(this.item),
+                location: $('#aim-location').val() || "torso"
+            }));
+        }
 
         let warnHtml = "";
         if (chanceData.details.coverPen <= Z_DIFFICULTY.chance.blocked) warnHtml = `<div class="aim-warn">ЦЕЛЬ ЗА ПРЕГРАДОЙ</div>`;
@@ -268,16 +296,65 @@ class AimingManager {
         this.hud.html(html);
         this.hud.css("border-left-color", col.css);
     }
+
+    _drawBallisticsPreview(target) {
+        const preview = buildAimingBallisticsPreview({
+            sourceToken: this.sourceToken,
+            targetToken: target,
+            item: this.item,
+            attack: this.attack,
+            ammo: getLoadedAmmoData(this.item),
+            location: $('#aim-location').val() || "torso"
+        });
+        if (!preview.enabled) return;
+
+        for (const risk of preview.lineRisks) {
+            const token = risk.token.token;
+            if (!token) continue;
+            this.graphics.lineStyle(2, risk.behindTarget ? 0x7dd3fc : 0xffc857, 0.85);
+            this.graphics.beginFill(risk.behindTarget ? 0x7dd3fc : 0xffc857, 0.10);
+            this.graphics.drawCircle(token.center.x, token.center.y, token.w / 2 + 8);
+            this.graphics.endFill();
+        }
+
+        for (const risk of preview.coneRisks) {
+            const token = risk.token.token;
+            if (!token || token.id === target.id) continue;
+            this.graphics.lineStyle(1, 0xffab91, 0.65);
+            this.graphics.beginFill(0xffab91, 0.08);
+            this.graphics.drawCircle(token.center.x, token.center.y, token.w / 2 + 14);
+            this.graphics.endFill();
+        }
+    }
 }
 
 // === ДИАЛОГ БРОСКА ===
-export async function showRollDialog(label, callback) {
-    const content = `
-    <form>
+export async function showRollDialog(label, callback, options = {}) {
+    const useDifficultyPresets = !!options.useDifficultyPresets;
+    const presetOptions = Object.entries(options.difficultyPresets || Z_SKILL_DIFFICULTY_PRESETS)
+        .map(([key, preset]) => `<option value="${key}" ${key === (options.defaultPreset || "normal") ? "selected" : ""}>${preset.label} (DC ${preset.dc})</option>`)
+        .join("");
+    const difficultyHtml = useDifficultyPresets
+        ? `
+        <div class="form-group">
+            <label>Сложность</label>
+            <select name="difficultyPreset">
+                ${presetOptions}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Ручная поправка (+ легче / - сложнее)</label>
+            <input type="number" name="modifier" value="0"/>
+        </div>
+        <div class="z-skill-check-preview" style="border-top:1px solid #555; margin-top:8px; padding-top:8px; font-size:0.9em;"></div>`
+        : `
         <div class="form-group">
             <label>Модификатор (+/-)</label>
             <input type="number" name="modifier" value="0" autofocus/>
-        </div>
+        </div>`;
+    const content = `
+    <form>
+        ${difficultyHtml}
         <div class="form-group">
             <label>Режим броска</label>
             <select name="rollMode">
@@ -298,12 +375,35 @@ export async function showRollDialog(label, callback) {
                 icon: '<i class="fas fa-dice"></i>',
                 callback: (html) => {
                     const modifier = Number(html.find('[name="modifier"]').val()) || 0;
+                    const difficultyPreset = html.find('[name="difficultyPreset"]').val() || "normal";
                     const rollMode = html.find('[name="rollMode"]').val();
-                    callback(modifier, rollMode);
+                    callback(modifier, rollMode, { difficultyPreset });
                 }
             }
         },
-        default: "roll"
+        default: "roll",
+        render: (html) => {
+            if (!useDifficultyPresets || !options.actor || !options.skillId) return;
+
+            const updatePreview = () => {
+                const modifier = Number(html.find('[name="modifier"]').val()) || 0;
+                const difficultyPreset = html.find('[name="difficultyPreset"]').val() || "normal";
+                const context = buildSkillCheckContext({
+                    actor: options.actor,
+                    skillId: options.skillId,
+                    modifier,
+                    preset: difficultyPreset
+                });
+                html.find(".z-skill-check-preview").html(`
+                    <div><strong>Шанс:</strong> ${context.effectiveTarget}%</div>
+                    <div><strong>DC:</strong> ${context.difficulty.total} | <strong>Крит. успех:</strong> ${context.check.critSuccessChance}% | <strong>Провал:</strong> ${context.check.ordinaryFailChance}% | <strong>Крит. провал:</strong> ${context.check.fumbleChance}%</div>
+                    <div style="color:#999;">${context.difficulty.presetLabel}${context.difficulty.manualModifier ? `, ручная поправка ${context.difficulty.manualModifier > 0 ? "+" : ""}${context.difficulty.manualModifier}` : ""}</div>
+                `);
+            };
+
+            html.find('[name="difficultyPreset"], [name="modifier"]').on("change input", updatePreview);
+            updatePreview();
+        }
     }).render(true);
 }
 
@@ -320,37 +420,14 @@ export function _getSlotMachineHTML(label, target, rollTotal, resultType) {
 export async function rollSkill(actor, skillId) {
     const skill = actor.system.skills[skillId];
     if (!skill) return;
-    
-    const label = {
-        melee: "Ближний бой", ranged: "Стрельба", science: "Наука", 
-        mechanical: "Механика", medical: "Медицина", diplomacy: "Дипломатия",
-        leadership: "Лидерство", survival: "Выживание", athletics: "Атлетика",
-        stealth: "Скрытность"
-    }[skillId] || skillId;
-
-    showRollDialog(label, async (modifier, rollMode) => {
-        const roll = await new Roll("1d100").evaluate();
-        
-        const effectiveTarget = skill.value + modifier;
-        const resultType = _calcResult(roll.total, effectiveTarget);
-        
-        const modText = modifier !== 0 ? ` (${modifier > 0 ? "+" : ""}${modifier})` : "";
-        const cardHtml = _getSlotMachineHTML(`${label}${modText}`, effectiveTarget, roll.total, resultType);
-        
-        await roll.toMessage({ 
-            speaker: ChatMessage.getSpeaker({actor}), 
-            content: cardHtml,
-            flags: { zsystem: { type: "skill", key: skillId } }
-        }, { 
-            rollMode: rollMode 
-        });
-    });
+    openSkillCheckDialog(actor, { skillId });
 }
 
 // === ВЫПОЛНЕНИЕ АТАКИ ===
 export async function performAttack(actor, itemId) {
     const item = actor.items.get(itemId);
     if (!item) return;
+    if (item.system.jammed) return ui.notifications.warn("\u041e\u0440\u0443\u0436\u0438\u0435 \u0437\u0430\u043a\u043b\u0438\u043d\u0438\u043b\u043e. \u0421\u043d\u0438\u043c\u0438\u0442\u0435 \u0444\u043b\u0430\u0433 \u0432 \u043b\u0438\u0441\u0442\u0435 \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u0430.");
     if (actor.hasStatusEffect("panic")) return ui.notifications.error("Паника!");
 
     // --- ПРОВЕРКА ОЧЕРЕДИ ХОДА ---
@@ -527,6 +604,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
     console.log("ZSystem | [CHECKPOINT 1] Вход в атаку:", item.name);
 
     // 1. ОПРЕДЕЛЯЕМ ТОКЕНЫ
+    if (item.system.jammed) return ui.notifications.warn("\u041e\u0440\u0443\u0436\u0438\u0435 \u0437\u0430\u043a\u043b\u0438\u043d\u0438\u043b\u043e. \u0421\u043d\u0438\u043c\u0438\u0442\u0435 \u0444\u043b\u0430\u0433 \u0432 \u043b\u0438\u0441\u0442\u0435 \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u0430.");
     const sourceToken = actor.getActiveTokens()[0]; 
     const targets = Array.from(game.user.targets);
     const targetToken = targets.length > 0 ? targets[0] : null;
@@ -538,8 +616,6 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         return ui.notifications.warn(`Недостаточно AP! Нужно ${attackCost.totalApCost} (Атака ${attackCost.baseApCost} + Прицел ${attackCost.extraApCost}).`);
     }
 
-    modifier += attackCost.aimBonusTotal;
-
     console.log("ZSystem | [CHECKPOINT 2] AP проверено. Списание патронов...");
 
     const ammoContext = await _consumeAttackAmmo(item, attack);
@@ -547,6 +623,7 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         console.log("ZSystem | Ошибка: Мало патронов");
         return ui.notifications.warn(`Недостаточно патронов! Нужно: ${ammoContext.spentBullets}`);
     }
+    const loadedAmmoData = getLoadedAmmoData(item);
 
     await actor.update({"system.resources.ap.value": Math.max(0, attackCost.curAP - attackCost.totalApCost)});
     
@@ -591,12 +668,40 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
 
     const dizzyLog = buildStatusChanceLog(chanceData);
 
-    const roll = await new Roll("1d100").evaluate();
-    const resultType = _calcResult(roll.total, totalChance);
+    const roll = await rollD100();
+    const resultType = calcCombatRollResult(roll.total, {
+        skill: chanceData.details.skillVal,
+        difficulty: chanceData.difficulty.total
+    });
     const isHit = resultType.includes("success");
+    const burstOverride = _resolveAttackBurstInterruption(attack, resultType);
+    await _refundUnfiredBurstAmmo(item, ammoContext, burstOverride);
+    const outcome = buildCombatOutcomeContext({
+        resultType,
+        item,
+        attack,
+        ammo: loadedAmmoData
+    });
     
     if (targetToken) _drawTracer(sourceToken, targetToken, isHit);
 
+    const ballisticsContext = buildFirearmBallisticsChatContext({
+        sourceToken,
+        targetToken,
+        item,
+        attack,
+        ammo: loadedAmmoData,
+        resultType,
+        location,
+        damageType: item.system.damageType || "ballistic",
+        mode: _getBallisticsChatMode(),
+        allowFailStray: _isFailCausedByInterference({
+            rollTotal: roll.total,
+            resultType,
+            chanceData
+        }),
+        burstOverride
+    });
     const damageContext = await _resolveAttackDamage({
         actor,
         item,
@@ -604,7 +709,9 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         targetToken,
         location,
         resultType,
-        isHit
+        isHit,
+        ammo: loadedAmmoData,
+        ballisticsContext
     });
 
     // 8. ЧАТ
@@ -615,14 +722,25 @@ async function _executeAttack(actor, item, attack, location = "torso", modifier 
         ammoContext,
         attackCost,
         damageContext,
-        dizzyLog
+        dizzyLog,
+        chanceData,
+        outcome,
+        ballisticsContext
     });
 
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({actor}),
         content: `${cardHtml}${attackChatParts.content}`,
-        flags: { zsystem: { noiseAdd: (Number(item.system.noise)||0), damageData: damageContext.damageDataForGM } }
+        flags: { zsystem: { noiseAdd: Math.max(0, (Number(item.system.noise) || 0) + (loadedAmmoData ? getAmmoProfile(loadedAmmoData).noiseModifier : 0)), damageData: damageContext.damageDataForGM } }
     }, { rollMode: rollMode });
+
+    await applyFirearmBallisticsAuto(ballisticsContext, {
+        postTrauma: (payload) => ZChat.postTraumaReportForManualDamage(payload),
+        notify: (applied) => {
+            const names = applied.map((hit) => hit.actor.name).join(", ");
+            ui.notifications.info(`Авто-баллистика: применён побочный урон к ${names}`);
+        }
+    });
 
     if (ammoContext.isThrowingAction) {
         const qty = Number(item.system.quantity) || 1;
@@ -659,17 +777,91 @@ async function _consumeAttackAmmo(item, attack) {
     return ammoPlan;
 }
 
-async function _resolveAttackDamage({ actor, item, attack, targetToken, location, resultType, isHit }) {
+function _resolveAttackBurstInterruption(attack, resultType) {
+    const requestedShots = Math.max(1, Math.floor(Number(attack?.bullets) || 1));
+    if (requestedShots <= 1) return null;
+    return resolveJammedBurst({ requestedShots, resultType });
+}
+
+async function _refundUnfiredBurstAmmo(item, ammoContext, burstOverride) {
+    if (!burstOverride?.interrupted || !ammoContext?.usesMagazine) return;
+
+    const refund = Math.max(0, (Number(ammoContext.spentBullets) || 0) - burstOverride.firedShots);
+    if (refund <= 0) return;
+
+    const maxMagazine = Number(item.system.mag?.max) || 0;
+    const currentMagazine = Number(item.system.mag?.value) || ammoContext.nextMagazineValue || 0;
+    const nextMagazineValue = maxMagazine > 0
+        ? Math.min(maxMagazine, currentMagazine + refund)
+        : currentMagazine + refund;
+
+    await item.update({ "system.mag.value": nextMagazineValue });
+    ammoContext.refundedBullets = refund;
+    ammoContext.requestedBullets = ammoContext.spentBullets;
+    ammoContext.spentBullets = burstOverride.firedShots;
+}
+
+function _isBallisticsPreviewEnabled() {
+    return game.settings.get("zsystem", "firearmBallisticsPreview") !== false;
+}
+
+function _getBallisticsChatMode() {
+    return game.settings.get("zsystem", "firearmBallisticsChatMode") || "manual";
+}
+
+function _getTraumaMode() {
+    return game.settings.get("zsystem", "traumaMode") || "manual";
+}
+
+function _getTraumaSeverityMultiplier() {
+    const value = Number(game.settings.get("zsystem", "traumaSeverityMultiplier"));
+    return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function _isFailCausedByInterference({ rollTotal, resultType, chanceData }) {
+    const interferencePenalty = Number(chanceData?.details?.intervPen) || 0;
+    if (resultType !== "fail" || interferencePenalty >= 0) return false;
+
+    const difficultyWithoutInterference = Math.max(0, (Number(chanceData.difficulty?.total) || 0) + interferencePenalty);
+    const resultWithoutInterference = calcCombatRollResult(rollTotal, {
+        skill: chanceData.details?.skillVal || 0,
+        difficulty: difficultyWithoutInterference
+    });
+
+    return resultWithoutInterference.includes("success");
+}
+
+async function _resolveAttackDamage({ actor, item, attack, targetToken, location, resultType, isHit, ammo = null, ballisticsContext = null }) {
     const damageContext = {
         dmgDisplay: "",
         strBonusLog: "",
         stealthLog: "",
+        ammoLog: "",
+        noiseModifier: 0,
+        traumaMode: _getTraumaMode(),
+        trauma: null,
+        protectionPreview: null,
         damageDataForGM: []
     };
 
-    if (!isHit) return damageContext;
+    if (!isHit && !hasPrimaryBallisticHits(ballisticsContext)) return damageContext;
 
-    let formula = buildDamageFormula(attack.dmg || "0", resultType);
+    const primaryBallisticHits = getPrimaryBallisticHits(ballisticsContext);
+    if (primaryBallisticHits.length) {
+        return resolveBallisticPrimaryDamageContext({
+            damageContext,
+            primaryBallisticHits,
+            item,
+            targetToken,
+            location,
+            resultType,
+            ammo
+        });
+    }
+
+    let formula = buildDamageFormula(attack.dmg || "0", resultType, {
+        critMultiplier: getCritMultiplier(item)
+    });
 
     const rDmg = await new Roll(formula, actor.getRollData()).evaluate();
     const damageMath = applyDamageModifiers({
@@ -680,6 +872,12 @@ async function _resolveAttackDamage({ actor, item, attack, targetToken, location
         isStealth: actor.statuses.has("stealth")
     });
     let finalDmg = damageMath.finalDamage;
+    const ammoProfile = ammo && item.system.weaponType === "ranged" ? getAmmoProfile(ammo) : null;
+    if (ammoProfile) {
+        finalDmg = Math.max(1, finalDmg + ammoProfile.damageBonus);
+        damageContext.noiseModifier = ammoProfile.noiseModifier;
+        damageContext.ammoLog = `<div style="font-size:0.8em; color:#7dd3fc;">Патрон: ${ammoProfile.label}${ammoProfile.damageBonus ? ` (${ammoProfile.damageBonus > 0 ? "+" : ""}${ammoProfile.damageBonus} урон)` : ""}</div>`;
+    }
 
     if (damageMath.strengthBonus > 0) {
         damageContext.strBonusLog = `<div style="font-size:0.8em; color:#aed6f1;">СИЛ: +${damageMath.strengthBonus}${item.system.hands === "2h" ? " (двуруч.)" : ""}</div>`;
@@ -695,6 +893,52 @@ async function _resolveAttackDamage({ actor, item, attack, targetToken, location
 
     const dmgAmount = finalizeDamageAmount(finalDmg);
     damageContext.dmgDisplay = `<div class="z-damage-box"><div class="dmg-label">УРОН</div><div class="dmg-val">${dmgAmount}</div></div>`;
+    const damageType = item.system.damageType || "blunt";
+    const armorPiercing = item.system.weaponType === "ranged"
+        ? Math.max(0, (Number(item.system.armorPiercing) || 0) + (ammoProfile?.armorPiercingBonus || 0))
+        : 0;
+
+    if (targetToken?.actor) {
+        const protection = getActorProtection(targetToken.actor, {
+            location,
+            damageType
+        });
+        const protectionResult = resolveDamageProtection({
+            amount: dmgAmount,
+            damageType,
+            protection,
+            armorPiercing,
+            headshot: location === "head"
+        });
+        const armorWear = calculateArmorWear({
+            protectionResult,
+            protection,
+            damageType
+        });
+        damageContext.protectionPreview = {
+            raw: dmgAmount,
+            final: protectionResult.finalDamage,
+            ac: protectionResult.effectiveAC,
+            resist: protectionResult.resist,
+            armorPiercing,
+            armorWear: armorWear.enabled ? armorWear.amount : 0,
+            headshot: location === "head"
+        };
+    }
+
+    damageContext.trauma = targetToken?.actor
+        ? resolveTraumaOutcome({
+            damage: dmgAmount,
+            maxHp: targetToken.actor.system?.resources?.hp?.max,
+            limbMax: targetToken.actor.system?.limbs?.[location]?.max,
+            location,
+            damageType: item.system.damageType || "blunt",
+            resultType,
+            targetUuid: targetToken.actor.uuid,
+            targetName: targetToken.actor.name,
+            severityMultiplier: _getTraumaSeverityMultiplier() * getAmmoTraumaMultiplier(ammo)
+        })
+        : null;
 
     const triggeredEffects = _rollTriggeredEffects(attack);
     if (targetToken) {
@@ -706,6 +950,113 @@ async function _resolveAttackDamage({ actor, item, attack, targetToken, location
             effects: triggeredEffects,
             headshot: location === "head"
         });
+    }
+
+    return damageContext;
+}
+
+function hasPrimaryBallisticHits(ballisticsContext) {
+    return getPrimaryBallisticHits(ballisticsContext).length > 0;
+}
+
+function getPrimaryBallisticHits(ballisticsContext) {
+    if (!ballisticsContext?.enabled) return [];
+    return (ballisticsContext.entries || []).filter((entry) => entry.kind === "primary");
+}
+
+function resolveBallisticPrimaryDamageContext({
+    damageContext,
+    primaryBallisticHits,
+    item,
+    targetToken,
+    location,
+    resultType,
+    ammo
+}) {
+    const damageType = item.system.damageType || "ballistic";
+    const ammoProfile = ammo && item.system.weaponType === "ranged" ? getAmmoProfile(ammo) : null;
+    const armorPiercing = Math.max(0, (Number(item.system.armorPiercing) || 0) + (ammoProfile?.armorPiercingBonus || 0));
+    const rawTotal = primaryBallisticHits.reduce((sum, hit) => sum + Math.max(1, Number(hit.damage) || 1), 0);
+    const bulletText = primaryBallisticHits
+        .map((hit) => `#${hit.shot}: ${Math.max(1, Number(hit.damage) || 1)}`)
+        .join(", ");
+
+    damageContext.dmgDisplay = `
+        <div class="z-damage-box">
+            <div class="dmg-label">УРОН (${primaryBallisticHits.length} п.)</div>
+            <div class="dmg-val">${rawTotal}</div>
+        </div>
+        <div class="z-ballistic-primary-breakdown">Пули: ${bulletText}</div>`;
+    if (ammoProfile) {
+        damageContext.noiseModifier = ammoProfile.noiseModifier;
+        damageContext.ammoLog = `<div style="font-size:0.8em; color:#7dd3fc;">Патрон: ${ammoProfile.label}</div>`;
+    }
+
+    let finalTotal = 0;
+    let maxAc = 0;
+    let maxResist = 0;
+    let armorWearTotal = 0;
+
+    if (targetToken?.actor) {
+        const protection = getActorProtection(targetToken.actor, {
+            location,
+            damageType
+        });
+
+        for (const hit of primaryBallisticHits) {
+            const amount = Math.max(1, Number(hit.damage) || 1);
+            const protectionResult = resolveDamageProtection({
+                amount,
+                damageType,
+                protection,
+                armorPiercing,
+                headshot: location === "head"
+            });
+            const armorWear = calculateArmorWear({
+                protectionResult,
+                protection,
+                damageType
+            });
+
+            finalTotal += protectionResult.finalDamage;
+            maxAc = Math.max(maxAc, protectionResult.effectiveAC);
+            maxResist = Math.max(maxResist, protectionResult.resist);
+            armorWearTotal += armorWear.enabled ? armorWear.amount : 0;
+        }
+
+        damageContext.protectionPreview = {
+            raw: rawTotal,
+            final: finalTotal,
+            ac: maxAc,
+            resist: maxResist,
+            armorPiercing,
+            armorWear: armorWearTotal,
+            headshot: location === "head"
+        };
+
+        damageContext.trauma = resolveTraumaOutcome({
+            damage: rawTotal,
+            maxHp: targetToken.actor.system?.resources?.hp?.max,
+            limbMax: targetToken.actor.system?.limbs?.[location]?.max,
+            location,
+            damageType,
+            resultType,
+            targetUuid: targetToken.actor.uuid,
+            targetName: targetToken.actor.name,
+            severityMultiplier: _getTraumaSeverityMultiplier() * getAmmoTraumaMultiplier(ammo)
+        });
+
+        for (const hit of primaryBallisticHits) {
+            damageContext.damageDataForGM.push({
+                uuid: targetToken.document.uuid,
+                amount: Math.max(1, Number(hit.damage) || 1),
+                type: damageType,
+                limb: location,
+                effects: [],
+                headshot: location === "head",
+                armorPiercing
+            });
+        }
     }
 
     return damageContext;
@@ -748,12 +1099,12 @@ function _calculateCover(sourceToken, targetToken) {
     }
 
     if (blockedCount === 0) {
-        return windowCount > 0 ? { penalty: Z_DIFFICULTY.cover.window, label: "Через окно" } : { penalty: Z_DIFFICULTY.cover.none, label: "" };
+        return windowCount > 0 ? { penalty: getCoverPenalty("window"), label: "Через окно" } : { penalty: getCoverPenalty("none"), label: "" };
     }
     
-    if (blockedCount <= 2) return { penalty: Z_DIFFICULTY.cover.light, label: "Легкое укр." };
-    if (blockedCount === 3) return { penalty: Z_DIFFICULTY.cover.heavy, label: "Тяж. укр." };
-    return { penalty: Z_DIFFICULTY.cover.blocked, label: "Не видно" }; 
+    if (blockedCount <= 2) return { penalty: getCoverPenalty("light"), label: "Легкое укр." };
+    if (blockedCount === 3) return { penalty: getCoverPenalty("heavy"), label: "Тяж. укр." };
+    return { penalty: getCoverPenalty("blocked"), label: "Не видно" }; 
 }
 
 export async function rollPanicTable(actor) {
@@ -804,9 +1155,9 @@ function _distToSegment(p, a, b) {
 function _calculateRangePenalty(item, dist) {
     const range = Number(item.system.range) || 1;
     if (item.system.weaponType === 'melee') return { penalty: 0, label: "" };
-    if (dist <= range) return { penalty: Z_DIFFICULTY.range.near, label: "" };
-    if (dist <= range * 2) return { penalty: Z_DIFFICULTY.range.medium, label: "Далеко" };
-    return { penalty: Z_DIFFICULTY.range.far, label: "Слишк. далеко" };
+    if (dist <= range) return { penalty: getRangePenalty("near"), label: "" };
+    if (dist <= range * 2) return { penalty: getRangePenalty("medium"), label: "Далеко" };
+    return { penalty: getRangePenalty("far"), label: "Слишк. далеко" };
 }
 
 async function _drawTracer(source, target, isHit) {

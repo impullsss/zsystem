@@ -20,7 +20,7 @@
 
   {{#if isGM}}
   <div class="form-group">
-    <label>Ручной модификатор</label>
+    <label>Модификатор</label>
     <input type="number" name="customModifier" value="{{customModifier}}" step="1" />
   </div>
   {{else}}
@@ -36,22 +36,52 @@
     </select>
   </div>
 
-  <div style="border-top:1px solid #555; margin-top:10px; padding-top:10px; font-size:0.9em;">
-    <div><strong>Шанс:</strong> {{preview.effectiveTarget}}%</div>
-    <div><strong>Оценка:</strong> {{preview.descriptor}}</div>
-    {{#if preview.targetActor}}
-    <div><strong>Цель:</strong> {{preview.targetActor.name}}</div>
-    {{/if}}
+  <div class="z-check-preview z-check-preview--social">
+    <div class="z-check-chance">
+      <span class="z-check-kicker">Шанс</span>
+      <strong>{{preview.effectiveTarget}}%</strong>
+    </div>
+    <div class="z-check-metrics">
+      <div class="z-check-metric">
+        <span>DC</span>
+        <strong>{{preview.modelDifficulty.total}}</strong>
+      </div>
+      <div class="z-check-metric z-check-metric--success">
+        <span>Крит. успех</span>
+        <strong>{{preview.check.critSuccessChance}}%</strong>
+      </div>
+      <div class="z-check-metric">
+        <span>Провал</span>
+        <strong>{{preview.check.ordinaryFailChance}}%</strong>
+      </div>
+      <div class="z-check-metric z-check-metric--danger">
+        <span>Крит. провал</span>
+        <strong>{{preview.check.fumbleChance}}%</strong>
+      </div>
+    </div>
+    <div class="z-check-summary">
+      {{preview.descriptor}}
+      {{#if preview.targetActor}} · {{preview.targetActor.name}}{{/if}}
+    </div>
+    <div class="z-check-bands">
+      <span class="z-check-band z-check-band--crit-success"><strong>{{preview.check.bands.critSuccess.from}} - {{preview.check.bands.critSuccess.to}}</strong> &#1082;&#1088;&#1080;&#1090;</span>
+      <span class="z-check-band z-check-band--success"><strong>{{preview.check.bands.success.from}} - {{preview.check.bands.success.to}}</strong> &#1091;&#1089;&#1087;&#1077;&#1093;</span>
+      {{#if preview.check.bands.fail}}
+      <span class="z-check-band z-check-band--fail"><strong>{{preview.check.bands.fail.from}} - {{preview.check.bands.fail.to}}</strong> &#1087;&#1088;&#1086;&#1074;&#1072;&#1083;</span>
+      {{/if}}
+      <span class="z-check-band z-check-band--crit-fail"><strong>{{preview.check.bands.fumble.from}} - {{preview.check.bands.fumble.to}}</strong> &#1082;&#1088;&#1080;&#1090;. &#1087;&#1088;&#1086;&#1074;&#1072;&#1083;</span>
+    </div>
     {{#if isGM}}
-    <div style="margin-top:6px; color:#999;">
-      Отношение: {{previewAttitude.label}} | Пресет: {{previewPresetLabel}}
+    <div class="z-social-check-factors" style="--social-accent: {{previewAttitude.color}};">
+      <span>{{previewAttitude.icon}} {{previewAttitude.label}}</span>
+      <span>{{previewPresetLabel}}</span>
     </div>
     {{else if hideFactors}}
-    <div style="margin-top:6px; color:#999;">Факторы NPC скрыты</div>
+    <div class="z-social-check-factors">Факторы NPC скрыты</div>
     {{/if}}
   </div>
 
-  <div class="form-group" style="margin-top:12px; display:flex; justify-content:flex-end; gap:6px;">
+  <div class="form-group z-check-actions">
     <button type="submit"><i class="fas fa-comments"></i> Бросить</button>
   </div>
 </form>

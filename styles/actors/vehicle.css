@@ -1,0 +1,216 @@
+.z-vehicle-sheet {
+    --vehicle-bg: #e7ece7;
+    --vehicle-panel: rgba(255, 255, 255, 0.72);
+    --vehicle-ink: #182321;
+    --vehicle-muted: #60706a;
+    --vehicle-accent: #2d6a4f;
+    --vehicle-warn: #9f1d14;
+    color: var(--vehicle-ink);
+}
+
+.z-vehicle-header {
+    display: flex;
+    gap: 14px;
+    padding: 12px;
+    background: linear-gradient(135deg, #263238, #44524d);
+    border-bottom: 3px solid #9db5a9;
+}
+
+.z-vehicle-header .profile-img {
+    border: 2px solid rgba(255, 255, 255, 0.82);
+    background: rgba(0, 0, 0, 0.25);
+    object-fit: cover;
+}
+
+.z-vehicle-heading {
+    flex: 1;
+}
+
+.z-vehicle-heading input[name="name"] {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    background: transparent;
+    color: #f5f1de;
+    font-size: 1.8em;
+    font-weight: 800;
+}
+
+.z-vehicle-vitals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.z-vehicle-vitals label {
+    min-width: 150px;
+    padding: 6px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.22);
+    color: #dbe6df;
+}
+
+.z-vehicle-vitals span {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.z-vehicle-vitals input {
+    width: 48px;
+    color: #111;
+    text-align: center;
+}
+
+.z-vehicle-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px 0;
+    background: #263238;
+}
+
+.z-vehicle-tabs .item {
+    padding: 7px 10px;
+    color: #e8efe9;
+    border: 1px solid transparent;
+    border-radius: 5px 5px 0 0;
+}
+
+.z-vehicle-tabs .item.active {
+    background: var(--vehicle-bg);
+    color: var(--vehicle-ink);
+    border-color: #9db5a9;
+    border-bottom-color: var(--vehicle-bg);
+}
+
+.z-vehicle-body {
+    padding: 12px;
+    background: var(--vehicle-bg);
+}
+
+.z-vehicle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.z-vehicle-panel {
+    padding: 12px;
+    border: 1px solid rgba(24, 35, 33, 0.18);
+    border-radius: 6px;
+    background: var(--vehicle-panel);
+}
+
+.z-vehicle-panel h3 {
+    margin: 0 0 10px;
+    border-bottom: 2px solid #182321;
+    color: #182321;
+    text-transform: uppercase;
+}
+
+.z-vehicle-stat,
+.z-vehicle-list-row,
+.z-vehicle-passenger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.58);
+}
+
+.z-vehicle-stat + .z-vehicle-stat {
+    margin-top: 6px;
+}
+
+.z-vehicle-stat span,
+.z-vehicle-list-main span,
+.z-vehicle-passenger span,
+.z-vehicle-note {
+    color: var(--vehicle-muted);
+}
+
+.z-vehicle-stat b {
+    color: var(--vehicle-accent);
+}
+
+.z-vehicle-stat--bad b,
+.z-vehicle-warning {
+    color: var(--vehicle-warn);
+}
+
+.z-vehicle-panel .repair-vehicle {
+    width: 100%;
+    margin-top: 8px;
+    border-color: rgba(45, 106, 79, 0.45);
+    color: var(--vehicle-ink);
+    font-weight: 800;
+}
+
+.z-vehicle-warning,
+.z-vehicle-note,
+.z-vehicle-empty {
+    margin: 8px 0 0;
+    font-weight: 700;
+}
+
+.z-vehicle-loadbar {
+    height: 10px;
+    margin-top: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(24, 35, 33, 0.2);
+    border-radius: 999px;
+    background: rgba(24, 35, 33, 0.12);
+}
+
+.z-vehicle-loadbar > div {
+    height: 100%;
+    background: linear-gradient(90deg, #2d6a4f, #9dbf7f);
+}
+
+.z-vehicle-list {
+    margin: 10px 0 0;
+    padding: 0;
+}
+
+.z-vehicle-list-row {
+    margin-bottom: 5px;
+}
+
+.z-vehicle-list-row img,
+.z-vehicle-passenger img {
+    border: 1px solid rgba(24, 35, 33, 0.32);
+    object-fit: cover;
+}
+
+.z-vehicle-list-main {
+    flex: 1;
+}
+
+.z-vehicle-list-main span,
+.z-vehicle-passenger span {
+    display: block;
+    font-size: 0.82em;
+}
+
+.z-vehicle-passengers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.z-vehicle-passenger > div {
+    flex: 1;
+}
+
+.z-vehicle-empty {
+    display: block;
+    padding: 18px;
+    text-align: center;
+    color: var(--vehicle-muted);
+}

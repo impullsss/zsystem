@@ -134,6 +134,113 @@ Hooks.once("init", () => {
     default: true
   });
 
+  game.settings.register("zsystem", "forceD100Roll", {
+    name: "Debug: фиксированный d100",
+    hint: "0 = обычный случайный бросок. 1-100 = все проверки d100 используют это число для быстрого теста критов/провалов.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 0,
+    range: {
+      min: 0,
+      max: 100,
+      step: 1
+    }
+  });
+
+  game.settings.register("zsystem", "firearmBallisticsPreview", {
+    name: "Огнестрел: показывать баллистику при прицеливании",
+    hint: "Показывает в HUD токены на линии огня, за целью и внутри конуса очереди. Урон не применяется.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  game.settings.register("zsystem", "firearmBallisticsChatMode", {
+    name: "Огнестрел: баллистика в чате",
+    hint: "off = скрыть отчёт, report = только отчёт, manual = отчёт и GM-кнопки, auto = отчёт и автоматический побочный урон.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "Выкл.",
+      report: "Только отчёт",
+      manual: "Отчёт + ручные GM-кнопки",
+      auto: "Отчёт + авто-урон"
+    },
+    default: "manual"
+  });
+
+  game.settings.register("zsystem", "armorWearMode", {
+    name: "Броня: износ от поглощения",
+    hint: "off = не показывать, report = только подсказка в Absorb Log, auto = автоматически снижать прочность брони.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "Выкл.",
+      report: "Только отчёт",
+      auto: "Авто-износ"
+    },
+    default: "report"
+  });
+
+  game.settings.register("zsystem", "travelEventMode", {
+    name: "Путешествия: события дороги",
+    hint: "off = не бросать события, report = иногда добавлять событие дороги в карточку путешествия.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "Выкл.",
+      report: "Отчёт в чате"
+    },
+    default: "off"
+  });
+
+  game.settings.register("zsystem", "travelMaintenanceMode", {
+    name: "Путешествия: износ транспорта",
+    hint: "off = не считать, report = показывать риск износа/поломки, auto = автоматически снижать прочность транспорта.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "Выкл.",
+      report: "Только отчёт",
+      auto: "Авто-износ"
+    },
+    default: "report"
+  });
+
+  game.settings.register("zsystem", "traumaMode", {
+    name: "\u0422\u0440\u0430\u0432\u043c\u044b: \u0440\u0435\u0436\u0438\u043c \u043e\u0442\u0447\u0451\u0442\u0430",
+    hint: "off = \u043d\u0435 \u043f\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0442\u044c, report = \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u0442\u0447\u0451\u0442, manual = \u043e\u0442\u0447\u0451\u0442 \u0438 GM-\u043a\u043d\u043e\u043f\u043a\u0438 \u043f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432\u0438\u0439.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "\u0412\u044b\u043a\u043b.",
+      report: "\u0422\u043e\u043b\u044c\u043a\u043e \u043e\u0442\u0447\u0451\u0442",
+      manual: "\u041e\u0442\u0447\u0451\u0442 + \u0440\u0443\u0447\u043d\u044b\u0435 GM-\u043a\u043d\u043e\u043f\u043a\u0438"
+    },
+    default: "manual"
+  });
+
+  game.settings.register("zsystem", "traumaSeverityMultiplier", {
+    name: "\u0422\u0440\u0430\u0432\u043c\u044b: \u0436\u0451\u0441\u0442\u043a\u043e\u0441\u0442\u044c",
+    hint: "1.0 = \u0431\u0430\u0437\u043e\u0432\u044b\u0439 \u0440\u0435\u0436\u0438\u043c. \u041c\u0435\u043d\u044c\u0448\u0435 1 \u0434\u0435\u043b\u0430\u0435\u0442 \u0442\u0440\u0430\u0432\u043c\u044b \u0440\u0435\u0436\u0435, \u0431\u043e\u043b\u044c\u0448\u0435 1 \u0434\u0435\u043b\u0430\u0435\u0442 \u0438\u0445 \u0447\u0430\u0449\u0435 \u0438 \u0442\u044f\u0436\u0435\u043b\u0435\u0435.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 1,
+    range: {
+      min: 0.25,
+      max: 2,
+      step: 0.05
+    }
+  });
+
   CONFIG.Actor.documentClass = ZActor;
   CONFIG.Item.documentClass = ZItem;
   CONFIG.Combat.initiative = {
@@ -356,14 +463,33 @@ Hooks.on("renderSceneConfig", (app, html, data) => {
     if (!scene) return;
 
     const isGlobal = scene.getFlag("zsystem", "isGlobalMap");
+    const travelTerrain = scene.getFlag("zsystem", "travelTerrain") || "normal";
+    const travelMovementMode = scene.getFlag("zsystem", "travelMovementMode") || "normal";
     
     const formGroup = `
     <div class="form-group">
-        <label>🌍 Глобальная Карта (Travel Mode)</label>
+        <label>Глобальная карта (Travel Mode)</label>
         <div class="form-fields">
             <input type="checkbox" name="flags.zsystem.isGlobalMap" ${isGlobal ? "checked" : ""}/>
         </div>
-        <p class="notes">Если включено, движение токенов расходует Топливо (Vehicle) вместо AP.</p>
+        <p class="notes">Если включено, движение токенов на сцене считается путешествием: транспорт тратит топливо, пешие токены получают отчёт по времени.</p>
+        <label>Местность путешествия</label>
+        <div class="form-fields">
+            <select name="flags.zsystem.travelTerrain">
+                <option value="road" ${travelTerrain === "road" ? "selected" : ""}>Дорога</option>
+                <option value="normal" ${travelTerrain === "normal" ? "selected" : ""}>Обычная местность</option>
+                <option value="rough" ${travelTerrain === "rough" ? "selected" : ""}>Пересечённая местность</option>
+                <option value="dangerous" ${travelTerrain === "dangerous" ? "selected" : ""}>Опасная зона</option>
+            </select>
+        </div>
+        <label>Темп путешествия</label>
+        <div class="form-fields">
+            <select name="flags.zsystem.travelMovementMode">
+                <option value="cautious" ${travelMovementMode === "cautious" ? "selected" : ""}>Осторожно</option>
+                <option value="normal" ${travelMovementMode === "normal" ? "selected" : ""}>Обычно</option>
+                <option value="forced" ${travelMovementMode === "forced" ? "selected" : ""}>Форсаж</option>
+            </select>
+        </div>
     </div>`;
     
     // Ищем инпут внутри вкладки Grid

@@ -1,5 +1,6 @@
 import { openSocialCheckDialog } from "./apps/social-check-dialog.js";
 import { openCommunicationDialog } from "./apps/communication-dialog.js";
+import { openSkillCheckDialog } from "./apps/skill-check-dialog.js";
 import {
     Z_SOCIAL_ATTITUDES,
     Z_SOCIAL_PRESETS,
@@ -274,6 +275,14 @@ export class ZSystemActions {
                 return openCommunicationDialog(actor, options);
             }
             return openCommunicationDialog(actorRef, options);
+        };
+        game.zsystem.openSkillCheck = (actorRef = null, options = {}) => {
+            if (!actorRef) return openSkillCheckDialog(canvas.tokens.controlled[0]?.actor, options);
+            if (typeof actorRef === "string") {
+                const actor = game.actors.get(actorRef) || canvas.tokens.get(actorRef)?.actor;
+                return openSkillCheckDialog(actor, options);
+            }
+            return openSkillCheckDialog(actorRef, options);
         };
         game.zsystem.openSocialPalette = (actorRef = null, options = {}) => {
             if (!actorRef) return openSocialProfilePalette(canvas.tokens.controlled[0]?.actor, options);

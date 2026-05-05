@@ -83,7 +83,9 @@ export class GMHandler {
                     const doc = await fromUuid(entry.uuid);
                     const actor = doc?.actor || doc;
                     if (actor) {
-                        const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb, entry.headshot || false);
+                        const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb, entry.headshot || false, false, {
+                            armorPiercing: entry.armorPiercing
+                        });
                         if (entry.effects && entry.effects.length > 0) {
                             for (let effectId of entry.effects) {
                                 const statusData = Object.values(GLOBAL_STATUSES).find(s => s.id === effectId || s.statuses.includes(effectId));
@@ -163,7 +165,9 @@ Hooks.on("getChatMessageContextOptions", (html, options) => {
                 const doc = await fromUuid(entry.uuid);
                 const actor = doc?.actor || doc;
                 if (actor) {
-                    const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb, entry.headshot || false);
+                    const undoData = await actor.applyDamage(entry.amount, entry.type, entry.limb, entry.headshot || false, false, {
+                        armorPiercing: entry.armorPiercing
+                    });
                     if (undoData) undoLog.push(undoData);
                 } else {
                     ui.notifications.warn(`Не удалось найти цель (UUID: ${entry.uuid})`);

@@ -1,6 +1,11 @@
-export function buildDamageFormula(baseFormula, resultType) {
+export function getCritMultiplier(item = null, fallback = 1.5) {
+    const raw = Number(item?.system?.critMult);
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+export function buildDamageFormula(baseFormula, resultType, { critMultiplier = 1.5 } = {}) {
     if (resultType === "crit-success") {
-        return `ceil((${baseFormula}) * 1.5)`;
+        return `ceil((${baseFormula}) * ${critMultiplier})`;
     }
     return baseFormula;
 }

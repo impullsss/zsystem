@@ -156,6 +156,12 @@
                 <div class="form-group"><label>Емкость Маг.</label><input type="number" name="system.mag.max" value="{{system.mag.max}}"/></div>
                 <div class="form-group"><label>В стволе</label><input type="number" name="system.mag.value" value="{{system.mag.value}}"/></div>
                 <div class="form-group"><label>AP Перезаряд.</label><input type="number" name="system.reloadAP" value="{{system.reloadAP}}"/></div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Заряжено</label>
+                    <div style="padding:4px 6px; background:rgba(0,0,0,0.08); border:1px solid rgba(0,0,0,0.2); border-radius:3px;">
+                        {{loadedAmmoSummary}}
+                    </div>
+                </div>
 
                 <div class="form-group">
                     <label>Шанс Крита (+%)</label>
@@ -164,6 +170,27 @@
                 <div class="form-group">
                     <label>Крит Множитель (x)</label>
                     <input type="number" name="system.critMult" value="{{system.critMult}}" step="0.1" placeholder="1.5"/>
+                </div>
+                <div class="form-group flexrow">
+                    <label>Заклинило?</label>
+                    <input type="checkbox" name="system.jammed" {{checked system.jammed}}/>
+                </div>
+
+                <div class="form-group">
+                    <label>Баллист. мощь</label>
+                    <input type="number" name="system.ballisticPower" value="{{system.ballisticPower}}" placeholder="0 = авто"/>
+                </div>
+                <div class="form-group">
+                    <label>Бронепробитие</label>
+                    <input type="number" name="system.armorPiercing" value="{{system.armorPiercing}}" placeholder="0"/>
+                </div>
+                <div class="form-group">
+                    <label>Ширина линии</label>
+                    <input type="number" name="system.lineWidth" value="{{system.lineWidth}}" step="0.1" placeholder="0.75"/>
+                </div>
+                <div class="form-group">
+                    <label>Угол очереди</label>
+                    <input type="number" name="system.burstConeAngle" value="{{system.burstConeAngle}}" placeholder="18"/>
                 </div>
 
                 <!-- Прочность -->
@@ -335,6 +362,54 @@
             <div class="form-group">
                 <label>Калибр</label>
                 <input type="text" name="system.calibre" value="{{system.calibre}}" placeholder="Напр: 9mm"/>
+            </div>
+            <div class="form-group">
+                <label>Тип патрона</label>
+                <select name="system.ammoKind">
+                    {{#select system.ammoKind}}
+                    <option value="standard">Обычные</option>
+                    <option value="armor-piercing">Бронебойные</option>
+                    <option value="expansive">Экспансивные</option>
+                    <option value="slug">Пуля</option>
+                    <option value="shot">Дробь</option>
+                    <option value="subsonic">Дозвуковые</option>
+                    <option value="homemade">Самодельные</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="grid grid-3col">
+                <div class="form-group">
+                    <label>Урон +/-</label>
+                    <input type="number" name="system.damageBonus" value="{{system.damageBonus}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Мощность +/-</label>
+                    <input type="number" name="system.ballisticPowerBonus" value="{{system.ballisticPowerBonus}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Бронебой +/-</label>
+                    <input type="number" name="system.armorPiercingBonus" value="{{system.armorPiercingBonus}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Линия +/-</label>
+                    <input type="number" step="0.05" name="system.lineWidthModifier" value="{{system.lineWidthModifier}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Конус +/-</label>
+                    <input type="number" name="system.burstConeAngleModifier" value="{{system.burstConeAngleModifier}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Шум +/-</label>
+                    <input type="number" name="system.noiseModifier" value="{{system.noiseModifier}}"/>
+                </div>
+                <div class="form-group">
+                    <label>Травма +/- x</label>
+                    <input type="number" step="0.05" name="system.traumaMultiplier" value="{{system.traumaMultiplier}}"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Клин +%</label>
+                <input type="number" name="system.jamChanceBonus" value="{{system.jamChanceBonus}}"/>
             </div>
         </div>
         {{/if}}

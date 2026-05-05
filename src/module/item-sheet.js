@@ -1,5 +1,6 @@
 import { GLOBAL_STATUSES } from "./constants.js";
 import { AMMO_CALIBRES } from "./constants.js";
+import { buildAmmoSummary, getLoadedAmmoData } from "./ammo-effects.js";
 export class ZItemSheet extends ItemSheet {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
@@ -22,6 +23,9 @@ export class ZItemSheet extends ItemSheet {
     context.ammoSelectorValue = isStandard ? currentAmmo : "other";
     context.showCustomAmmoInput = !isStandard || currentAmmo === "other";
     context.isCustomAmmo = currentAmmo && !Object.keys(AMMO_CALIBRES).includes(currentAmmo);
+    context.loadedAmmoSummary = this.item.type === "weapon"
+      ? buildAmmoSummary(getLoadedAmmoData(this.item))
+      : "";
 
     // СТАНДАРТНЫЕ СПИСКИ
     context.weaponTypes = { melee: "Ближнее", ranged: "Дальнее" };

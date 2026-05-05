@@ -51,7 +51,7 @@ export const GLOBAL_STATUSES = {
     id: "bleeding",
     label: "Кровотечение",
     name: "Кровотечение",
-    icon: "icons/svg/blood.svg",
+    img: "icons/svg/blood.svg",
     statuses: ["bleeding"],
     isPhysical: true,
     description: "Теряет 4d4 HP каждый ход (Игнорирует броню).",
@@ -60,7 +60,7 @@ export const GLOBAL_STATUSES = {
     id: "prone",
     label: "Сбит с ног",
     name: "Сбит с ног",
-    icon: "icons/svg/falling.svg",
+    img: "icons/svg/falling.svg",
     statuses: ["prone"],
     isPhysical: true,
     changes:[], // Уклонение режется в actor.js
@@ -70,7 +70,7 @@ export const GLOBAL_STATUSES = {
     id: "dizzy",
     label: "Головокружение",
     name: "Головокружение",
-    icon: "icons/svg/daze.svg",
+    img: "icons/svg/daze.svg",
     statuses: ["dizzy"],
     isPhysical: true,
     description: "-50% Точности на 3 хода.",
@@ -79,7 +79,7 @@ export const GLOBAL_STATUSES = {
     id: "blind",
     label: "Слепота",
     name: "Слепота",
-    icon: "icons/svg/blind.svg",
+    img: "icons/svg/blind.svg",
     statuses: ["blind"],
     isPhysical: true,
     changes:[], // ВОС режется в actor.js
@@ -89,7 +89,7 @@ export const GLOBAL_STATUSES = {
     id: "immolated",
     label: "Горение",
     name: "Горение",
-    icon: "icons/svg/fire.svg",
+    img: "icons/svg/fire.svg",
     statuses: ["immolated"],
     description: "Наносит 1d6 урона по КАЖДОЙ конечности каждый ход.",
   },
@@ -97,7 +97,7 @@ export const GLOBAL_STATUSES = {
     id: "poisoned",
     label: "Отравление",
     name: "Отравление",
-    icon: "icons/svg/poison.svg",
+    img: "icons/svg/poison.svg",
     statuses: ["poisoned"],
     isPhysical: true,
     description: "Урон 1d6 каждый ход.",
@@ -106,7 +106,7 @@ export const GLOBAL_STATUSES = {
     id: "panic",
     label: "Паника",
     name: "Паника",
-    icon: "icons/svg/terror.svg",
+    img: "icons/svg/terror.svg",
     statuses: ["panic"],
     description: "Потеря контроля. (Используйте статусы Тревога/Страх/Срыв).",
   },
@@ -114,7 +114,7 @@ export const GLOBAL_STATUSES = {
     id: "infected",
     label: "Инфекция",
     name: "Инфекция",
-    icon: "icons/svg/biohazard.svg",
+    img: "icons/svg/biohazard.svg",
     statuses: ["infected"],
     isPhysical: true,
     description: "Скрытый статус. Смерть через 3 дня.",
@@ -123,7 +123,7 @@ export const GLOBAL_STATUSES = {
     id: "wounded",
     label: "Ранен (Wounded)",
     name: "Ранен (Wounded)",
-    icon: "icons/svg/degen.svg",
+    img: "icons/svg/degen.svg",
     statuses: ["wounded"],
     isPhysical: true,
     changes:[{ key: "system.resources.ap.max", mode: 2, value: -2 }],
@@ -133,7 +133,7 @@ export const GLOBAL_STATUSES = {
     id: "fatigued",
     label: "Утомление",
     name: "Утомление",
-    icon: "icons/svg/downgrade.svg",
+    img: "icons/svg/downgrade.svg",
     statuses: ["fatigued"],
     changes:[], // Математика в actor.js
     description: "Стакается до 5 раз. За стак: -10 Макс ХП, -1 Макс AP, -5% ко всем навыкам.",
@@ -142,7 +142,7 @@ export const GLOBAL_STATUSES = {
     id: "overburdened",
     label: "Перегруз",
     name: "Перегруз",
-    icon: "icons/svg/downgrade.svg",
+    img: "icons/svg/downgrade.svg",
     statuses: ["overburdened"],
     description: "Вес превышен. Уклонение -50%, движение стоит +1 AP."
   },
@@ -150,7 +150,7 @@ export const GLOBAL_STATUSES = {
     id: "stealth",
     label: "Скрытность",
     name: "Скрытность",
-    icon: "icons/svg/mystery-man.svg",
+    img: "icons/svg/mystery-man.svg",
     statuses: ["stealth"],
     description: "Снижает радиус обзора врагов. Движение стоит +1 AP. Атака из стелса наносит х2 урон."
   },
@@ -158,7 +158,7 @@ export const GLOBAL_STATUSES = {
     id: "alerted",
     label: "Тревога",
     name: "Тревога",
-    icon: "icons/svg/hazard.svg",
+    img: "icons/svg/hazard.svg",
     statuses:["alerted"],
     description: "Зомби перешел в активный режим (Вас заметили)."
   },
@@ -166,7 +166,7 @@ export const GLOBAL_STATUSES = {
     id: "invisible",
     label: "Невидимость",
     name: "Невидимость",
-    icon: "icons/svg/eye.svg",
+    img: "icons/svg/eye.svg",
     statuses: ["invisible"],
     description: "Персонаж скрыт от глаз (Token Hidden)."
   }
@@ -177,14 +177,14 @@ export const INFECTION_STAGES = {
   1: {
     id: "infection-stage-1",
     name: "Инфекция (Инкубация)", // БЫЛО label
-    icon: "icons/svg/biohazard.svg",
+    img: "icons/svg/biohazard.svg",
     changes: [],
     description: "Вирус в крови. Симптомов пока нет.",
   },
   2: {
     id: "infection-stage-2",
     name: "Инфекция (Симптомы)", // БЫЛО label
-    icon: "icons/svg/poison.svg",
+    img: "icons/svg/poison.svg",
     changes: [
       { key: "system.attributes.str.value", mode: 2, value: -1 },
       { key: "system.attributes.agi.value", mode: 2, value: -1 },
@@ -195,7 +195,7 @@ export const INFECTION_STAGES = {
   3: {
     id: "infection-stage-3",
     name: "Инфекция (Кризис)", // БЫЛО label
-    icon: "icons/svg/skull.svg",
+    img: "icons/svg/skull.svg",
     changes: [
       { key: "system.attributes.str.value", mode: 2, value: -3 },
       { key: "system.attributes.agi.value", mode: 2, value: -3 },
@@ -210,7 +210,7 @@ export const PANIC_STAGES = {
   anxious: {
     id: "panic-anxious",
     name: "Тревога (Anxious)",
-    icon: "icons/svg/hazard.svg",
+    img: "icons/svg/hazard.svg",
     statuses: ["panic-anxious"],
     changes: [], // Эффекты: +5 Уклонение (в prepareDerivedData), +1 AP к действиям (в _executeAttack)
     description: "Персонаж на взводе. +5 Уклонение, +1 AP к атакам."
@@ -218,7 +218,7 @@ export const PANIC_STAGES = {
   panicked: {
     id: "panic-panicked",
     name: "Страх (Panicked)",
-    icon: "icons/svg/terror.svg",
+    img: "icons/svg/terror.svg",
     statuses: ["panic-panicked"],
     changes: [
       { key: "system.skills.ranged.mod", mode: 2, value: -10 },
@@ -229,7 +229,7 @@ export const PANIC_STAGES = {
   breaking: {
     id: "panic-breaking",
     name: "Срыв (Breaking Point)",
-    icon: "icons/svg/skull.svg",
+    img: "icons/svg/skull.svg",
     statuses: ["panic-breaking"],
     changes: [
         { key: "system.resources.ap.max", mode: 5, value: 0 }

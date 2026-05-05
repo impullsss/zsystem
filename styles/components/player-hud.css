@@ -111,3 +111,59 @@
     opacity: 0.35;
     cursor: not-allowed;
 }
+
+.phud-debug-roll {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 4px;
+    padding: 6px;
+    border: 1px solid rgba(120, 170, 255, 0.55);
+    border-radius: 5px;
+    background: rgba(34, 58, 90, 0.35);
+    color: #d8e8ff;
+}
+
+.phud-debug-roll__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.phud-debug-roll__head strong {
+    color: #8fc7ff;
+    text-transform: none;
+}
+
+.phud-debug-roll__main {
+    display: grid;
+    grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+    gap: 3px;
+}
+
+.phud-debug-roll input,
+.phud-debug-roll button {
+    min-width: 0;
+    height: 24px;
+    border: 1px solid rgba(170, 200, 255, 0.35);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.35);
+    color: #eaf3ff;
+    font-size: 0.72em;
+    text-align: center;
+}
+
+.phud-debug-roll button {
+    cursor: pointer;
+    padding: 0;
+}
+
+.phud-debug-roll button:hover {
+    background: rgba(90, 150, 230, 0.45);
+    border-color: rgba(170, 220, 255, 0.75);
+}

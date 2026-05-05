@@ -8,7 +8,12 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "test": "node --test --experimental-default-type=module tests",
-    "sim:balance": "node --experimental-default-type=module scripts/simulate-balance.mjs"
+    "sim:balance": "node --experimental-default-type=module scripts/simulate-balance.mjs",
+    "sim:firearms": "node --experimental-default-type=module scripts/simulate-firearms.mjs",
+    "sim:trauma": "node --experimental-default-type=module scripts/simulate-trauma.mjs",
+    "sim:ammo": "node --experimental-default-type=module scripts/simulate-ammo.mjs",
+    "sim:protection": "node --experimental-default-type=module scripts/simulate-protection.mjs",
+    "sim:travel": "node --experimental-default-type=module scripts/simulate-travel.mjs"
   },
   "author": "impullsss",
   "license": "MIT",

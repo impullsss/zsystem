@@ -1,5 +1,8 @@
-import { calcRollResult } from "./chance.js";
 import { getSlotMachineHTML } from "./attack-chat.js";
+import { buildCheckDetailsHtml } from "./check-chat.js";
+import { buildCheckDifficulty, calcSkillCheckBands, calcSkillCheckResult } from "./check-model.js";
+
+export const Z_SOCIAL_BASE_DIFFICULTY = 60;
 
 export const Z_SOCIAL_SKILLS = {
   diplomacy: "Дипломатия",
@@ -19,9 +22,9 @@ export const Z_SOCIAL_PRESETS = {
 };
 
 export const Z_SOCIAL_ATTITUDE_META = {
-  friendly: { icon: "🙂", color: "#69f0ae" },
-  neutral: { icon: "😐", color: "#f1c40f" },
-  hostile: { icon: "😠", color: "#e74c3c" }
+  friendly: { icon: "🙂", color: "#085730" },
+  neutral: { icon: "😐", color: "#7a5a00" },
+  hostile: { icon: "😠", color: "#8f1f16" }
 };
 
 export function getSocialProfile(targetActor) {
@@ -65,6 +68,16 @@ export function getSocialDifficultyModifier({
   };
 }
 
+export function buildSocialDifficulty({
+  modifierTotal = 0,
+  baseDifficulty = Z_SOCIAL_BASE_DIFFICULTY
+} = {}) {
+  return buildCheckDifficulty({
+    baseDifficulty,
+    modifier: modifierTotal
+  });
+}
+
 export function getSocialDifficultyLabel(totalModifier) {
   if (totalModifier >= 20) return "легко";
   if (totalModifier >= 0) return "обычно";
@@ -86,7 +99,12 @@ export function buildSocialCheckContext({
     customModifier,
     tables
   });
-  const effectiveTarget = skillValue + difficulty.total;
+  const modelDifficulty = buildSocialDifficulty({ modifierTotal: difficulty.total });
+  const check = calcSkillCheckBands({
+    skill: skillValue,
+    difficulty: modelDifficulty.total
+  });
+  const effectiveTarget = check.successChance;
 
   return {
     actor,
@@ -95,6 +113,8 @@ export function buildSocialCheckContext({
     skillLabel,
     skillValue,
     difficulty,
+    modelDifficulty,
+    check,
     effectiveTarget,
     descriptor: getSocialDifficultyLabel(difficulty.total)
   };
@@ -105,7 +125,7 @@ export function buildSocialBreakdownHtml(context) {
     .filter((entry) => entry.value !== 0)
     .map((entry) => {
       const sign = entry.value > 0 ? "+" : "";
-      return `<div style="font-size:0.8em; color:${entry.value > 0 ? "#69f0ae" : "#e74c3c"};">${entry.label}: ${sign}${entry.value}%</div>`;
+      return `<div style="font-size:0.8em; font-weight:700; color:${entry.value > 0 ? "#085730" : "#9f1d14"};">${entry.label}: ${sign}${entry.value}%</div>`;
     })
     .join("");
 }
@@ -115,15 +135,27 @@ export function buildSocialCardHtml({
   rollTotal,
   revealFactors = false
 }) {
-  const resultType = calcRollResult(rollTotal, context.effectiveTarget);
-  const targetName = context.targetActor?.name ? ` → ${context.targetActor.name}` : "";
+  const resultType = calcSkillCheckResult(rollTotal, {
+    skill: context.skillValue,
+    difficulty: context.modelDifficulty.total
+  });
+  const targetName = context.targetActor?.name ? ` \u2192 ${context.targetActor.name}` : "";
   const header = `${context.skillLabel}${targetName}`;
   const slotCard = getSlotMachineHTML(header, context.effectiveTarget, rollTotal, resultType);
-  const descriptorHtml = `<div style="font-size:0.85em; color:#bbb; margin-top:6px;">Ситуация: ${context.descriptor}</div>`;
   const breakdownHtml = revealFactors ? buildSocialBreakdownHtml(context) : "";
+  const descriptorHtml = buildCheckDetailsHtml({
+    summary: `\u0421\u0438\u0442\u0443\u0430\u0446\u0438\u044f: ${context.descriptor}`,
+    skillValue: context.skillValue,
+    difficulty: context.modelDifficulty.total,
+    critSuccessChance: context.check.critSuccessChance,
+    ordinaryFailChance: context.check.ordinaryFailChance,
+    fumbleChance: context.check.fumbleChance,
+    check: context.check,
+    extraHtml: breakdownHtml
+  });
 
   return {
     resultType,
-    content: `${slotCard}${descriptorHtml}${breakdownHtml}`
+    content: `${slotCard}${descriptorHtml}`
   };
 }

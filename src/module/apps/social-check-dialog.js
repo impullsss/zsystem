@@ -6,6 +6,7 @@ import {
   getSocialAttitudeMeta,
   getSocialPresetLabel
 } from "../social-check.js";
+import { rollD100 } from "../roll-utils.js";
 
 export class ZSocialCheckDialog extends FormApplication {
   constructor(actor, options = {}) {
@@ -15,6 +16,7 @@ export class ZSocialCheckDialog extends FormApplication {
       skillId: options.skillId || "diplomacy",
       targetUuid: options.targetUuid || this._getDefaultTargetUuid(),
       customModifier: Number(options.customModifier) || 0,
+      customModifierInput: String(Number(options.customModifier) || 0),
       rollMode: options.rollMode || "roll"
     };
     this._onActorUpdate = this._onActorUpdate.bind(this);
@@ -57,7 +59,7 @@ export class ZSocialCheckDialog extends FormApplication {
       actor: this.actor,
       skillId: this.state.skillId,
       targetActor,
-      customModifier: this.state.customModifier,
+      customModifier: this.state.customModifierInput ?? String(this.state.customModifier),
       tables: Z_DIFFICULTY.social
     });
 
@@ -80,12 +82,14 @@ export class ZSocialCheckDialog extends FormApplication {
   activateListeners(html) {
     super.activateListeners(html);
 
-    html.find("select, input").change((event) => {
+    html.find("select, input").on("change input", (event) => {
       const form = event.currentTarget.form;
       const data = new FormDataExtended(form).object;
       this.state.skillId = data.skillId || this.state.skillId;
       this.state.targetUuid = data.targetUuid || "";
-      this.state.customModifier = Number(data.customModifier) || 0;
+      this.state.customModifierInput = String(data.customModifier ?? "");
+      if (event.currentTarget.name === "customModifier" && event.type === "input") return;
+      this.state.customModifier = Number(this.state.customModifierInput) || 0;
       this.state.rollMode = data.rollMode || "roll";
       this.render(false);
     });
@@ -121,7 +125,7 @@ export class ZSocialCheckDialog extends FormApplication {
       tables: Z_DIFFICULTY.social
     });
 
-    const roll = await new Roll("1d100").evaluate();
+    const roll = await rollD100();
     const revealFactors = game.user.isGM || !game.settings.get("zsystem", "hideSocialFactors");
     const card = buildSocialCardHtml({
       context,

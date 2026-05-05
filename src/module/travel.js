@@ -1,76 +1,112 @@
+import {
+    buildTravelChatHtml,
+    buildTravelPlan,
+    measureTokenTravelDistance,
+    resolveWalkerTravelPressure,
+    resolveVehicleTravelWear,
+    resolveTravelEvent,
+    shouldBlockVehicleTravel,
+    TRAVEL_ACTOR_TYPES
+} from "./travel-rules.js";
+
 export class TravelManager {
-  
-  static async handleMovement(tokenDoc, changes) {
-    const actor = tokenDoc.actor;
-    if (!actor) return true; 
+    static async handleMovement(tokenDoc, changes) {
+        const actor = tokenDoc.actor;
+        if (!actor) return true;
 
-    // 1. Определяем тип
-    const isVehicle = actor.type === "vehicle";
-    // Пешеходы тоже могут ходить по глобалке, но без топлива
-    const isWalker = ["survivor", "npc"].includes(actor.type);
-
-    if (!isVehicle && !isWalker) return true;
-
-    // 2. Считаем дистанцию (учитывает масштаб сцены!)
-    const origin = { x: tokenDoc.x, y: tokenDoc.y };
-    const dest = { x: changes.x ?? tokenDoc.x, y: changes.y ?? tokenDoc.y };
-    const distance = canvas.grid.measureDistance(origin, dest);
-    
-    if (distance <= 0) return true;
-
-    // 3. Параметры Транспорта
-    let mpg = 0;
-    let fuel = 0;
-    let speed = 40; // Скорость для расчета времени
-
-    if (isVehicle) {
-        speed = Number(actor.system.attributes.speed.value) || 40;
-        mpg = Number(actor.system.attributes.mpg.value) || 0;
-        fuel = Number(actor.system.resources.fuel.value) || 0;
-    } else {
-        // Пешеход
-        speed = 3; 
-    }
-
-    // 4. РАСЧЕТ РАСХОДА (Только для машин)
-    let finalCost = 0;
-    if (isVehicle && mpg > 0) {
-        // Дистанция (км) / Расход (км на литр/галлон)
-        const fuelCost = distance / mpg;
-        finalCost = Math.round(fuelCost * 100) / 100;
-
-        // БЛОКИРУЕМ ДВИЖЕНИЕ, ЕСЛИ НЕТ ТОПЛИВА
-        if (fuel < finalCost) {
-            ui.notifications.error(`Недостаточно топлива! Дистанция: ${Math.round(distance)}, Расход: ${finalCost}, Есть: ${fuel}`);
-            return false; // <--- ВАЖНО: Возвращаем false, чтобы токен не сдвинулся
+        if (shouldBlockVehicleTravel({ actorType: actor.type, broken: actor.system?.broken })) {
+            ui.notifications.error("Транспорт неисправен: сначала нужен ремонт.");
+            return false;
         }
+
+        const distance = measureTokenTravelDistance(
+            tokenDoc,
+            changes,
+            (origin, destination) => canvas.grid.measureDistance(origin, destination)
+        );
+        const plan = buildTravelPlan({
+            actorType: actor.type,
+            distance,
+            fuel: actor.system?.resources?.fuel?.value,
+            mpg: actor.system?.attributes?.mpg?.value,
+            speed: actor.system?.attributes?.speed?.value,
+            cargoWeight: getActorCargoWeight(actor),
+            cargoMax: actor.system?.cargo?.max,
+            terrain: tokenDoc.parent?.getFlag("zsystem", "travelTerrain") || "normal",
+            movementMode: tokenDoc.parent?.getFlag("zsystem", "travelMovementMode") || "normal"
+        });
+
+        if (!plan.relevant) return true;
+        if (!plan.allowed) {
+            ui.notifications.error(`${plan.reason}: нужно ${plan.fuelCost}, есть ${actor.system?.resources?.fuel?.value ?? 0}.`);
+            return false;
+        }
+
+        if (plan.actorType === TRAVEL_ACTOR_TYPES.vehicle && plan.fuelCost > 0) {
+            await actor.update({ "system.resources.fuel.value": plan.fuelAfter });
+        }
+
+        plan.vehicleWear = resolveVehicleTravelWear({
+            plan,
+            hp: actor.system?.resources?.hp?.value,
+            hpMax: actor.system?.resources?.hp?.max,
+            maintenanceMode: getTravelMaintenanceMode()
+        });
+
+        if (plan.vehicleWear?.applied) {
+            await actor.update({ "system.resources.hp.value": plan.vehicleWear.hpAfter });
+        }
+
+        if (plan.vehicleWear?.broken) {
+            await actor.update({ "system.broken": true });
+            ui.notifications.warn("Транспорт сломался во время перехода.");
+        }
+
+        plan.walkerPressure = resolveWalkerTravelPressure({
+            plan,
+            vigor: actor.system?.attributes?.vig?.value,
+            survival: actor.system?.skills?.survival?.value
+        });
+
+        const travelEvent = resolveTravelEvent({
+            actorType: actor.type,
+            distance: plan.distance,
+            overload: plan.overload,
+            terrain: plan.terrain,
+            movementMode: plan.movementMode,
+            mode: getTravelEventMode()
+        });
+
+        await ChatMessage.create({
+            content: buildTravelChatHtml(plan, travelEvent),
+            speaker: ChatMessage.getSpeaker({ actor })
+        });
+
+        return true;
     }
+}
 
-    // 5. Списание
-    if (isVehicle && finalCost > 0) {
-        const newFuel = Math.max(0, fuel - finalCost);
-        // await внутри preUpdate допустим для данных актора, но не токена
-        await actor.update({ "system.resources.fuel.value": newFuel });
-    }
-
-    // 6. Визуализация в чат
-    const timeHours = distance / Math.max(0.1, speed);
-    const timeStr = `${Math.floor(timeHours)}ч ${Math.round((timeHours % 1)*60)}м`;
-    
-    const fuelMsg = isVehicle ? `<div>⛽ Топливо: -${finalCost} (Ост: ${Math.round(fuel - finalCost)})</div>` : "";
-
-    ChatMessage.create({
-        content: `
-            <div class="z-chat-card" style="border-color: #fbc02d;">
-                <div class="z-card-header" style="color: #fbc02d;">🗺️ Путешествие</div>
-                <div><b>Дистанция:</b> ${Math.round(distance)} км</div>
-                ${fuelMsg}
-                <div style="font-size:0.8em; margin-top:5px; border-top:1px dashed #555;">В пути: ${timeStr}</div>
-            </div>
-        `,
-        speaker: ChatMessage.getSpeaker({ actor: actor })
+function getActorCargoWeight(actor) {
+    if (actor.type !== "vehicle") return 0;
+    let totalWeight = 0;
+    actor.items?.forEach(item => {
+        totalWeight += (Number(item.system?.weight) || 0) * (Number(item.system?.quantity) || 1);
     });
+    return totalWeight;
+}
 
-    return true; // Разрешаем движение
-  }
+function getTravelEventMode() {
+    try {
+        return game.settings.get("zsystem", "travelEventMode") || "off";
+    } catch (_error) {
+        return "off";
+    }
+}
+
+function getTravelMaintenanceMode() {
+    try {
+        return game.settings.get("zsystem", "travelMaintenanceMode") || "off";
+    } catch (_error) {
+        return "off";
+    }
 }

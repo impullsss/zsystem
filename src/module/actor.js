@@ -6,6 +6,7 @@ import {
 } from "./constants.js";
 import { applyDamage, applyBleeding, checkPanic, applyPanicStage } from "./actor-damage.js";
 import { useMedicine, applyMedicineLogic, reportHealing } from "./actor-medicine.js";
+import { buildAmmoSummary, findCompatibleAmmoItems, serializeAmmoForWeapon } from "./ammo-effects.js";
 
 export class ZActor extends Actor {
   async _onCreate(data, options, userId) {
@@ -15,9 +16,9 @@ export class ZActor extends Actor {
     // --- ДОБАВЛЕНО: Транспорт ---
     if (this.type === "vehicle") {
       await this.update({
-        name: "Новый Транспорт",
-        img: "icons/svg/target.svg", // Можешь заменить на иконку машины
-        "prototypeToken.actorLink": true, // Машины обычно уникальны и связаны
+        name: "Новый транспорт",
+        img: "icons/svg/target.svg",
+        "prototypeToken.actorLink": true,
       });
     }
 
@@ -495,6 +496,7 @@ export class ZActor extends Actor {
       if (!system.resources) system.resources = {};
       if (!system.resources.fuel) system.resources.fuel = { value: 0, max: 60 };
       if (!system.resources.hp) system.resources.hp = { value: 100, max: 100 };
+      if (system.broken === undefined) system.broken = false;
 
       // Вот из-за отсутствия этого падала ошибка (cargo undefined)
       if (!system.cargo) system.cargo = { value: 0, max: 500 };
@@ -925,9 +927,8 @@ export class ZActor extends Actor {
     if (this.system.resources.ap.value < apCost)
       return ui.notifications.warn(`Нужно ${apCost} AP для перезарядки.`);
 
-    const ammoItem = this.items.find(
-      (i) => i.type === "ammo" && i.system.calibre === ammoType
-    );
+    const compatibleAmmo = findCompatibleAmmoItems(this.items, ammoType);
+    const ammoItem = await this._chooseReloadAmmo(compatibleAmmo, ammoType);
     if (!ammoItem)
       return ui.notifications.warn(`Нет патронов калибра "${ammoType}".`);
 
@@ -938,13 +939,66 @@ export class ZActor extends Actor {
     await this.update({
       "system.resources.ap.value": this.system.resources.ap.value - apCost,
     });
-    await item.update({ "system.mag.value": currentMag + toLoad });
+    await item.update({
+      "system.mag.value": currentMag + toLoad,
+      "flags.zsystem.loadedAmmoData": serializeAmmoForWeapon(ammoItem),
+    });
 
     if (available - toLoad <= 0) await ammoItem.delete();
     else await ammoItem.update({ "system.quantity": available - toLoad });
     ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: this }),
       content: `<div>${this.name} перезаряжает ${item.name} (${toLoad} пт.).</div>`,
+    });
+  }
+
+  async _chooseReloadAmmo(ammoItems, ammoType) {
+    if (!ammoItems?.length) return null;
+    if (ammoItems.length === 1) return ammoItems[0];
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const content = `
+        <form class="z-reload-ammo-dialog">
+          <p>Выбери патроны калибра <b>${ammoType}</b>:</p>
+          ${ammoItems.map((ammo, index) => `
+            <label style="display:block; margin:4px 0; padding:4px; border:1px solid rgba(0,0,0,0.15);">
+              <input type="radio" name="ammoId" value="${ammo.id}" ${index === 0 ? "checked" : ""}/>
+              <b>${ammo.name}</b>
+              <span style="opacity:0.75;">x${Number(ammo.system.quantity) || 0}</span>
+              <br/>
+              <small>${buildAmmoSummary(ammo)}</small>
+            </label>
+          `).join("")}
+        </form>
+      `;
+
+      new Dialog({
+        title: "Перезарядка: выбор патронов",
+        content,
+        buttons: {
+          load: {
+            label: "Зарядить",
+            icon: '<i class="fas fa-check"></i>',
+            callback: (html) => {
+              settled = true;
+              const selectedId = html.find('[name="ammoId"]:checked').val();
+              resolve(ammoItems.find((ammo) => ammo.id === selectedId) || ammoItems[0]);
+            }
+          },
+          cancel: {
+            label: "Отмена",
+            callback: () => {
+              settled = true;
+              resolve(null);
+            }
+          }
+        },
+        default: "load",
+        close: () => {
+          if (!settled) resolve(null);
+        }
+      }).render(true);
     });
   }
 

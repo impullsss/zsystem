@@ -131,3 +131,213 @@
   font-size: 1rem;
   font-weight: 700;
 }
+
+.window-app.skill-check-dialog {
+  min-width: 460px;
+}
+
+.skill-check-dialog .window-content {
+  overflow-x: hidden;
+}
+
+.z-skill-check-form .form-group {
+  margin-bottom: 10px;
+}
+
+.z-skill-check-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.z-skill-check-form select,
+.z-skill-check-form input {
+  width: 100%;
+}
+
+.z-skill-check-scenarios {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.z-skill-check-scenario {
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 5px;
+  border: 1px solid rgba(80, 64, 54, 0.35);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #2c211c;
+  font-size: 0.74rem;
+  line-height: 1.1;
+  white-space: normal;
+}
+
+.z-skill-check-scenario:hover {
+  border-color: rgba(32, 185, 107, 0.85);
+  background: rgba(105, 240, 174, 0.18);
+}
+
+.z-check-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--z-check-accent, #69f0ae) 35%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--z-check-accent, #69f0ae) 13%, transparent), rgba(25, 25, 25, 0.04)),
+    rgba(0, 0, 0, 0.08);
+}
+
+.z-check-preview--skill {
+  --z-check-accent: #20b96b;
+}
+
+.z-check-preview--social {
+  --z-check-accent: #2476cf;
+}
+
+.z-check-chance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.z-check-kicker {
+  color: #555;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.z-check-chance strong {
+  color: var(--z-check-accent, #20b96b);
+  font-size: 2rem;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.z-check-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.z-check-metric {
+  min-width: 0;
+  padding: 7px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+.z-check-metric span {
+  display: block;
+  color: #5d514b;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.z-check-metric strong {
+  display: block;
+  margin-top: 2px;
+  color: #221b17;
+  font-size: 1rem;
+}
+
+.z-check-metric--danger strong {
+  color: #b53024;
+}
+
+.z-check-metric--success strong {
+  color: #085730;
+}
+
+.z-check-summary {
+  margin-top: 8px;
+  color: #6f6258;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.z-check-bands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 7px;
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.z-check-band {
+  padding: 2px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  color: #2f2924;
+}
+
+.z-check-band--crit-success,
+.z-check-band--success {
+  color: #085730;
+}
+
+.z-check-band--fail,
+.z-check-band--crit-fail {
+  color: #9f1d14;
+}
+
+.z-check-band strong {
+  font-weight: 800;
+}
+
+.z-check-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.z-check-actions button {
+  min-width: 140px;
+}
+
+.z-social-check-form .form-group {
+  margin-bottom: 10px;
+}
+
+.z-social-check-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.z-social-check-form select,
+.z-social-check-form input {
+  width: 100%;
+}
+
+.z-social-check-factors {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: var(--social-accent, #6f6258);
+  font-size: 0.78rem;
+}
+
+.z-social-check-factors span {
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--social-accent, #777) 55%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}

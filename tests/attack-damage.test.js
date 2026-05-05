@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildDamageFormula, applyDamageModifiers, finalizeDamageAmount } from "../src/module/attack-damage.js";
+import { buildDamageFormula, applyDamageModifiers, finalizeDamageAmount, getCritMultiplier } from "../src/module/attack-damage.js";
 
 test("buildDamageFormula keeps normal damage formula unchanged", () => {
     assert.equal(buildDamageFormula("2d6+3", "success"), "2d6+3");
@@ -9,6 +9,16 @@ test("buildDamageFormula keeps normal damage formula unchanged", () => {
 
 test("buildDamageFormula wraps crit-success with 1.5 multiplier", () => {
     assert.equal(buildDamageFormula("2d6+3", "crit-success"), "ceil((2d6+3) * 1.5)");
+});
+
+test("buildDamageFormula uses weapon crit multiplier override", () => {
+    assert.equal(buildDamageFormula("2d6+3", "crit-success", { critMultiplier: 2 }), "ceil((2d6+3) * 2)");
+});
+
+test("getCritMultiplier reads weapon multiplier with fallback", () => {
+    assert.equal(getCritMultiplier({ system: { critMult: 2.25 } }), 2.25);
+    assert.equal(getCritMultiplier({ system: { critMult: 0 } }), 1.5);
+    assert.equal(getCritMultiplier(null), 1.5);
 });
 
 test("applyDamageModifiers adds strength for one-handed melee", () => {

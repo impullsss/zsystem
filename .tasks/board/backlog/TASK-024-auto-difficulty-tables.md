@@ -214,3 +214,4 @@ The first tuning target should stay conservative:
 
 - 2026-04-23: task rewritten from a loose note into an implementation-ready table spec
 - 2026-04-23: throwing weapons explicitly deferred into a separate discussion
+- 2026-04-26: centralized combat difficulty helper accessors; updated defaults toward the proposed table values; visibility table added for future wiring

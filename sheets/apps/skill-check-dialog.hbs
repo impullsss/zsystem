@@ -1,0 +1,84 @@
+<form class="z-skill-check-form">
+  {{#if scenarioOptions.length}}
+  <div class="z-skill-check-scenarios">
+    {{#each scenarioOptions as |scenario|}}
+    <button type="button" class="z-skill-check-scenario" data-skill-id="{{scenario.skillId}}" data-difficulty-preset="{{scenario.difficultyPreset}}" data-modifier="{{scenario.modifier}}">
+      {{scenario.label}}
+    </button>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <div class="form-group">
+    <label>Навык</label>
+    <select name="skillId">
+      {{#each skillOptions as |skill|}}
+      <option value="{{skill.key}}" {{#if (eq ../skillId skill.key)}}selected{{/if}}>{{skill.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Сложность</label>
+    <select name="difficultyPreset">
+      {{#each difficultyOptions as |preset|}}
+      <option value="{{preset.key}}" {{#if (eq ../difficultyPreset preset.key)}}selected{{/if}}>{{preset.label}} (DC {{preset.dc}})</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Модификатор</label>
+    <input type="number" name="modifier" value="{{modifier}}" step="1" />
+  </div>
+
+  <div class="form-group">
+    <label>Режим броска</label>
+    <select name="rollMode">
+      <option value="roll" {{#if (eq rollMode "roll")}}selected{{/if}}>Публичный</option>
+      <option value="gmroll" {{#if (eq rollMode "gmroll")}}selected{{/if}}>ГМ</option>
+      <option value="blindroll" {{#if (eq rollMode "blindroll")}}selected{{/if}}>Слепой ГМ</option>
+      <option value="selfroll" {{#if (eq rollMode "selfroll")}}selected{{/if}}>Только себе</option>
+    </select>
+  </div>
+
+  <div class="z-check-preview z-check-preview--skill">
+    <div class="z-check-chance">
+      <span class="z-check-kicker">Шанс</span>
+      <strong>{{preview.effectiveTarget}}%</strong>
+    </div>
+    <div class="z-check-metrics">
+      <div class="z-check-metric">
+        <span>DC</span>
+        <strong>{{preview.difficulty.total}}</strong>
+      </div>
+      <div class="z-check-metric z-check-metric--success">
+        <span>Крит. успех</span>
+        <strong>{{preview.check.critSuccessChance}}%</strong>
+      </div>
+      <div class="z-check-metric">
+        <span>Провал</span>
+        <strong>{{preview.check.ordinaryFailChance}}%</strong>
+      </div>
+      <div class="z-check-metric z-check-metric--danger">
+        <span>Крит. провал</span>
+        <strong>{{preview.check.fumbleChance}}%</strong>
+      </div>
+    </div>
+    <div class="z-check-summary">
+      {{preview.difficulty.presetLabel}}{{#if preview.difficulty.manualModifier}} · ручная поправка {{preview.difficulty.manualModifier}}{{/if}}
+    </div>
+    <div class="z-check-bands">
+      <span class="z-check-band z-check-band--crit-success"><strong>{{preview.check.bands.critSuccess.from}} - {{preview.check.bands.critSuccess.to}}</strong> &#1082;&#1088;&#1080;&#1090;</span>
+      <span class="z-check-band z-check-band--success"><strong>{{preview.check.bands.success.from}} - {{preview.check.bands.success.to}}</strong> &#1091;&#1089;&#1087;&#1077;&#1093;</span>
+      {{#if preview.check.bands.fail}}
+      <span class="z-check-band z-check-band--fail"><strong>{{preview.check.bands.fail.from}} - {{preview.check.bands.fail.to}}</strong> &#1087;&#1088;&#1086;&#1074;&#1072;&#1083;</span>
+      {{/if}}
+      <span class="z-check-band z-check-band--crit-fail"><strong>{{preview.check.bands.fumble.from}} - {{preview.check.bands.fumble.to}}</strong> &#1082;&#1088;&#1080;&#1090;. &#1087;&#1088;&#1086;&#1074;&#1072;&#1083;</span>
+    </div>
+  </div>
+
+  <div class="form-group z-check-actions">
+    <button type="submit"><i class="fas fa-dice"></i> Бросить</button>
+  </div>
+</form>

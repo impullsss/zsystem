@@ -14,6 +14,7 @@
     "styles/actors/actor-sheet.css",
     "styles/actors/loot.css",
     "styles/actors/shelter.css",
+    "styles/actors/vehicle.css",
     "styles/items/item-sheet.css",
     "styles/apps/character-creator.css",
     "styles/components/player-hud.css"
@@ -62,6 +63,7 @@
           "fuel": { "value": 0, "max": 60 },
           "hp": { "value": 100, "max": 100 }
         },
+        "broken": false,
         "cargo": { "value": 0, "max": 500 },
         "passengers": []
       }
@@ -187,11 +189,25 @@
         "blastRadius": 0,
         "templateType": "circle",
         "critChance": 0,
-        "critMult": 1.5
+        "critMult": 1.5,
+        "jammed": false,
+        "ballisticPower": 0,
+        "armorPiercing": 0,
+        "lineWidth": 0.75,
+        "burstConeAngle": 18
       },
       "ammo": {
         "templates": ["base"],
-        "calibre": ""
+        "calibre": "",
+        "ammoKind": "standard",
+        "damageBonus": 0,
+        "ballisticPowerBonus": 0,
+        "armorPiercingBonus": 0,
+        "lineWidthModifier": 0,
+        "burstConeAngleModifier": 0,
+        "noiseModifier": 0,
+        "jamChanceBonus": 0,
+        "traumaMultiplier": 0
       },
       "armor": {
         "templates": ["base"],

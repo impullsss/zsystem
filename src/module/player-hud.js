@@ -1,4 +1,5 @@
 import { openCommunicationDialog } from "./apps/communication-dialog.js";
+import { openSkillCheckDialog } from "./apps/skill-check-dialog.js";
 import { getSocialAttitudeMeta, getSocialPresetLabel, getSocialProfile } from "./social-check.js";
 import { openSocialProfileDialog } from "./actions.js";
 
@@ -144,11 +145,14 @@ export class PlayerHUD {
 
         this._addBtn(actions, `<span class="phud-icon">💬</span> Общение`, () => openCommunicationDialog(actor), "", true);
 
+        this._addBtn(actions, `<span class="phud-icon"><i class="fas fa-dice-d20"></i></span> Проверка`, () => openSkillCheckDialog(actor), "", true);
+
         if (game.user.isGM) {
             this._addBtn(actions, `<span class="phud-icon">🙂</span> Отношение`, () => openSocialProfileDialog(actor, {
                 tokenDocument: this.currentToken.document,
                 onChange: () => this.render()
             }), "", true);
+            this._addDebugRollPanel(actions);
         }
 
         if (isProne) {
@@ -185,5 +189,54 @@ export class PlayerHUD {
             });
         }
         container.appendChild(btn);
+    }
+    static _addDebugRollPanel(container) {
+        const value = Number(game.settings.get("zsystem", "forceD100Roll")) || 0;
+        const panel = document.createElement("div");
+        panel.className = "phud-debug-roll";
+        panel.innerHTML = `
+            <div class="phud-debug-roll__head">
+                <span>Debug d100</span>
+                <strong>${value > 0 ? value : "random"}</strong>
+            </div>
+            <div class="phud-debug-roll__main">
+                <input type="number" min="0" max="100" step="1" value="${value}" title="0 = random, 1-100 = fixed d100" />
+                <button type="button" data-value="0">0</button>
+                <button type="button" data-value="1">1</button>
+                <button type="button" data-value="5">5</button>
+                <button type="button" data-value="6">6</button>
+                <button type="button" data-value="95">95</button>
+                <button type="button" data-value="96">96</button>
+                <button type="button" data-value="100">100</button>
+            </div>
+        `;
+
+        const input = panel.querySelector("input");
+        const status = panel.querySelector("strong");
+        const setForcedRoll = async (rawValue) => {
+            const next = Math.max(0, Math.min(100, Math.floor(Number(rawValue) || 0)));
+            await game.settings.set("zsystem", "forceD100Roll", next);
+            input.value = String(next);
+            status.textContent = next > 0 ? String(next) : "random";
+            ui.notifications.info(next > 0 ? `Debug d100: ${next}` : "Debug d100: random");
+        };
+
+        panel.addEventListener("mousedown", (event) => event.stopPropagation());
+        input.addEventListener("change", () => setForcedRoll(input.value));
+        input.addEventListener("keydown", (event) => {
+            event.stopPropagation();
+            if (event.key === "Enter") {
+                event.preventDefault();
+                setForcedRoll(input.value);
+            }
+        });
+        panel.querySelectorAll("button[data-value]").forEach((button) => {
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                setForcedRoll(button.dataset.value);
+            });
+        });
+
+        container.appendChild(panel);
     }
 }

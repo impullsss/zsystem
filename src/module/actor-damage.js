@@ -1,6 +1,7 @@
 import { GLOBAL_STATUSES, INJURY_EFFECTS, PANIC_STAGES } from "./constants.js";
+import { applyArmorWear, calculateArmorWear, getActorProtection, resolveDamageProtection } from "./protection.js";
 
-export async function applyDamage(actor, amount, type = "blunt", limb = "torso", headshot = false, ignoreAC = false) {
+export async function applyDamage(actor, amount, type = "blunt", limb = "torso", headshot = false, ignoreAC = false, options = {}) {
     const undoData = {
         uuid: actor.uuid,
         updates: {},
@@ -10,33 +11,37 @@ export async function applyDamage(actor, amount, type = "blunt", limb = "torso",
     let originalAmount = amount;
     if (actor.type === "zombie" && type === "fire") amount *= 2;
 
-    let totalResist = 0;
-    let totalAC = 0;
-
-    if (type !== "true") {
-        if (!ignoreAC) {
-            const naturalAC = actor.system.secondary?.naturalAC?.value || 0;
-            totalAC += naturalAC;
-        }
-        const armors = actor.items.filter(
-            (i) => i.type === "armor" && i.system.equipped && i.system.coverage && i.system.coverage[limb]
-        );
-        for (let armor of armors) {
-            totalResist += Number(armor.system.dr[type]) || 0;
-            if (!ignoreAC) totalAC += Number(armor.system.ac) || 0;
-        }
-        totalResist = Math.min(100, totalResist);
-    }
-
-    const baseDmg = Math.max(0, Math.floor(amount * (1 - totalResist / 100) - totalAC));
-    const dmg = headshot ? baseDmg * 2 : baseDmg;
+    const protection = getActorProtection(actor, {
+        location: limb,
+        damageType: type,
+        ignoreAC
+    });
+    const protectionResult = resolveDamageProtection({
+        amount,
+        damageType: type,
+        protection,
+        armorPiercing: options.armorPiercing,
+        headshot
+    });
+    const totalAC = protectionResult.effectiveAC;
+    const totalResist = protectionResult.resist;
+    const dmg = protectionResult.finalDamage;
+    const armorWear = calculateArmorWear({
+        protectionResult,
+        protection,
+        damageType: type
+    });
+    const armorWearMode = getArmorWearMode();
+    const appliedArmorWear = armorWearMode === "auto" ? await applyArmorWear(armorWear) : [];
+    const armorWearLog = buildArmorWearLog({ armorWear, armorWearMode, appliedArmorWear });
 
     ChatMessage.create({
         content: `<div style="font-size:0.85em; color:#555; background:#eee; padding:3px; border:1px solid #ccc;">
                     <b>Absorb Log (${actor.name})</b><br>
                     Raw: ${originalAmount} (${type})<br>
-                    Armor AC: -${totalAC}<br>
+                    Armor AC: -${totalAC}${protectionResult.armorPiercing ? ` (AP ${protectionResult.armorPiercing})` : ""}<br>
                     Resist: -${totalResist}%<br>
+                    ${armorWearLog}
                     ${headshot ? '<b style="color:#c0392b;">ХЕДШОТ ×2</b><br>' : ''}
                     <b>Final: ${dmg}</b>
                   </div>`,
@@ -103,6 +108,25 @@ export async function applyDamage(actor, amount, type = "blunt", limb = "torso",
         ui.notifications.info(`${actor.name}: Урон поглощен броней!`);
         return null;
     }
+}
+
+function getArmorWearMode() {
+    try {
+        return game.settings.get("zsystem", "armorWearMode") || "report";
+    } catch (_error) {
+        return "report";
+    }
+}
+
+function buildArmorWearLog({ armorWear, armorWearMode, appliedArmorWear }) {
+    if (!armorWear?.enabled || armorWearMode === "off") return "";
+    if (armorWearMode === "auto" && appliedArmorWear.length) {
+        const labels = appliedArmorWear
+            .map((entry) => `${entry.name}: ${entry.before} → ${entry.after}`)
+            .join(", ");
+        return `<span style="color:#b9770e;">Armor wear: ${labels}</span><br>`;
+    }
+    return `<span style="color:#b9770e;">Armor wear: -${armorWear.amount} прочн. (рекоменд.)</span><br>`;
 }
 
 export async function applyBleeding(actor, limb) {

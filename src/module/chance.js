@@ -1,4 +1,5 @@
-import { Z_DIFFICULTY, clampChance, getCalledShotPenalty } from "./difficulty-tables.js";
+import { Z_DIFFICULTY, getCalledShotPenalty, getInterferencePenalty } from "./difficulty-tables.js";
+import { buildCombatDifficulty, calcCombatCheckBands, calcCombatRollResult } from "./combat-check.js";
 
 function getAimBonusPerStep() {
     return game.settings.get("zsystem", "aimBonus") || 10;
@@ -66,10 +67,7 @@ export function calcChanceBreakdown({
 
         if (item.system.weaponType === "ranged" && typeof checkInterveningTokens === "function") {
             const obstacles = checkInterveningTokens(sourceToken, targetToken);
-            intervPen = Math.max(
-                obstacles.length * Z_DIFFICULTY.interference.perToken,
-                Z_DIFFICULTY.interference.cap
-            );
+            intervPen = getInterferencePenalty(obstacles.length);
         }
 
         if (!targetToken.actor?.hasStatusEffect("prone")) {
@@ -77,47 +75,43 @@ export function calcChanceBreakdown({
         }
     }
 
-    const baseChance = Math.max(
-        0,
-        skillVal + atkMod + modifier + aimBonusTotal + calledShotPen + coverPen + rangePen + intervPen + evasionMod
-    );
-
     const isDizzy = actor.statuses.has("dizzy");
     const isBlind = actor.statuses.has("blind");
-
-    let finalChance = baseChance;
+    const statusMod = (isDizzy ? -50 : 0) + (isBlind ? -50 : 0);
     const statusSteps = [];
 
     if (isDizzy) {
-        const before = finalChance;
-        finalChance = Math.floor(finalChance * 0.5);
         statusSteps.push({
             id: "dizzy",
-            label: "ГОЛОВОКРУЖЕНИЕ",
-            before,
-            after: finalChance
+            label: "\u0413\u041e\u041b\u041e\u0412\u041e\u041a\u0420\u0423\u0416\u0415\u041d\u0418\u0415",
+            modifier: -50
         });
     }
 
     if (isBlind) {
-        const before = finalChance;
-        finalChance = Math.floor(finalChance * 0.5);
         statusSteps.push({
             id: "blind",
-            label: "СЛЕПОТА",
-            before,
-            after: finalChance
+            label: "\u0421\u041b\u0415\u041f\u041e\u0422\u0410",
+            modifier: -50
         });
     }
 
-    finalChance = clampChance(finalChance);
+    const totalModifier = atkMod + modifier + aimBonusTotal + calledShotPen + coverPen + rangePen + intervPen + evasionMod + statusMod;
+    const difficulty = buildCombatDifficulty({ modifier: totalModifier });
+    const check = calcCombatCheckBands({
+        skill: skillVal,
+        difficulty: difficulty.total
+    });
+    const finalChance = check.successChance;
 
     return {
         skillType,
         distance,
         chance: finalChance,
-        baseChance,
-        targetName: targetToken?.name || "Нет цели",
+        baseChance: skillVal,
+        difficulty,
+        check,
+        targetName: targetToken?.name || "\u041d\u0435\u0442 \u0446\u0435\u043b\u0438",
         state: {
             outOfReach,
             blockedByCover,
@@ -134,7 +128,11 @@ export function calcChanceBreakdown({
             rangePen,
             intervPen,
             evasionMod,
+            statusMod,
+            totalModifier,
             statusSteps
         }
     };
 }
+
+export { calcCombatRollResult };

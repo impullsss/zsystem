@@ -265,3 +265,11 @@ Strong recommendation:
 
 - 2026-04-23: task expanded from a rough idea into an implementation-ready spec
 - 2026-04-23: scaled-difficulty model set as primary direction; plain subtraction kept only as balancing fallback
+- 2026-04-26: added a separate `skill vs difficulty` prototype in `check-model.js`; this may become the universal check model after simulation comparison
+- 2026-04-26: migrated social checks to the prototype model first; combat remains on the current chance model while simulator comparison continues
+- 2026-04-26: migrated standard actor-sheet skill rolls to the same model so medicine/science/mechanics/survival checks share the universal roll math
+- 2026-04-26: added standard skill difficulty presets: easy DC 40, normal DC 60, hard DC 80, dangerous DC 100
+- 2026-04-26: added live chance/DC/fail/fumble preview to standard skill roll dialogs
+- 2026-04-26: extracted standard skill checks into `ZSkillCheckDialog` and exposed `game.zsystem.openSkillCheck()`
+- 2026-04-26: added a left player HUD button for generic skill checks
+- 2026-04-27: migrated combat attacks to a combat-specific skill-vs-DC model with low-roll crit success, reduced high-skill fumble, and shared HUD/chat roll breakdown.
