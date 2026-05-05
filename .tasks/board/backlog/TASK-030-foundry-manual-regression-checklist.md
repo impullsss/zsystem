@@ -156,6 +156,41 @@ The user is intentionally not testing every new change right now. We need to kee
 - Ammo flow: multiple ammo types per calibre, reload picker, loaded ammo summary in weapon sheet.
 - Ballistics flow: ally on fire line, target behind target, burst into group, shot ammo wide cone, armor-piercing overpenetration.
 
+## Verified On 2026-05-05
+
+- Debug d100 works for quick roll testing.
+- Standard skill checks open, update values, and remain readable.
+- Social checks account for attitude and preset modifiers.
+- Normal attacks hit correctly.
+- Normal attacks can overpenetrate into a target behind the primary target.
+- Ordinary misses can wound a token standing before the intended target.
+- Crit fail works.
+- Crit-fail weapon wear works.
+- Crit-fail jam works and blocks the weapon.
+- Crit-fail noise works.
+- Reload ammo picker works for multiple ammo types.
+- Automatic rifle burst works at a basic level.
+- Shotgun slug can overpenetrate.
+- Trauma blocks appear and work at a basic level.
+- Vehicle movement works on a global-map scene.
+- Vehicle repair works.
+- Walker movement creates a travel report.
+
+## Feedback / Issues From 2026-05-05 Foundry Test
+
+- Add floating damage numbers above damaged tokens for better combat feedback.
+- Add a Foundry macro that fully heals HP and limbs for all selected tokens.
+- Actor sheet `Full Heal` can restore stale max values on the first click; make it two-phase so HP/AP/limbs use recalculated maximums.
+- Add a convenient unjam action for jammed weapons, probably 2 AP.
+- Burst fire needs a design pass: very large bursts can kill the primary target even on ordinary fail, while nearby cone targets may receive no damage.
+- Burst fire should probably be strong against everyone in the cone, with friendly-fire risk if allies stand in the spray.
+- Aiming cone visuals do not currently reflect weapon/ammo line width or burst cone angle, making the ballistic settings feel ineffective.
+- Shotgun slug/shot ammo changes affect ballistics, but the visible aiming cone does not clearly change.
+- Trauma should become interactive later: click a limb/status to inspect wound, treatment DC, and healing options.
+- Vehicle repair should allow selecting who repairs and rolling Mechanics.
+- Travel pace selector exists in scene configuration, but is not obvious in play.
+- Walker food/water/fatigue is currently a report in the travel chat, not an automatic spending/fatigue system.
+
 ## Trauma Checks
 
 - Serious torso ballistic wounds show a trauma block and can offer bleeding without prone spam.

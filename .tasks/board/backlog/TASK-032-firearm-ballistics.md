@@ -60,6 +60,22 @@ This should be developed as a separate calculation layer first, then integrated 
 - Burst fire rolls target selection per fired bullet: some bullets can hit the primary target, some can miss, and some can hit line/cone collateral.
 - Crit fail on burst can jam/interrupt the burst before all requested shots are fired.
 
+## 2026-05-05 Foundry Feedback
+
+- The visible green aiming cone is still the old generic targeting cone and does not visually react to `lineWidth`, `burstConeAngle`, slug, or shot.
+- `lineWidth` currently means "how close a token must be to the bullet line to count as line-risk"; it is not the cone width.
+- `burstConeAngle` currently feeds ballistic cone calculations, but the visual cone should be updated to match it.
+- Ammo should probably own most projectile-shape modifiers:
+  - slug / bullet: narrow line, smaller cone, higher penetration;
+  - shot / pellets: wider cone, lower penetration;
+  - automatic burst: weapon recoil/cone plus ammo spread.
+- Burst fire needs a redesign:
+  - ordinary success should spray bullets across valid cone targets, not only tunnel most bullets into the primary target;
+  - ordinary fail should not reliably kill the primary target, especially with huge `bullets` values;
+  - large bursts should be powerful but dangerous in crowds because allies in the cone/line can be hit;
+  - target selection should probably use a per-bullet distribution budget across primary, line-risk, cone targets, and air.
+- Add a convenient `Unjam / Разклинить` action for jammed weapons, likely 2 AP.
+
 ## Future Foundry Integration Steps
 
 - Convert Foundry tokens into simple ballistic points: `id`, `x`, `y`, `radius`, `armor`.
@@ -75,6 +91,8 @@ This should be developed as a separate calculation layer first, then integrated 
 - Ammo-level modifiers are now implemented as a first pass. Current presets: standard, armor-piercing, expansive, slug, shot, subsonic, homemade.
 - Ammo preset comparison now reports direct damage, effective armor, exit power, overpenetration, noise, and jam chance on fumble.
 - Decide whether overpenetration applies full damage, reduced damage, or a separate exit-wound formula.
+- Update aiming visuals so single shots show a narrow line/ribbon and bursts/shotguns show the actual calculated cone.
+- Consider moving projectile spread defaults from weapon to ammo profile, with weapon fields acting as fallback/recoil modifiers.
 
 ## Manual Foundry Checks Later
 

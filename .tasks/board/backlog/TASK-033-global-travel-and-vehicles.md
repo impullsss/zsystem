@@ -110,6 +110,19 @@ The campaign needs a layer between tactical scenes:
 - Run `npm run sim:travel` and compare walking / normal vehicle / cautious / forced scenarios.
 - Check that travel chat is readable in the sidebar.
 
+## Verified On 2026-05-05
+
+- Vehicle movement works on a global-map scene.
+- Basic vehicle repair works and restores structure using repair parts.
+- Walker movement creates a travel chat card.
+
+## Feedback / Issues From 2026-05-05 Foundry Test
+
+- Vehicle repair should let the GM choose who repairs.
+- Vehicle repair should roll Mechanics and use the result to determine repair quality, time, part cost, or failure.
+- Travel pace is currently selected from scene configuration, not from an obvious in-play control.
+- Walker food/water/fatigue is currently only reported in chat; automatic spending and fatigue application are still future work.
+
 ## Open Design Questions
 
 - Should global-map movement be exact drag distance, hex/region based, or route-node based?

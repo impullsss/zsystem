@@ -1079,16 +1079,6 @@ export class ZActor extends Actor {
   }
 
   async fullHeal() {
-    const updates = {
-      "system.resources.hp.value": this.system.resources.hp.max,
-      "system.resources.hp.penalty": 0,
-      "system.resources.ap.value": this.system.resources.ap.max,
-    };
-    if (this.system.limbs) {
-      for (const key of Object.keys(this.system.limbs)) {
-        updates[`system.limbs.${key}.value`] = this.system.limbs[key].max;
-      }
-    }
     const effectsToDelete = this.effects
       .filter((e) => {
         const isInjury = Object.values(INJURY_EFFECTS).some((ie) =>
@@ -1103,6 +1093,26 @@ export class ZActor extends Actor {
       .map((e) => e.id);
     if (effectsToDelete.length > 0)
       await this.deleteEmbeddedDocuments("ActiveEffect", effectsToDelete);
-    await this.update(updates);
+
+    const resetUpdates = {
+      "system.resources.hp.penalty": 0,
+    };
+    if (this.system.limbs) {
+      for (const key of Object.keys(this.system.limbs)) {
+        resetUpdates[`system.limbs.${key}.penalty`] = 0;
+      }
+    }
+    await this.update(resetUpdates);
+
+    const healUpdates = {
+      "system.resources.hp.value": this.system.resources.hp.max,
+      "system.resources.ap.value": this.system.resources.ap.max,
+    };
+    if (this.system.limbs) {
+      for (const key of Object.keys(this.system.limbs)) {
+        healUpdates[`system.limbs.${key}.value`] = this.system.limbs[key].max;
+      }
+    }
+    await this.update(healUpdates);
   }
 }
