@@ -30,7 +30,7 @@ export function classifySurvivalItem(item) {
     if (type === "food" || matchesAny(haystack, RESOURCE_KEYWORDS.food)) return SURVIVAL_RESOURCE_TYPES.food;
     if (category === "water" || matchesAny(haystack, RESOURCE_KEYWORDS.water)) return SURVIVAL_RESOURCE_TYPES.water;
     if (type === "medicine" || matchesAny(haystack, RESOURCE_KEYWORDS.medicine)) return SURVIVAL_RESOURCE_TYPES.medicine;
-    if (category === "tools" || matchesAny(haystack, RESOURCE_KEYWORDS.tools)) return SURVIVAL_RESOURCE_TYPES.tools;
+    if (["tools", "workshop"].includes(category) || matchesAny(haystack, RESOURCE_KEYWORDS.tools)) return SURVIVAL_RESOURCE_TYPES.tools;
     if (type === "materials" || matchesAny(haystack, RESOURCE_KEYWORDS.parts)) return SURVIVAL_RESOURCE_TYPES.parts;
     return null;
 }

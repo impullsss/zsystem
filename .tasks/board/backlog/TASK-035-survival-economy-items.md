@@ -59,34 +59,53 @@ Turn food, water, repair parts, tools, medicine, scavenging, and field maintenan
   - economy scenario reporting.
 - Added `npm run sim:economy`.
 - Added automated tests for resource math, scaling, repair reserves, and scavenging.
+- Added starter survival item blueprints in `src/module/survival-item-blueprints.js`.
+- Added `scripts/foundry-create-survival-items.js` macro to create real Foundry Item documents in the world.
+- Added `game.zsystem.survival` API:
+  - `createStarterItems`;
+  - `gather`;
+  - `camp`;
+  - `dirtyWaterRisk`;
+  - `weaponRepairPlan`;
+  - `weaponRepairAttempt`.
+- Added gathering/camp math in `src/module/survival-gathering.js`.
+- Added dirty water risk and food spoilage helpers.
+- Added weapon repair math in `src/module/survival-maintenance.js`.
+- Added actor method `repairWeapon(item)` and an inventory button for weapon repair.
 
-## Foundry Item Packs To Create Later
+## Starter Foundry Items
 
 - Food:
   - dry ration;
   - canned food;
   - fresh meat;
-  - spoiled food.
 - Water:
   - clean water;
   - dirty water;
-  - water canister.
 - Repair:
   - scrap;
   - repair parts;
-  - weapon parts;
-  - vehicle parts if generic parts become too broad.
 - Tools:
-  - improvised tools;
   - field toolkit;
-  - mechanic toolkit;
   - workshop kit.
 - Medicine:
   - bandage;
-  - splint;
-  - antiseptic;
   - medkit;
-  - surgical kit.
+
+## Foundry Checks Later
+
+- Run `scripts/foundry-create-survival-items.js` as a GM Script Macro.
+- Confirm folder `ZSystem Survival Economy` appears in the Items directory.
+- Confirm repeated macro runs do not duplicate items unless `replaceExisting: true` is used from console.
+- Drag food/water/parts/tools/medicine to an actor and confirm travel supply counting still works.
+- Damage a weapon, give actor repair parts and tools, press the wrench button in inventory, and confirm:
+  - a Mechanics-based repair chat card appears;
+  - parts are spent;
+  - weapon HP increases on success;
+  - jam clears on success/crit success.
+- Use `game.zsystem.survival.gather(...)` in console and confirm yields change by terrain/skills.
+- Use `game.zsystem.survival.camp(...)` in console and confirm food/water cost, fatigue recovery, danger chance, and expected yield are readable.
+- Use `game.zsystem.survival.dirtyWaterRisk(...)` and confirm boiling/survival skill reduce risk.
 
 ## Open Design Questions
 

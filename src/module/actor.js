@@ -7,6 +7,7 @@ import {
 import { applyDamage, applyBleeding, checkPanic, applyPanicStage } from "./actor-damage.js";
 import { useMedicine, applyMedicineLogic, reportHealing } from "./actor-medicine.js";
 import { buildAmmoSummary, findCompatibleAmmoItems, serializeAmmoForWeapon } from "./ammo-effects.js";
+import { repairActorWeapon } from "./survival-maintenance.js";
 
 export class ZActor extends Actor {
   async _onCreate(data, options, userId) {
@@ -1037,6 +1038,22 @@ export class ZActor extends Actor {
       speaker: ChatMessage.getSpeaker({ actor: this }),
       content: `<div class="z-chat-card"><b>${this.name}</b> разклинивает <b>${item.name}</b> (-${apCost} AP).</div>`,
     });
+  }
+
+  async repairWeapon(item, options = {}) {
+    const result = await repairActorWeapon(this, item, options);
+    if (!result) return ui.notifications.warn("Выберите оружие для ремонта.");
+    if (result.resultType === "blocked") {
+      return ui.notifications.warn("Нужны повреждённое оружие и ремонтные детали.");
+    }
+    ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this }),
+      content: `<div class="z-chat-card"><b>Ремонт оружия: ${item.name}</b><br/>
+        Результат: ${result.resultType} (${result.roll} vs DC ${result.dc})<br/>
+        Детали: -${result.partsSpent} · Прочность: ${result.hp} → ${result.hpAfter}
+      </div>`
+    });
+    return result;
   }
 
   async riseAsZombie() {

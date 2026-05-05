@@ -342,6 +342,12 @@ export class ZActorSheet extends ZBaseActorSheet {
       this.actor.unjamWeapon(item);
     });
 
+    html.find(".item-repair-weapon").click((ev) => {
+      const li = $(ev.currentTarget).parents(".item");
+      const item = this.actor.items.get(li.data("itemId"));
+      this.actor.repairWeapon(item, { partsToSpend: 1 });
+    });
+
     html.find(".full-heal-btn").click(async (ev) => {
       Dialog.confirm({
         title: "Полное исцеление",

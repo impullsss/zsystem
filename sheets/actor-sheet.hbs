@@ -446,6 +446,11 @@
                                     <span style="font-size:0.7em; color:#ef6c00; font-weight:bold;">2 AP</span>
                                 </a>
                             {{/if}}
+                            {{#if (eq item.type "weapon")}}
+                                <a class="item-repair-weapon" title="Ремонт оружия: 1 деталь, Механика">
+                                    <i class="fas fa-wrench" style="color:#795548;"></i>
+                                </a>
+                            {{/if}}
                             {{#if (and (eq item.type "weapon") item.system.ammoType)}}
     <div style="font-size: 0.7em; font-weight: bold; margin-right: 5px; color: {{#if (lt item.system.mag.value 1)}}red{{else}}#333{{/if}};">
         {{item.system.mag.value}} / {{item.system.mag.max}}

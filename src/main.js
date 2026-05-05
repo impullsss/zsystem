@@ -16,6 +16,9 @@ import { ZSystemActions } from "./module/actions.js";
 import { registerZSystemHandlebarsHelpers } from "./module/handlebars-helpers.js";
 import { initTravelSceneConfigHooks } from "./module/travel-scene-config.js";
 import { initTokenMovementHooks } from "./module/token-movement.js";
+import { createSurvivalStarterItems, getSurvivalItemData } from "./module/survival-item-blueprints.js";
+import { buildCampPlan, resolveDirtyWaterRisk, resolveGatheringAttempt } from "./module/survival-gathering.js";
+import { buildWeaponRepairPlan, resolveWeaponRepairAttempt } from "./module/survival-maintenance.js";
 
 
 Hooks.once("init", () => {
@@ -285,6 +288,16 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     console.log("ZSystem | Ready.");
+    game.zsystem = game.zsystem || {};
+    game.zsystem.survival = {
+      createStarterItems: createSurvivalStarterItems,
+      getItemData: getSurvivalItemData,
+      gather: resolveGatheringAttempt,
+      camp: buildCampPlan,
+      dirtyWaterRisk: resolveDirtyWaterRisk,
+      weaponRepairPlan: buildWeaponRepairPlan,
+      weaponRepairAttempt: resolveWeaponRepairAttempt
+    };
     PlayerHUD.init();
     StealthDetectionManager.initHooks();
     GMHandler.initHooks();
