@@ -32,10 +32,14 @@ const OUTCOME_TEXT = {
 
 const CRIT_FAIL_EFFECT_LABELS = {
     jam: "\u043a\u043b\u0438\u043d",
+    misfire: "\u043e\u0441\u0435\u0447\u043a\u0430",
     "durability-loss": "\u0438\u0437\u043d\u043e\u0441",
     "extra-noise": "\u0448\u0443\u043c",
+    "mag-drop": "\u043f\u043e\u0442\u0435\u0440\u044f \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0430",
     "off-balance": "\u043f\u043e\u0442\u0435\u0440\u044f \u0440\u0430\u0432\u043d\u043e\u0432\u0435\u0441\u0438\u044f",
     "weapon-drop": "\u0432\u044b\u043f\u0430\u0434\u0435\u043d\u0438\u0435 \u043e\u0440\u0443\u0436\u0438\u044f",
+    breakage: "\u043f\u043e\u043b\u043e\u043c\u043a\u0430",
+    "friendly-fire-risk": "\u0440\u0438\u0441\u043a \u0441\u043e\u044e\u0437\u043d\u0438\u043a\u0430",
     "bad-scatter": "\u043d\u0435\u0443\u0434\u0430\u0447\u043d\u044b\u0439 \u0440\u0430\u0437\u043b\u0451\u0442",
     "item-lost": "\u043f\u043e\u0442\u0435\u0440\u044f \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u0430"
 };
@@ -140,6 +144,9 @@ function buildCritFailButtons(outcome, triggered) {
             : "",
         outcome.itemUuid && triggered.has("durability-loss")
             ? `<button type="button" class="z-apply-weapon-wear" data-item-uuid="${escapeHtml(outcome.itemUuid)}" data-amount="1">\u0418\u0437\u043d\u043e\u0441 \u043e\u0440\u0443\u0436\u0438\u044f -1</button>`
+            : "",
+        outcome.itemUuid && triggered.has("breakage")
+            ? `<button type="button" class="z-apply-weapon-wear" data-item-uuid="${escapeHtml(outcome.itemUuid)}" data-amount="5">\u041f\u043e\u043b\u043e\u043c\u043a\u0430: \u043f\u0440\u043e\u0447\u043d\u043e\u0441\u0442\u044c -5</button>`
             : "",
         outcome.extraNoiseAmount > 0 && triggered.has("extra-noise")
             ? `<button type="button" class="z-apply-extra-noise" data-amount="${outcome.extraNoiseAmount}">\u041b\u0438\u0448\u043d\u0438\u0439 \u0448\u0443\u043c +${outcome.extraNoiseAmount}</button>`

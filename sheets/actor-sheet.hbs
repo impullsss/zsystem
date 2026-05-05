@@ -440,6 +440,12 @@
                                 <a class="item-use" title="Лечить"><i class="fas fa-heartbeat" style="color:#c62828;"></i></a>
                             {{/if}}
                             <!-- Кнопка Перезарядки (ЕСЛИ ЕСТЬ AMMO TYPE) -->
+                            {{#if (and (eq item.type "weapon") item.system.jammed)}}
+                                <a class="item-unjam" title="Разклинить оружие (2 AP)">
+                                    <i class="fas fa-tools" style="color:#ef6c00;"></i>
+                                    <span style="font-size:0.7em; color:#ef6c00; font-weight:bold;">2 AP</span>
+                                </a>
+                            {{/if}}
                             {{#if (and (eq item.type "weapon") item.system.ammoType)}}
     <div style="font-size: 0.7em; font-weight: bold; margin-right: 5px; color: {{#if (lt item.system.mag.value 1)}}red{{else}}#333{{/if}};">
         {{item.system.mag.value}} / {{item.system.mag.max}}

@@ -34,6 +34,8 @@ test("serious ballistic wound can suggest bleeding for torso", () => {
 
     assert.equal(trauma.enabled, true);
     assert.equal(trauma.severity, TRAUMA_SEVERITY.serious);
+    assert.equal(trauma.treatment.dc, 75);
+    assert.equal(trauma.treatment.medicine, 1);
     assert.deepEqual(trauma.effects.map((effect) => effect.key), ["bleeding"]);
     assert.match(buildTraumaHtml(trauma), /z-apply-trauma/);
     assert.match(buildTraumaHtml(trauma), /data-action="bleeding"/);
@@ -50,7 +52,8 @@ test("critical head hit suggests injury, bleeding and dizzy", () => {
     });
 
     assert.equal(trauma.severity, TRAUMA_SEVERITY.critical);
-    assert.deepEqual(trauma.effects.map((effect) => effect.key), ["injury", "bleeding", "dizzy"]);
+    assert.equal(trauma.treatment.dc, 95);
+    assert.deepEqual(trauma.effects.map((effect) => effect.key), ["injury", "bleeding", "dizzy", "blind"]);
 });
 
 test("light trauma is descriptive and has no mechanical buttons", () => {
@@ -64,6 +67,7 @@ test("light trauma is descriptive and has no mechanical buttons", () => {
 
     assert.equal(trauma.severity, TRAUMA_SEVERITY.light);
     assert.equal(trauma.effects.length, 0);
+    assert.equal(trauma.treatment.dc, 40);
     assert.match(buildTraumaHtml(trauma), /описательное/);
 });
 

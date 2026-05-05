@@ -107,3 +107,17 @@ Choose the first mechanic to actually enable, if any:
 - 2026-05-05: Added trauma mode/severity settings and trauma metrics to the balance simulator.
 - 2026-05-05: Added manual GM buttons for melee weapon drop, throwing scatter, and throwing item loss.
 - 2026-05-05: Added focused trauma simulator and grouped attack-chat details.
+- 2026-05-05: Expanded trauma records with treatment DC/time/resource notes and location-specific long-term risk text.
+- 2026-05-05: Critical head trauma can now suggest a manual blind-risk effect in addition to injury/bleeding/dizzy.
+- 2026-05-05: Expanded ranged crit-fail profile with misfire, magazine-drop note, weapon drop, breakage, and friendly-fire risk.
+
+## Next Trauma Pass
+
+- Add an interactive limb/status treatment UI:
+  - show trauma/injury details from the actor sheet;
+  - choose healer;
+  - roll Medicine vs trauma DC;
+  - spend medicine/splints/parts;
+  - reduce or remove injury effects on success.
+- Decide whether light trauma should create a tracked temporary condition or stay descriptive only.
+- Decide whether blind-risk should be a rare manual GM button or a table result with duration/severity.

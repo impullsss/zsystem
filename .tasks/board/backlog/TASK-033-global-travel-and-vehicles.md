@@ -137,3 +137,26 @@ The campaign needs a layer between tactical scenes:
 - Add optional auto-spend mode for walker food/water after the economy is agreed.
 - Add route-node/event-table support later.
 - Later: final UX placement, sheet polish, and region UI.
+
+## 2026-05-05 Repair Upgrade
+
+- Vehicle repair now has a Mechanics roll model.
+- The repair dialog can choose the mechanic from passengers / assigned character fallback.
+- The repair dialog can choose tool quality:
+  - no tools;
+  - improvised tools;
+  - basic kit;
+  - workshop.
+- Repair outcomes:
+  - crit success: better repair and fewer parts;
+  - success: normal repair;
+  - fail: spends one part with no repair;
+  - crit fail: spends parts, damages the vehicle, and can leave it broken.
+- Repair chat reports vehicle, mechanic, tools, roll vs DC, parts spent, final structure, and broken-state outcome.
+
+## Added Checks From Repair Upgrade
+
+- Put a low-Mechanics and high-Mechanics passenger into the vehicle, press repair, and confirm both can be selected.
+- Try repair with `Без инструментов` and `Мастерская`; workshop should feel noticeably safer.
+- Force or observe crit fail on vehicle repair and confirm the vehicle can lose structure / remain broken.
+- Future UX: show projected repair odds in the dialog before rolling.

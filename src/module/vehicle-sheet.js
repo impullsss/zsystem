@@ -1,5 +1,9 @@
 import { ZBaseActorSheet } from "./base-sheet.js";
-import { buildVehicleRepairPlan } from "./travel-rules.js";
+import {
+    VEHICLE_REPAIR_TOOLS,
+    buildVehicleRepairPlan,
+    resolveVehicleRepairAttempt
+} from "./travel-rules.js";
 
 export class ZVehicleSheet extends ZBaseActorSheet {
   static get defaultOptions() {
@@ -29,6 +33,8 @@ export class ZVehicleSheet extends ZBaseActorSheet {
     context.travelRange = getVehicleTravelRange(context.system);
     context.repairPartsAvailable = getVehicleRepairParts(this.actor);
     context.repairPerPart = 5;
+    context.repairCandidates = getVehicleRepairCandidates(this.actor, context.passengers);
+    context.repairTools = Object.values(VEHICLE_REPAIR_TOOLS);
     context.repairPreview = buildVehicleRepairPlan({
         hp: context.system?.resources?.hp?.value,
         hpMax: context.system?.resources?.hp?.max,
@@ -109,23 +115,39 @@ export class ZVehicleSheet extends ZBaseActorSheet {
           return;
       }
 
-      const requested = await promptRepairParts({ partsAvailable, suggested: preview.partsSpent });
-      if (!requested) return;
+      const repairInput = await promptRepairOptions({
+          partsAvailable,
+          suggested: preview.partsSpent,
+          candidates: getVehicleRepairCandidates(this.actor, getVehiclePassengers(system)),
+          tools: Object.values(VEHICLE_REPAIR_TOOLS)
+      });
+      if (!repairInput?.parts) return;
 
-      const plan = buildVehicleRepairPlan({
+      const repairer = repairInput.repairerId ? game.actors.get(repairInput.repairerId) : null;
+      const mechanicSkill = Number(repairer?.system?.skills?.mechanical?.value) || 0;
+      const roll = await new Roll("1d100").evaluate();
+      const plan = resolveVehicleRepairAttempt({
           hp: system?.resources?.hp?.value,
           hpMax: system?.resources?.hp?.max,
           broken: system?.broken,
           partsAvailable,
-          partsToSpend: requested,
-          repairPerPart: 5
+          partsToSpend: repairInput.parts,
+          repairPerPart: 5,
+          mechanicSkill,
+          tools: repairInput.tools,
+          roll: roll.total
       });
 
       if (plan.partsSpent <= 0) return;
       await spendVehicleRepairParts(this.actor, plan.partsSpent);
       await this.actor.update({
           "system.resources.hp.value": plan.hpAfter,
-          "system.broken": plan.clearsBroken ? false : Boolean(system?.broken)
+          "system.broken": plan.breaksVehicle ? true : plan.clearsBroken ? false : Boolean(system?.broken)
+      });
+
+      await ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+          content: buildVehicleRepairChatHtml({ vehicle: this.actor, repairer, plan })
       });
 
       ui.notifications.info(`Ремонт: -${plan.partsSpent} деталей, +${plan.repairedHp} прочности.`);
@@ -151,6 +173,21 @@ function getVehicleTravelRange(system) {
     const fuel = Number(system?.resources?.fuel?.value) || 0;
     const mpg = Number(system?.attributes?.mpg?.value) || 0;
     return Math.round(fuel * mpg);
+}
+
+function getVehicleRepairCandidates(vehicle, passengers = []) {
+    const actors = [...passengers];
+    const assigned = game.user?.character;
+    if (assigned && !actors.some((actor) => actor.id === assigned.id)) actors.unshift(assigned);
+    if (!actors.length) actors.push(vehicle);
+
+    return actors
+        .filter(Boolean)
+        .map((actor) => ({
+            id: actor.id,
+            name: actor.name,
+            skill: Number(actor.system?.skills?.mechanical?.value) || 0
+        }));
 }
 
 function getVehicleRepairParts(actor) {
@@ -212,4 +249,74 @@ function promptRepairParts({ partsAvailable, suggested }) {
             close: () => resolve(0)
         }).render(true);
     });
+}
+
+function promptRepairOptions({ partsAvailable, suggested, candidates = [], tools = [] }) {
+    return new Promise(resolve => {
+        const candidateOptions = candidates.map((actor) =>
+            `<option value="${actor.id}">${actor.name} - Механика ${actor.skill}</option>`
+        ).join("");
+        const toolOptions = tools.map((tool) =>
+            `<option value="${tool.id}" ${tool.id === "basic" ? "selected" : ""}>${tool.label} (${tool.modifier >= 0 ? "+" : ""}${tool.modifier})</option>`
+        ).join("");
+
+        new Dialog({
+            title: "Ремонт транспорта",
+            content: `
+                <p>Деталей в багажнике: <b>${partsAvailable}</b></p>
+                <div class="form-group">
+                    <label>Кто чинит</label>
+                    <select name="repairer">${candidateOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label>Инструменты</label>
+                    <select name="tools">${toolOptions}</select>
+                </div>
+                <p>1 деталь обычно восстанавливает 5 прочности. Бросок Механики решает качество ремонта.</p>
+                <input type="number" name="repair-parts" value="${Math.max(1, suggested)}" min="1" max="${partsAvailable}"/>
+            `,
+            buttons: {
+                repair: {
+                    label: "Ремонт",
+                    callback: html => {
+                        const value = Number(html.find('[name="repair-parts"]').val()) || 0;
+                        resolve({
+                            parts: Math.min(partsAvailable, Math.max(0, Math.floor(value))),
+                            repairerId: html.find('[name="repairer"]').val() || "",
+                            tools: html.find('[name="tools"]').val() || "basic"
+                        });
+                    }
+                },
+                cancel: {
+                    label: "Отмена",
+                    callback: () => resolve(null)
+                }
+            },
+            default: "repair",
+            close: () => resolve(null)
+        }).render(true);
+    });
+}
+
+function buildVehicleRepairChatHtml({ vehicle, repairer, plan }) {
+    return `
+        <div class="z-chat-card z-travel-card">
+            <div class="z-card-header z-travel-title">Ремонт транспорта</div>
+            <div class="z-travel-row"><span>Транспорт</span><b>${vehicle.name}</b></div>
+            <div class="z-travel-row"><span>Механик</span><b>${repairer?.name || "без механика"}</b></div>
+            <div class="z-travel-row"><span>Инструменты</span><b>${plan.check.tools.label}</b></div>
+            <div class="z-travel-row"><span>Проверка</span><b>${plan.roll} vs DC ${plan.check.dc} (${formatRepairResult(plan.resultType)})</b></div>
+            <div class="z-travel-row"><span>Детали</span><b>-${plan.partsSpent}</b></div>
+            <div class="z-travel-row"><span>Прочность</span><b>${plan.hpAfter}${plan.repairedHp ? ` (+${plan.repairedHp})` : ""}</b></div>
+            ${plan.breaksVehicle ? `<div class="z-travel-event z-travel-event--danger"><b>Крит. провал: транспорт снова неисправен.</b></div>` : ""}
+            ${plan.clearsBroken ? `<div class="z-travel-event z-travel-event--good"><b>Поломка устранена.</b></div>` : ""}
+        </div>`;
+}
+
+function formatRepairResult(resultType) {
+    if (resultType === "crit-success") return "крит. успех";
+    if (resultType === "success") return "успех";
+    if (resultType === "crit-fail") return "крит. провал";
+    if (resultType === "blocked") return "невозможно";
+    return "провал";
 }

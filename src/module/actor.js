@@ -1017,6 +1017,28 @@ export class ZActor extends Actor {
     });
   }
 
+  async unjamWeapon(item, { apCost = 2 } = {}) {
+    if (!item || item.type !== "weapon") {
+      return ui.notifications.warn("Выберите заклинившее оружие.");
+    }
+    if (!item.system?.jammed) {
+      return ui.notifications.info(`${item.name}: оружие не заклинило.`);
+    }
+
+    const currentAP = Number(this.system.resources?.ap?.value) || 0;
+    if (currentAP < apCost) {
+      return ui.notifications.warn(`Недостаточно AP для разклинивания (${apCost}).`);
+    }
+
+    await this.update({ "system.resources.ap.value": Math.max(0, currentAP - apCost) });
+    await item.update({ "system.jammed": false });
+
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this }),
+      content: `<div class="z-chat-card"><b>${this.name}</b> разклинивает <b>${item.name}</b> (-${apCost} AP).</div>`,
+    });
+  }
+
   async riseAsZombie() {
     if (this.type !== "survivor" && this.type !== "npc") return;
     const tokens = this.getActiveTokens();

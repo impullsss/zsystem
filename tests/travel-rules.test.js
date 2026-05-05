@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
     buildTravelChatHtml,
     buildTravelPlan,
+    buildVehicleRepairCheckPlan,
     buildVehicleRepairPlan,
     buildVehicleWearHtml,
     buildWalkerPressureHtml,
@@ -15,6 +16,7 @@ import {
     getVehicleOverload,
     measureTokenTravelDistance,
     resolveTravelEvent,
+    resolveVehicleRepairAttempt,
     resolveVehicleTravelWear,
     resolveWalkerTravelPressure,
     shouldBlockVehicleTravel,
@@ -316,6 +318,58 @@ test("vehicle repair plan spends only useful parts and can clear broken state", 
     assert.equal(brokenButFull.partsSpent, 1);
     assert.equal(brokenButFull.repairedHp, 0);
     assert.equal(brokenButFull.clearsBroken, true);
+});
+
+test("vehicle repair check uses mechanics skill and tools against vehicle condition", () => {
+    const noTools = buildVehicleRepairCheckPlan({
+        hp: 25,
+        hpMax: 100,
+        broken: true,
+        mechanicSkill: 60,
+        tools: "none"
+    });
+    const workshop = buildVehicleRepairCheckPlan({
+        hp: 25,
+        hpMax: 100,
+        broken: true,
+        mechanicSkill: 60,
+        tools: "workshop"
+    });
+
+    assert.equal(noTools.dc, 100);
+    assert.equal(noTools.effectiveSkill, 40);
+    assert.equal(workshop.effectiveSkill, 80);
+    assert.ok(workshop.successChance > noTools.successChance);
+});
+
+test("vehicle repair attempt applies crit success success fail and crit fail differently", () => {
+    const base = {
+        hp: 50,
+        hpMax: 100,
+        broken: true,
+        partsAvailable: 10,
+        partsToSpend: 6,
+        repairPerPart: 5,
+        mechanicSkill: 100,
+        tools: "workshop"
+    };
+
+    const crit = resolveVehicleRepairAttempt({ ...base, roll: 1 });
+    const success = resolveVehicleRepairAttempt({ ...base, roll: 40 });
+    const fail = resolveVehicleRepairAttempt({ ...base, mechanicSkill: 20, tools: "none", roll: 50 });
+    const fumble = resolveVehicleRepairAttempt({ ...base, mechanicSkill: 20, tools: "none", roll: 100 });
+
+    assert.equal(crit.resultType, "crit-success");
+    assert.ok(crit.partsSpent < success.partsSpent);
+    assert.ok(crit.repairedHp >= success.repairedHp);
+    assert.equal(success.resultType, "success");
+    assert.equal(success.clearsBroken, true);
+    assert.equal(fail.resultType, "fail");
+    assert.equal(fail.repairedHp, 0);
+    assert.equal(fail.partsSpent, 1);
+    assert.equal(fumble.resultType, "crit-fail");
+    assert.equal(fumble.breaksVehicle, true);
+    assert.ok(fumble.hpAfter < base.hp);
 });
 
 test("travel chat can include road event vehicle wear and walker pressure reports", () => {

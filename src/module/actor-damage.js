@@ -71,6 +71,7 @@ export async function applyDamage(actor, amount, type = "blunt", limb = "torso",
         }
 
         await actor.update(updateData);
+        showFloatingDamage(actor, dmg, { limb, type });
 
         const vig = actor.system.attributes?.vig?.value || 1;
         const deathThreshold = -(vig * 5);
@@ -107,6 +108,55 @@ export async function applyDamage(actor, amount, type = "blunt", limb = "torso",
     } else {
         ui.notifications.info(`${actor.name}: Урон поглощен броней!`);
         return null;
+    }
+}
+
+function showFloatingDamage(actor, amount, { limb = "torso", type = "blunt" } = {}) {
+    try {
+        if (!globalThis.canvas?.ready || !globalThis.PIXI || amount <= 0) return;
+
+        const token = actor.getActiveTokens?.()[0];
+        const layer = canvas.interface || canvas.stage;
+        const ticker = canvas.app?.ticker;
+        if (!token || !layer || !ticker) return;
+
+        const isTrueDamage = type === "true";
+        const color = isTrueDamage ? "#f8f1d4" : "#ff4d4d";
+        const text = new PIXI.Text(`-${amount}`, {
+            fontFamily: "Signika, Arial",
+            fontSize: 30,
+            fontWeight: "800",
+            fill: color,
+            stroke: "#120b0b",
+            strokeThickness: 5,
+            dropShadow: true,
+            dropShadowColor: "#000000",
+            dropShadowBlur: 4,
+            dropShadowDistance: 2
+        });
+        text.anchor.set(0.5);
+        text.x = token.center?.x ?? (token.x + token.w / 2);
+        text.y = (token.center?.y ?? (token.y + token.h / 2)) - (token.h / 2) - 12;
+        text.zIndex = 1000;
+        text.alpha = 1;
+        layer.addChild(text);
+
+        const duration = 950;
+        let elapsed = 0;
+        const tick = (delta) => {
+            elapsed += ticker.deltaMS || (16.67 * delta);
+            const t = Math.min(1, elapsed / duration);
+            text.y -= 0.55 * delta;
+            text.alpha = 1 - t;
+            text.scale.set(1 + (0.18 * Math.sin(t * Math.PI)));
+            if (t >= 1) {
+                ticker.remove(tick);
+                text.destroy();
+            }
+        };
+        ticker.add(tick);
+    } catch (error) {
+        console.warn("ZSystem | Floating damage failed", { actor: actor?.name, amount, limb, error });
     }
 }
 

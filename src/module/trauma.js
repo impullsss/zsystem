@@ -28,6 +28,39 @@ const SEVERITY_LABELS = {
     [TRAUMA_SEVERITY.critical]: "\u043a\u0440\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0442\u0440\u0430\u0432\u043c\u0430"
 };
 
+const TRAUMA_LOCATION_PROFILES = {
+    head: {
+        treatmentDcBonus: 10,
+        longTerm: "\u0440\u0438\u0441\u043a \u0441\u043e\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f, \u0441\u043b\u0435\u043f\u043e\u0442\u044b \u0438 \u043f\u0440\u043e\u0432\u0430\u043b\u043e\u0432 \u0412\u041e\u0421/\u0418\u041d\u0422"
+    },
+    torso: {
+        treatmentDcBonus: 10,
+        longTerm: "\u0440\u0438\u0441\u043a \u0432\u043d\u0443\u0442\u0440\u0435\u043d\u043d\u0435\u0433\u043e \u043a\u0440\u043e\u0432\u043e\u0442\u0435\u0447\u0435\u043d\u0438\u044f \u0438 \u0448\u0442\u0440\u0430\u0444\u0430 \u043a \u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044e"
+    },
+    lArm: {
+        treatmentDcBonus: 0,
+        longTerm: "\u0440\u0438\u0441\u043a \u0448\u0442\u0440\u0430\u0444\u0430 \u043a \u0430\u0442\u0430\u043a\u0430\u043c, \u0440\u0435\u043c\u043e\u043d\u0442\u0443 \u0438 \u0432\u0437\u043b\u043e\u043c\u0443"
+    },
+    rArm: {
+        treatmentDcBonus: 0,
+        longTerm: "\u0440\u0438\u0441\u043a \u0448\u0442\u0440\u0430\u0444\u0430 \u043a \u0430\u0442\u0430\u043a\u0430\u043c, \u0440\u0435\u043c\u043e\u043d\u0442\u0443 \u0438 \u0432\u0437\u043b\u043e\u043c\u0443"
+    },
+    lLeg: {
+        treatmentDcBonus: 0,
+        longTerm: "\u0440\u0438\u0441\u043a \u0445\u0440\u043e\u043c\u043e\u0442\u044b, \u043f\u0430\u0434\u0435\u043d\u0438\u044f \u0438 \u0448\u0442\u0440\u0430\u0444\u0430 \u043a \u0443\u043a\u043b\u043e\u043d\u0435\u043d\u0438\u044e"
+    },
+    rLeg: {
+        treatmentDcBonus: 0,
+        longTerm: "\u0440\u0438\u0441\u043a \u0445\u0440\u043e\u043c\u043e\u0442\u044b, \u043f\u0430\u0434\u0435\u043d\u0438\u044f \u0438 \u0448\u0442\u0440\u0430\u0444\u0430 \u043a \u0443\u043a\u043b\u043e\u043d\u0435\u043d\u0438\u044e"
+    }
+};
+
+const TRAUMA_TREATMENT_BY_SEVERITY = {
+    [TRAUMA_SEVERITY.light]: { dc: 40, time: "10\u043c", medicine: 0, parts: 0 },
+    [TRAUMA_SEVERITY.serious]: { dc: 60, time: "1\u0447", medicine: 1, parts: 0 },
+    [TRAUMA_SEVERITY.critical]: { dc: 80, time: "4\u0447", medicine: 2, parts: 1 }
+};
+
 export function resolveTraumaOutcome({
     damage = 0,
     maxHp = 1,
@@ -63,6 +96,7 @@ export function resolveTraumaOutcome({
         location,
         damageType
     });
+    const treatment = getTraumaTreatmentPlan({ severity, location, damageType });
 
     return {
         enabled: true,
@@ -77,7 +111,26 @@ export function resolveTraumaOutcome({
         damageType,
         targetUuid,
         targetName,
-        effects
+        effects,
+        treatment
+    };
+}
+
+export function getTraumaTreatmentPlan({ severity = TRAUMA_SEVERITY.light, location = "torso", damageType = "blunt" } = {}) {
+    const base = TRAUMA_TREATMENT_BY_SEVERITY[severity];
+    if (!base) return null;
+
+    const profile = TRAUMA_LOCATION_PROFILES[location] || TRAUMA_LOCATION_PROFILES.torso;
+    const damageBonus = BLEEDING_DAMAGE_TYPES.has(damageType) ? 5 : 0;
+
+    return {
+        skill: "medical",
+        skillLabel: "\u041c\u0435\u0434\u0438\u0446\u0438\u043d\u0430",
+        dc: base.dc + profile.treatmentDcBonus + damageBonus,
+        time: base.time,
+        medicine: base.medicine,
+        parts: base.parts,
+        longTerm: profile.longTerm
     };
 }
 
@@ -99,8 +152,24 @@ export function buildTraumaHtml(trauma, { mode = TRAUMA_MODE.manual } = {}) {
             <div class="z-trauma-row">
                 ${escapeHtml(trauma.targetName)} &middot; ${escapeHtml(trauma.locationLabel)} &middot; \u0443\u0440\u043e\u043d ${trauma.damage} &middot; \u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435 ${Math.round(trauma.pressure * 100)}%
             </div>
+            ${buildTreatmentHtml(trauma.treatment)}
             ${effectsHtml}
             <div class="z-trauma-muted">${modeNote}</div>
+        </div>
+    `;
+}
+
+function buildTreatmentHtml(treatment) {
+    if (!treatment) return "";
+    const resources = [
+        treatment.medicine > 0 ? `\u043c\u0435\u0434\u0438\u0446\u0438\u043d\u0430 x${treatment.medicine}` : "",
+        treatment.parts > 0 ? `\u0434\u0435\u0442\u0430\u043b\u0438/\u0448\u0438\u043d\u044b x${treatment.parts}` : ""
+    ].filter(Boolean).join(", ") || "\u0431\u0435\u0437 \u0440\u0430\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432";
+
+    return `
+        <div class="z-trauma-muted">
+            \u041b\u0435\u0447\u0435\u043d\u0438\u0435: ${escapeHtml(treatment.skillLabel)} DC ${treatment.dc}, ${escapeHtml(treatment.time)}, ${escapeHtml(resources)}.
+            <br>\u0414\u043e\u043b\u0433\u043e\u0441\u0440\u043e\u0447\u043d\u043e: ${escapeHtml(treatment.longTerm)}.
         </div>
     `;
 }
@@ -133,6 +202,15 @@ function buildTraumaEffects({ severity, location, damageType }) {
             label: "\u0413\u043e\u043b\u043e\u0432\u043e\u043a\u0440\u0443\u0436\u0435\u043d\u0438\u0435",
             action: "status",
             status: "dizzy"
+        });
+    }
+
+    if (isCritical && location === "head") {
+        effects.push({
+            key: "blind",
+            label: "\u0420\u0438\u0441\u043a \u0441\u043b\u0435\u043f\u043e\u0442\u044b",
+            action: "status",
+            status: "blind"
         });
     }
 

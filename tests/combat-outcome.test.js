@@ -40,11 +40,21 @@ test("combat outcome marks crit fail as danger", () => {
     assert.equal(outcome.extraNoiseAmount, 12);
     assert.match(html, /z-combat-outcome--danger/);
     assert.match(html, /\u043a\u043b\u0438\u043d/);
-    assert.deepEqual(outcome.critFailHint.triggeredEffects, ["jam", "durability-loss", "extra-noise"]);
+    assert.deepEqual(outcome.critFailHint.triggeredEffects, [
+        "jam",
+        "misfire",
+        "durability-loss",
+        "extra-noise",
+        "mag-drop",
+        "weapon-drop",
+        "breakage",
+        "friendly-fire-risk"
+    ]);
     assert.match(html, /сработало/);
     assert.match(html, /z-apply-weapon-jam/);
     assert.match(html, /z-apply-weapon-wear/);
     assert.match(html, /z-apply-extra-noise/);
+    assert.match(html, /z-apply-weapon-drop/);
     assert.match(html, /data-amount="12"/);
 });
 

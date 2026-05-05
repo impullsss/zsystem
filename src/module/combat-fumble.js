@@ -6,8 +6,13 @@ export const CRIT_FAIL_PROFILES = {
         label: "Ranged",
         effects: [
             { key: "jam", label: "Jam", chance: 0.5, amount: 1 },
+            { key: "misfire", label: "Misfire", chance: 0.25, amount: 1 },
             { key: "durability-loss", label: "Durability loss", chance: 1, amount: 1 },
-            { key: "extra-noise", label: "Extra noise", chance: 0.5, amount: 1 }
+            { key: "extra-noise", label: "Extra noise", chance: 0.5, amount: 1 },
+            { key: "mag-drop", label: "Magazine drop", chance: 0.15, amount: 1 },
+            { key: "weapon-drop", label: "Weapon drop", chance: 0.1, amount: 1 },
+            { key: "breakage", label: "Breakage", chance: 0.05, amount: 5 },
+            { key: "friendly-fire-risk", label: "Friendly fire risk", chance: 0.2, amount: 1 }
         ]
     },
     melee: {

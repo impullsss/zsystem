@@ -1,3 +1,5 @@
+import { calcSkillCheckBands, calcSkillCheckResult } from "./check-model.js";
+
 export const TRAVEL_ACTOR_TYPES = {
     vehicle: "vehicle",
     walker: "walker",
@@ -18,6 +20,13 @@ export const TRAVEL_MAINTENANCE_MODES = {
 export const TRAVEL_VEHICLE_STATES = {
     working: "working",
     broken: "broken"
+};
+
+export const VEHICLE_REPAIR_TOOLS = {
+    none: { id: "none", label: "\u0411\u0435\u0437 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432", modifier: -20 },
+    improvised: { id: "improvised", label: "\u041f\u043e\u0434\u0440\u0443\u0447\u043d\u044b\u0435", modifier: -10 },
+    basic: { id: "basic", label: "\u041d\u0430\u0431\u043e\u0440 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432", modifier: 0 },
+    workshop: { id: "workshop", label: "\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u043a\u0430\u044f", modifier: 20 }
 };
 
 export const TRAVEL_MOVEMENT_MODES = {
@@ -314,6 +323,131 @@ export function buildVehicleRepairPlan({
     };
 }
 
+export function buildVehicleRepairCheckPlan({
+    hp = 0,
+    hpMax = 0,
+    broken = false,
+    mechanicSkill = 0,
+    tools = "basic"
+} = {}) {
+    const safeHpMax = Math.max(1, Number(hpMax) || 1);
+    const safeHp = Math.min(safeHpMax, Math.max(0, Number(hp) || 0));
+    const hpRatio = safeHp / safeHpMax;
+    const isBroken = isTruthyFlag(broken);
+    const baseDc = hpRatio >= 0.75 ? 40 : hpRatio >= 0.4 ? 60 : 80;
+    const brokenDc = isBroken ? 20 : 0;
+    const dc = Math.min(120, baseDc + brokenDc);
+    const toolProfile = VEHICLE_REPAIR_TOOLS[tools] || VEHICLE_REPAIR_TOOLS.basic;
+    const effectiveSkill = Math.max(0, Number(mechanicSkill) + toolProfile.modifier);
+    const bands = calcSkillCheckBands({ skill: effectiveSkill, difficulty: dc });
+
+    return {
+        dc,
+        baseDc,
+        brokenDc,
+        mechanicSkill: Number(mechanicSkill) || 0,
+        effectiveSkill,
+        tools: toolProfile,
+        bands,
+        successChance: bands.successChance,
+        difficultyLabel: getVehicleRepairDifficultyLabel(dc)
+    };
+}
+
+export function resolveVehicleRepairAttempt({
+    hp = 0,
+    hpMax = 0,
+    broken = false,
+    partsAvailable = 0,
+    partsToSpend = 0,
+    repairPerPart = 5,
+    mechanicSkill = 0,
+    tools = "basic",
+    roll = null,
+    random = Math.random
+} = {}) {
+    const check = buildVehicleRepairCheckPlan({ hp, hpMax, broken, mechanicSkill, tools });
+    const d100 = roll ?? (Math.floor(random() * 100) + 1);
+    const resultType = calcSkillCheckResult(d100, {
+        skill: check.effectiveSkill,
+        difficulty: check.dc
+    });
+    const basePlan = buildVehicleRepairPlan({
+        hp,
+        hpMax,
+        broken,
+        partsAvailable,
+        partsToSpend,
+        repairPerPart
+    });
+
+    if (!basePlan.canRepair || basePlan.partsSpent <= 0) {
+        return {
+            ...basePlan,
+            check,
+            roll: d100,
+            resultType: "blocked",
+            applied: false,
+            hpAfter: basePlan.hpAfter
+        };
+    }
+
+    if (resultType === "crit-success") {
+        const partsSpent = Math.max(1, Math.ceil(basePlan.partsSpent * 0.75));
+        const repairedHp = Math.min(basePlan.hpMissing, Math.ceil(partsSpent * repairPerPart * 1.5));
+        return {
+            ...basePlan,
+            check,
+            roll: d100,
+            resultType,
+            partsSpent,
+            repairedHp,
+            hpAfter: Math.min(Math.max(1, Number(hpMax) || 1), (Number(hp) || 0) + repairedHp),
+            clearsBroken: isTruthyFlag(broken),
+            applied: true
+        };
+    }
+
+    if (resultType === "success") {
+        return {
+            ...basePlan,
+            check,
+            roll: d100,
+            resultType,
+            applied: true
+        };
+    }
+
+    if (resultType === "crit-fail") {
+        const partsSpent = Math.min(basePlan.partsSpent, Math.max(1, Math.ceil(basePlan.partsSpent * 0.5)));
+        const hpAfter = Math.max(0, (Number(hp) || 0) - Math.max(1, Math.round(repairPerPart / 2)));
+        return {
+            ...basePlan,
+            check,
+            roll: d100,
+            resultType,
+            partsSpent,
+            repairedHp: 0,
+            hpAfter,
+            clearsBroken: false,
+            breaksVehicle: true,
+            applied: true
+        };
+    }
+
+    return {
+        ...basePlan,
+        check,
+        roll: d100,
+        resultType,
+        partsSpent: Math.min(basePlan.partsSpent, 1),
+        repairedHp: 0,
+        hpAfter: Number(hp) || 0,
+        clearsBroken: false,
+        applied: true
+    };
+}
+
 export function getVehicleOverload({ cargoWeight = 0, cargoMax = 0 }) {
     const max = Math.max(0, Number(cargoMax) || 0);
     const weight = Math.max(0, Number(cargoWeight) || 0);
@@ -456,6 +590,13 @@ function getWalkerRiskLabel(chance) {
     if (chance >= 55) return "Тяжёлый переход";
     if (chance >= 25) return "Утомительно";
     return "Нормально";
+}
+
+function getVehicleRepairDifficultyLabel(dc) {
+    if (dc >= 100) return "\u0430\u0432\u0430\u0440\u0438\u0439\u043d\u044b\u0439";
+    if (dc >= 80) return "\u0442\u044f\u0436\u0451\u043b\u044b\u0439";
+    if (dc >= 60) return "\u0441\u0440\u0435\u0434\u043d\u0438\u0439";
+    return "\u043b\u0451\u0433\u043a\u0438\u0439";
 }
 
 function isTruthyFlag(value) {
