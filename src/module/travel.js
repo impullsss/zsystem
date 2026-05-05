@@ -1,5 +1,4 @@
 import {
-    buildTravelChatHtml,
     buildTravelPlan,
     measureTokenTravelDistance,
     resolveWalkerTravelPressure,
@@ -9,6 +8,7 @@ import {
     shouldBlockVehicleTravel,
     TRAVEL_ACTOR_TYPES
 } from "./travel-rules.js";
+import { buildTravelChatHtml } from "./travel-chat.js";
 import { classifySurvivalItem, countSurvivalResources } from "./survival-resources.js";
 
 export class TravelManager {

@@ -9,48 +9,20 @@ import { ZChat } from "./module/chat.js";
 import { GLOBAL_STATUSES, INJURY_EFFECTS } from "./module/constants.js";
 import { ZHarvestSheet } from "./module/harvest-sheet.js";
 import { ZVehicleSheet } from "./module/vehicle-sheet.js";
-import { TravelManager } from "./module/travel.js";
-import { PerkLogic } from "./module/perk-logic.js";
 import { PlayerHUD } from "./module/player-hud.js";
 import { StealthDetectionManager } from "./module/stealth.js";
 import { GMHandler } from "./module/gm-handler.js";
 import { ZSystemActions } from "./module/actions.js";
+import { registerZSystemHandlebarsHelpers } from "./module/handlebars-helpers.js";
+import { initTravelSceneConfigHooks } from "./module/travel-scene-config.js";
+import { initTokenMovementHooks } from "./module/token-movement.js";
 
 
 Hooks.once("init", () => {
   console.log("ZSystem | Initializing...");
   loadTemplates(["systems/zsystem/sheets/partials/project-card.hbs"]);
 
-  Handlebars.registerHelper("capitalize", (str) =>
-    typeof str === "string" ? str.charAt(0).toUpperCase() + str.slice(1) : ""
-  );
-  Handlebars.registerHelper("calculatePercentage", (value, max) =>
-    Math.min(
-      100,
-      Math.max(0, ((Number(value) || 0) / (Number(max) || 1)) * 100)
-    )
-  );
-  Handlebars.registerHelper("getLimbColor", (value, max) => {
-    const pct = Math.min(
-      1,
-      Math.max(0, (Number(value) || 0) / (Number(max) || 1))
-    );
-    const hue = Math.floor(120 * pct);
-    return `hsl(${hue}, 80%, 35%)`;
-  });
-
-  Handlebars.registerHelper("eq", (a, b) => a == b);
-  Handlebars.registerHelper("ne", (a, b) => a != b);
-  Handlebars.registerHelper("or", (a, b) => a || b);
-  Handlebars.registerHelper("and", (a, b) => a && b);
-  Handlebars.registerHelper("gt", (a, b) => a > b);
-  Handlebars.registerHelper("lt", (a, b) => a < b);
-  Handlebars.registerHelper("gte", (a, b) => a >= b);
-  Handlebars.registerHelper("mod", (a, b) => Number(a) % Number(b));
-  Handlebars.registerHelper("floor", (a) => Math.floor(Number(a)));
-  Handlebars.registerHelper("div", (a, b) => Number(a) / Number(b));
-  Handlebars.registerHelper("mult", (a, b) => Number(a) * Number(b));
-  Handlebars.registerHelper("sum", (a, b) => Number(a) + Number(b));
+  registerZSystemHandlebarsHelpers();
 
   game.settings.register("zsystem", "debugNoise", {
     name: "Debug: Визуализация Шума",
@@ -317,6 +289,8 @@ Hooks.once("ready", () => {
     StealthDetectionManager.initHooks();
     GMHandler.initHooks();
     ZSystemActions.initHooks();
+    initTravelSceneConfigHooks();
+    initTokenMovementHooks();
 });
 
 Hooks.on("updateCombat", async (combat, changed) => {
@@ -469,57 +443,6 @@ Hooks.on("updateToken", async (tokenDoc, changes, context, userId) => {
   }
 });
 
-Hooks.on("renderSceneConfig", (app, html, data) => {
-    // В V13 html приходит как DOM Element. Оборачиваем в jQuery.
-    const $html = $(html);
-    
-    const scene = app.document; 
-    if (!scene) return;
-
-    const isGlobal = scene.getFlag("zsystem", "isGlobalMap");
-    const travelTerrain = scene.getFlag("zsystem", "travelTerrain") || "normal";
-    const travelMovementMode = scene.getFlag("zsystem", "travelMovementMode") || "normal";
-    
-    const formGroup = `
-    <div class="form-group">
-        <label>Глобальная карта (Travel Mode)</label>
-        <div class="form-fields">
-            <input type="checkbox" name="flags.zsystem.isGlobalMap" ${isGlobal ? "checked" : ""}/>
-        </div>
-        <p class="notes">Если включено, движение токенов на сцене считается путешествием: транспорт тратит топливо, пешие токены получают отчёт по времени.</p>
-        <label>Местность путешествия</label>
-        <div class="form-fields">
-            <select name="flags.zsystem.travelTerrain">
-                <option value="road" ${travelTerrain === "road" ? "selected" : ""}>Дорога</option>
-                <option value="normal" ${travelTerrain === "normal" ? "selected" : ""}>Обычная местность</option>
-                <option value="rough" ${travelTerrain === "rough" ? "selected" : ""}>Пересечённая местность</option>
-                <option value="dangerous" ${travelTerrain === "dangerous" ? "selected" : ""}>Опасная зона</option>
-            </select>
-        </div>
-        <label>Темп путешествия</label>
-        <div class="form-fields">
-            <select name="flags.zsystem.travelMovementMode">
-                <option value="cautious" ${travelMovementMode === "cautious" ? "selected" : ""}>Осторожно</option>
-                <option value="normal" ${travelMovementMode === "normal" ? "selected" : ""}>Обычно</option>
-                <option value="forced" ${travelMovementMode === "forced" ? "selected" : ""}>Форсаж</option>
-            </select>
-        </div>
-    </div>`;
-    
-    // Ищем инпут внутри вкладки Grid
-    const gridInput = $html.find('select[name="grid.type"]');
-    
-    if (gridInput.length) {
-        gridInput.closest(".form-group").after(formGroup);
-    } else {
-        // Фоллбэк: кидаем в начало вкладки Grid, если не нашли селект
-        $html.find('div[data-tab="grid"]').prepend(formGroup);
-    }
-    
-    // Обновляем высоту окна
-    app.setPosition({height: "auto"});
-});
-
 Hooks.on("canvasReady", () => {
     // Если это игрок, принудительно снимаем выделение со всех токенов через 100мс
     if (!game.user.isGM) {
@@ -527,93 +450,6 @@ Hooks.on("canvasReady", () => {
             canvas.tokens.releaseAll();
         }, 100);
     }
-});
-
-Hooks.on("preUpdateToken", async (tokenDoc, changes, context, userId) => {
-    // 1. Проверка движения
-    if (changes.x === undefined && changes.y === undefined) return true;
-    
-    // 2. Инициатор (только свой токен)
-    if (game.user.id !== userId) return true;
-
-    const actor = tokenDoc.actor;
-    if (!actor) return true;
-
-    // --- ЛОГИКА ГЛОБАЛЬНОЙ КАРТЫ (ТРАНСПОРТ) ---
-    const scene = tokenDoc.parent;
-    const isGlobalMap = scene.getFlag("zsystem", "isGlobalMap");
-
-    if (isGlobalMap) {
-        // Если это глобальная карта — передаем управление TravelManager
-        // Он сам спишет топливо и вернет true/false (разрешить ли движение)
-        return await TravelManager.handleMovement(tokenDoc, changes);
-    }
-
-    // --- ЛОГИКА ТАКТИЧЕСКОГО БОЯ (AP) ---
-    
-    // 3. Проверка боя (AP расходуются только в бою)
-    const inCombat = tokenDoc.inCombat || (game.combat?.active && game.combat.combatants.some(c => c.tokenId === tokenDoc.id));
-    
-    // Если мы НЕ на глобальной карте и НЕ в бою — движение свободное
-    if (!inCombat) return true;
-
-    // 4. Расчет клеток для AP
-    const gridSize = canvas.dimensions.size; 
-    const dx = Math.abs((changes.x ?? tokenDoc.x) - tokenDoc.x);
-    const dy = Math.abs((changes.y ?? tokenDoc.y) - tokenDoc.y);
-    const squaresMoved = Math.max(Math.round(dx / gridSize), Math.round(dy / gridSize));
-
-    if (squaresMoved <= 0) return true;
-
-    // 5. РАСЧЕТ СТОИМОСТИ AP
-    let stepsCounter = actor.getFlag("zsystem", "turnSteps") || 0;
-    let totalAPCost = 0;
-
-    for (let i = 1; i <= squaresMoved; i++) {
-        stepsCounter++;
-        
-        let singleStepCost = 1;
-        if (actor.hasStatusEffect("prone")) singleStepCost += 1;
-        if (actor.hasStatusEffect("overburdened")) singleStepCost += 1;
-        if (actor.hasStatusEffect("stealth")) singleStepCost += 1;
-        if (actor.hasStatusEffect("injury-leg-lLeg")) singleStepCost += 1;
-        if (actor.hasStatusEffect("injury-leg-rLeg")) singleStepCost += 1;
-
-        try {
-            if (typeof PerkLogic !== "undefined") {
-                singleStepCost = PerkLogic.onGetStepCost(actor, singleStepCost, stepsCounter);
-            }
-        } catch (e) { console.error("PerkLogic Error:", e); }
-
-        totalAPCost += singleStepCost;
-    }
-
-    const currentAP = Number(actor.system.resources.ap?.value) || 0;
-
-    // 6. Проверка лимита AP
-    if (currentAP < totalAPCost) {
-        ui.notifications.warn(`Недостаточно AP! Нужно: ${totalAPCost}, есть: ${currentAP}`);
-        return false; // Блокируем ход
-    }
-
-    // 7. Списание AP
-    await actor.update({
-        "system.resources.ap.value": currentAP - totalAPCost,
-        "flags.zsystem.turnSteps": stepsCounter
-    });
-
-    // 8. Травма торса — каждый шаг наносит 1d5 урона
-    if (actor.hasStatusEffect("injury-torso")) {
-        const torsoRoll = new Roll("1d5");
-        await torsoRoll.evaluate();
-        await actor.applyDamage(torsoRoll.total, "true", "torso");
-        ChatMessage.create({
-            speaker: ChatMessage.getSpeaker({ actor }),
-            content: `<div style="color:#e74c3c;">ТРАВМА ТОРСА: движение наносит ${torsoRoll.total} урона</div>`
-        });
-    }
-
-    return true;
 });
 
 Hooks.on("createActiveEffect", async (effect, options, userId) => {

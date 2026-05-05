@@ -2,13 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    buildTravelChatHtml,
     buildTravelPlan,
     buildVehicleRepairCheckPlan,
     buildVehicleRepairPlan,
-    buildVehicleWearHtml,
-    buildWalkerPressureHtml,
-    buildWalkerSupplyHtml,
     formatTravelTime,
     getTravelActorType,
     getTravelEventChance,
@@ -24,6 +20,12 @@ import {
     shouldBlockVehicleTravel,
     TRAVEL_ACTOR_TYPES
 } from "../src/module/travel-rules.js";
+import {
+    buildTravelChatHtml,
+    buildVehicleWearHtml,
+    buildWalkerPressureHtml,
+    buildWalkerSupplyHtml
+} from "../src/module/travel-chat.js";
 
 test("travel actor type separates vehicles, walkers and unsupported actors", () => {
     assert.equal(getTravelActorType("vehicle"), TRAVEL_ACTOR_TYPES.vehicle);
