@@ -1,4 +1,5 @@
 import { calcSkillCheckBands, calcSkillCheckResult } from "./check-model.js";
+import { buildSupplySpendPlan, getSupplyFatiguePenalty } from "./survival-resources.js";
 
 export const TRAVEL_ACTOR_TYPES = {
     vehicle: "vehicle",
@@ -12,6 +13,12 @@ export const TRAVEL_EVENT_MODES = {
 };
 
 export const TRAVEL_MAINTENANCE_MODES = {
+    off: "off",
+    report: "report",
+    auto: "auto"
+};
+
+export const TRAVEL_SUPPLY_MODES = {
     off: "off",
     report: "report",
     auto: "auto"
@@ -289,6 +296,30 @@ export function resolveWalkerTravelPressure({ plan, vigor = 5, survival = 0 } = 
     };
 }
 
+export function resolveWalkerTravelSupplies({
+    pressure = null,
+    inventory = null,
+    supplyMode = TRAVEL_SUPPLY_MODES.report,
+    random = Math.random
+} = {}) {
+    if (!pressure || supplyMode === TRAVEL_SUPPLY_MODES.off) return null;
+
+    const supplyPlan = buildSupplySpendPlan({ pressure, inventory });
+    const shortagePenalty = getSupplyFatiguePenalty(supplyPlan);
+    const fatigueChance = Math.min(95, Math.max(0, (Number(pressure.fatigueChance) || 0) + shortagePenalty));
+    const fatigueTriggered = random() * 100 < fatigueChance;
+
+    return {
+        mode: supplyMode,
+        food: supplyPlan.food,
+        water: supplyPlan.water,
+        shortagePenalty,
+        fatigueChance,
+        fatigueTriggered,
+        applied: supplyMode === TRAVEL_SUPPLY_MODES.auto
+    };
+}
+
 export function buildVehicleRepairPlan({
     hp = 0,
     hpMax = 0,
@@ -508,6 +539,7 @@ export function buildTravelChatHtml(plan, event = null) {
             <div class="z-travel-row"><span>В пути</span><b>${plan.timeLabel}</b></div>
             ${buildTravelEventHtml(event)}
             ${buildWalkerPressureHtml(plan.walkerPressure)}
+            ${buildWalkerSupplyHtml(plan.walkerSupplies)}
             ${buildVehicleWearHtml(plan.vehicleWear)}
         </div>`;
 }
@@ -551,6 +583,20 @@ export function buildWalkerPressureHtml(pressure) {
             <span>Пеший переход</span>
             <b>${pressure.risk}</b>
             <small>Усталость: ${pressure.fatigueChance}% · вода: ~${pressure.waterUnits} · еда: ~${pressure.foodUnits} · отдых: ~${pressure.restHours}ч</small>
+        </div>`;
+}
+
+export function buildWalkerSupplyHtml(supplies) {
+    if (!supplies) return "";
+    const tone = supplies.food.covered && supplies.water.covered ? "good" : "warning";
+    const fatigue = supplies.applied
+        ? supplies.fatigueTriggered ? "усталость применена" : "усталость не сработала"
+        : "только отчёт";
+    return `
+        <div class="z-travel-event z-travel-event--${tone}">
+            <span>Припасы</span>
+            <b>Еда -${supplies.food.spent}/${supplies.food.required} · Вода -${supplies.water.spent}/${supplies.water.required}</b>
+            <small>Дефицит: еда ${supplies.food.shortage}, вода ${supplies.water.shortage} · шанс усталости ${supplies.fatigueChance}% · ${fatigue}</small>
         </div>`;
 }
 

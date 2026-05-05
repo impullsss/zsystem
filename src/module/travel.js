@@ -3,11 +3,13 @@ import {
     buildTravelPlan,
     measureTokenTravelDistance,
     resolveWalkerTravelPressure,
+    resolveWalkerTravelSupplies,
     resolveVehicleTravelWear,
     resolveTravelEvent,
     shouldBlockVehicleTravel,
     TRAVEL_ACTOR_TYPES
 } from "./travel-rules.js";
+import { classifySurvivalItem, countSurvivalResources } from "./survival-resources.js";
 
 export class TravelManager {
     static async handleMovement(tokenDoc, changes) {
@@ -67,6 +69,17 @@ export class TravelManager {
             vigor: actor.system?.attributes?.vig?.value,
             survival: actor.system?.skills?.survival?.value
         });
+        plan.walkerSupplies = resolveWalkerTravelSupplies({
+            pressure: plan.walkerPressure,
+            inventory: countSurvivalResources(actor.items ?? []),
+            supplyMode: getTravelSupplyMode()
+        });
+
+        if (plan.walkerSupplies?.applied) {
+            await spendActorSurvivalResource(actor, "food", plan.walkerSupplies.food.spent);
+            await spendActorSurvivalResource(actor, "water", plan.walkerSupplies.water.spent);
+            if (plan.walkerSupplies.fatigueTriggered) await actor.addFatigue?.(1);
+        }
 
         const travelEvent = resolveTravelEvent({
             actorType: actor.type,
@@ -108,5 +121,29 @@ function getTravelMaintenanceMode() {
         return game.settings.get("zsystem", "travelMaintenanceMode") || "off";
     } catch (_error) {
         return "off";
+    }
+}
+
+function getTravelSupplyMode() {
+    try {
+        return game.settings.get("zsystem", "travelSupplyMode") || "report";
+    } catch (_error) {
+        return "report";
+    }
+}
+
+async function spendActorSurvivalResource(actor, resourceType, amount) {
+    let remaining = Math.max(0, Number(amount) || 0);
+    if (remaining <= 0) return;
+
+    for (const item of actor.items ?? []) {
+        if (remaining <= 0) break;
+        if (classifySurvivalItem(item) !== resourceType) continue;
+
+        const quantity = Math.max(0, Number(item.system?.quantity) || 1);
+        const spent = Math.min(quantity, Math.ceil(remaining));
+        remaining -= spent;
+        if (quantity - spent <= 0) await item.delete();
+        else await item.update({ "system.quantity": quantity - spent });
     }
 }

@@ -13,7 +13,8 @@
     "sim:trauma": "node --experimental-default-type=module scripts/simulate-trauma.mjs",
     "sim:ammo": "node --experimental-default-type=module scripts/simulate-ammo.mjs",
     "sim:protection": "node --experimental-default-type=module scripts/simulate-protection.mjs",
-    "sim:travel": "node --experimental-default-type=module scripts/simulate-travel.mjs"
+    "sim:travel": "node --experimental-default-type=module scripts/simulate-travel.mjs",
+    "sim:economy": "node --experimental-default-type=module scripts/simulate-survival-economy.mjs"
   },
   "author": "impullsss",
   "license": "MIT",

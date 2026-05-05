@@ -160,3 +160,22 @@ The campaign needs a layer between tactical scenes:
 - Try repair with `Без инструментов` and `Мастерская`; workshop should feel noticeably safer.
 - Force or observe crit fail on vehicle repair and confirm the vehicle can lose structure / remain broken.
 - Future UX: show projected repair odds in the dialog before rolling.
+
+## 2026-05-05 Survival Economy Pass
+
+- Added a pure survival resource counter for food, water, repair parts, tools, and medicine.
+- Added optional walker supply modes:
+  - off;
+  - report;
+  - auto.
+- Report mode shows expected food/water spend and shortages in travel chat.
+- Auto mode spends matching actor items and can apply fatigue when food/water are missing.
+- Added a survival economy model for food, water, parts, tools, medicine, carry weight, barter value, repair reserves, and scavenge time.
+- Added `npm run sim:economy` to inspect loadouts and resource pressure before balancing Foundry item packs.
+
+## Added Checks From Survival Economy Pass
+
+- Create food and water items on a survivor, move on the global map, and confirm report mode shows supply needs without spending items.
+- Set travel supplies to auto, move a survivor, and confirm food/water stacks decrease.
+- Move with too little water/food and confirm travel chat reports deficit and higher fatigue chance.
+- Run `npm run sim:economy` after changing item values to ensure weight/value/scavenge pressure stays sane.

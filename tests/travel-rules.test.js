@@ -8,6 +8,7 @@ import {
     buildVehicleRepairPlan,
     buildVehicleWearHtml,
     buildWalkerPressureHtml,
+    buildWalkerSupplyHtml,
     formatTravelTime,
     getTravelActorType,
     getTravelEventChance,
@@ -19,6 +20,7 @@ import {
     resolveVehicleRepairAttempt,
     resolveVehicleTravelWear,
     resolveWalkerTravelPressure,
+    resolveWalkerTravelSupplies,
     shouldBlockVehicleTravel,
     TRAVEL_ACTOR_TYPES
 } from "../src/module/travel-rules.js";
@@ -281,6 +283,36 @@ test("walker travel pressure estimates fatigue and supplies without spending the
     assert.ok(hard.fatigueChance > easy.fatigueChance);
     assert.ok(hard.waterUnits > easy.waterUnits);
     assert.match(buildWalkerPressureHtml(hard), /Пеший переход/);
+});
+
+test("walker supplies can report shortages and increase fatigue risk", () => {
+    const supplies = resolveWalkerTravelSupplies({
+        pressure: { foodUnits: 2, waterUnits: 3, fatigueChance: 20 },
+        inventory: { food: 1, water: 5 },
+        supplyMode: "report",
+        random: () => 0.99
+    });
+
+    assert.equal(supplies.food.shortage, 1);
+    assert.equal(supplies.water.covered, true);
+    assert.equal(supplies.shortagePenalty, 10);
+    assert.equal(supplies.fatigueChance, 30);
+    assert.equal(supplies.applied, false);
+    assert.match(buildWalkerSupplyHtml(supplies), /Припасы/);
+});
+
+test("walker supplies auto mode can trigger fatigue when shortages are severe", () => {
+    const supplies = resolveWalkerTravelSupplies({
+        pressure: { foodUnits: 2, waterUnits: 3, fatigueChance: 60 },
+        inventory: { food: 0, water: 0 },
+        supplyMode: "auto",
+        random: () => 0
+    });
+
+    assert.equal(supplies.applied, true);
+    assert.equal(supplies.shortagePenalty, 35);
+    assert.equal(supplies.fatigueChance, 95);
+    assert.equal(supplies.fatigueTriggered, true);
 });
 
 test("vehicle repair plan spends only useful parts and can clear broken state", () => {

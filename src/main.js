@@ -213,6 +213,20 @@ Hooks.once("init", () => {
     default: "report"
   });
 
+  game.settings.register("zsystem", "travelSupplyMode", {
+    name: "Путешествия: еда, вода и усталость",
+    hint: "off = не считать, report = показывать расход еды/воды и риск усталости, auto = автоматически списывать припасы и применять усталость.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      off: "Выкл.",
+      report: "Только отчёт",
+      auto: "Авто-расход и усталость"
+    },
+    default: "report"
+  });
+
   game.settings.register("zsystem", "traumaMode", {
     name: "\u0422\u0440\u0430\u0432\u043c\u044b: \u0440\u0435\u0436\u0438\u043c \u043e\u0442\u0447\u0451\u0442\u0430",
     hint: "off = \u043d\u0435 \u043f\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0442\u044c, report = \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u0442\u0447\u0451\u0442, manual = \u043e\u0442\u0447\u0451\u0442 \u0438 GM-\u043a\u043d\u043e\u043f\u043a\u0438 \u043f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432\u0438\u0439.",
